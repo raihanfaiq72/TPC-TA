@@ -1,0 +1,103 @@
+info:
+  name: Lihat Ikan
+  type: http
+  seq: 1
+  tags:
+    - sandbox
+    - ikan
+http:
+  method: GET
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/ikan"
+  headers:
+    - name: Accept
+      value: application/json
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.kolam.id
+      operator: isNumber
+    - expression: res.body.ringkasan.jumlah_total
+      operator: isNumber
+    - expression: res.body.ikan
+      operator: isArray
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Lihat Ikan
+
+  Mengambil ringkasan populasi dan daftar seluruh ikan pada satu kolam.
+  Ringkasan dihitung dari data `ikans` terkini.
+
+  Gunakan **Buat Kolam** terlebih dahulu atau isi `kolamId` di environment.
+  Data contoh C07 tersedia setelah `php artisan migrate --seed`.
+
+  ## Request
+
+  ```http
+  GET {{baseUrl}}/api/kolam/{{kolamId}}/ikan
+  Accept: application/json
+  ```
+
+  ## Response 200
+
+  ```json
+  {
+    "kolam": {
+      "id": 4,
+      "kode": "C07",
+      "nama": "Kolam C07 — Lele Sangkuriang",
+      "volume_air_m3": 9,
+      "waktu_sandbox_sekarang": "2026-11-08T14:00:00.000000Z"
+    },
+    "ringkasan": {
+      "jumlah_total": 12,
+      "jumlah_hidup": 11,
+      "jumlah_mati": 1,
+      "biomassa_hidup_g": 976.4,
+      "bobot_rata_hidup_g": 88.764,
+      "stres_rata_hidup": 8.82
+    },
+    "ikan": [
+      {
+        "id": 37,
+        "kolam_id": 4,
+        "kode": "C07-001",
+        "faktor_genetik": 1.05,
+        "preferensi_zona": 0.72,
+        "bobot_awal_g": 1.2,
+        "panjang_awal_cm": 3.5,
+        "bobot_g": 91.4,
+        "panjang_cm": 18.1,
+        "zona_id": 7,
+        "isi_lambung_persen": 22,
+        "stres": 6,
+        "status": "hidup",
+        "tanggal_mati": null,
+        "penyebab_mati": null,
+        "hari_tick_atas": 17,
+        "hari_tick_bawah": 7,
+        "hari_sum_suhu": 672,
+        "hari_sum_ph": 173.28,
+        "hari_sum_do": 86.4,
+        "hari_sum_amonia": 8.4,
+        "hari_pakan_g": 78.5,
+        "zona": { "id": 7, "nama": "atas" }
+      }
+    ]
+  }
+  ```
+
+  Contoh `ikan` di atas dipersingkat; response sebenarnya memuat seluruh
+  ikan pada kolam. Field akumulator `hari_*` dipakai oleh
+  **Proses Harian Ikan** dan akan direset setelah proses selesai.
+
+  ## Response 404
+
+  ```json
+  { "message": "Kolam tidak ditemukan." }
+  ```

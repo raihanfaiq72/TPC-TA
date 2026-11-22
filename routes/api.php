@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\IkanController;
 use App\Http\Controllers\Api\KolamController;
 use App\Http\Controllers\Api\LingkunganController;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +30,15 @@ Route::middleware('throttle:30,1')->group(function () {
             Route::post('/tick', 'tick')->whereNumber('kolamId')->name('tick');
             Route::post('/amonia', 'amonia')->whereNumber('kolamId')->name('amonia');
             Route::post('/sisa-pakan', 'sisaPakan')->whereNumber('kolamId')->name('sisaPakan');
+        });
+
+    Route::prefix('kolam/{kolamId}/ikan')
+        ->name('api.kolam.ikan.')
+        ->controller(IkanController::class)
+        ->group(function () {
+            Route::get('/', 'show')->whereNumber('kolamId')->name('show');
+            Route::post('/gerak', 'gerakIkan')->whereNumber('kolamId')->name('gerak');
+            Route::post('/proses-harian', 'prosesHarianIkan')->whereNumber('kolamId')->name('prosesHarian');
         });
 
     // Alias

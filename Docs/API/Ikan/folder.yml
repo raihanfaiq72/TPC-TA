@@ -1,0 +1,76 @@
+info:
+  name: Ikan
+  type: folder
+  seq: 3
+  tags:
+    - sandbox
+    - ikan
+request:
+  headers:
+    - name: Accept
+      value: application/json
+docs:
+  content: |
+    # Ikan
+
+    Endpoint modul ikan untuk melihat kondisi populasi, menjalankan
+    pergerakan per tick, dan memproses pertumbuhan harian.
+
+    - `GET /api/kolam/{kolamId}/ikan` — ringkasan dan daftar ikan
+    - `POST /api/kolam/{kolamId}/ikan/gerak` — gerak ikan + akumulasi paparan
+    - `POST /api/kolam/{kolamId}/ikan/proses-harian` — pertumbuhan, stres,
+      kematian, log harian, dan reset akumulator
+
+    ## Prasyarat config
+
+    Request `gerak` dan `proses-harian` membutuhkan `config/sandbox.php`:
+
+    ```php
+    return [
+        'tick_menit' => 10,
+
+        'ikan' => [
+            'kapasitas_lambung_bobot' => 0.035,
+            'jam_lambung_kosong' => 8,
+            'peluang_pindah_tick' => 0.30,
+            'bonus_naik_dekat_pakan' => 0.35,
+            'bonus_naik_lapar' => 0.20,
+            'bonus_naik_do_bawah_rendah' => 0.50,
+            'ambang_do_bawah' => 3.0,
+            'penalti_naik_suhu_atas' => 0.20,
+            'ambang_suhu_atas' => 31.0,
+            'kebutuhan_pakan_harian' => 0.05,
+            'sgr_ref' => 7.0,
+            'bobot_ref_g' => 8.0,
+            'sgr_eksponen' => 0.30,
+            'pemulihan_stres_per_hari' => 5.0,
+            'peluang_mati_dasar' => 0.0003,
+            'peluang_mati_stres_maks' => 0.02,
+            'ambang_stres_mati' => 70,
+            'peluang_kanibal' => 0.003,
+            'rasio_ukuran_kanibal' => 0.6,
+        ],
+
+        'lingkungan' => [
+            'amonia_dari_bangkai' => 0.01,
+        ],
+    ];
+    ```
+
+    Nilai di atas mengikuti `config/sandbox.php` saat ini. Tanpa
+    `sandbox.ikan`, API mengembalikan `503` dengan pesan
+    `Konfigurasi sandbox.ikan belum tersedia.`
+
+    ## Alur pengujian
+
+    1. `GET /api/kolam/{kolamId}/ikan` untuk melihat kondisi awal.
+    2. Jalankan `POST .../ikan/gerak` beberapa kali (misalnya 6 kali untuk
+       satu jam virtual) agar akumulator paparan terisi.
+    3. Jalankan `POST .../ikan/proses-harian` dengan tanggal yang baru
+       selesai. Log harian dibuat untuk ikan yang memiliki tick paparan.
+    4. Lihat kembali `GET .../ikan` untuk membandingkan bobot, panjang,
+       stres, dan jumlah ikan hidup.
+
+    `proses-harian` mereset `hari_tick_atas`, `hari_tick_bawah`,
+    `hari_sum_*`, dan `hari_pakan_g` setelah selesai.
+  type: text/markdown

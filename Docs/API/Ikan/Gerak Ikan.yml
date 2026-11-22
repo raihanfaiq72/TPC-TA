@@ -1,0 +1,133 @@
+info:
+  name: Gerak Ikan
+  type: http
+  seq: 2
+  tags:
+    - sandbox
+    - ikan
+http:
+  method: POST
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/ikan/gerak"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Accept
+      value: application/json
+  body:
+    type: json
+    data: |
+      {
+        "waktu": "2026-11-08 14:00:00"
+      }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.kolam.id
+      operator: isNumber
+    - expression: res.body.ringkasan.jumlah_hidup
+      operator: isNumber
+    - expression: res.body.ikan
+      operator: isArray
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Gerak Ikan
+
+  Menjalankan satu langkah pergerakan ikan pada waktu virtual tertentu.
+  Untuk setiap ikan hidup:
+
+  - peluang pindah dihitung dari `preferensi_zona`, bonus pakan, rasa
+    lapar, kondisi DO bawah, dan penalti suhu atas;
+  - `isi_lambung_persen` berkurang sesuai `jam_lambung_kosong` dan
+    `tick_menit`;
+  - akumulator `hari_tick_atas` / `hari_tick_bawah` dan `hari_sum_*`
+    ditambah sesuai kondisi zona yang sedang ditempati.
+
+  Jalankan request ini beberapa kali sebelum **Proses Harian Ikan** agar
+  ikan memiliki tick paparan. Tanpa tick, proses harian tidak membuat
+  log pertumbuhan untuk ikan tersebut.
+
+  ## Request
+
+  ```http
+  POST {{baseUrl}}/api/kolam/{{kolamId}}/ikan/gerak
+  Content-Type: application/json
+  Accept: application/json
+
+  {
+    "waktu": "2026-11-08 14:00:00"
+  }
+  ```
+
+  | Field | Tipe | Wajib | Keterangan |
+  |---|---|---|---|
+  | waktu | date | ya | Waktu virtual tick, format `YYYY-MM-DD HH:mm:ss` |
+
+  Waktu contoh berada di dalam skenario `aerator_mati` C07
+  (`2026-11-08 12:00`–`15:00`).
+
+  ## Response 200
+
+  Response mengikuti bentuk **Lihat Ikan**:
+
+  ```json
+  {
+    "kolam": {
+      "id": 4,
+      "kode": "C07",
+      "volume_air_m3": 9
+    },
+    "ringkasan": {
+      "jumlah_total": 12,
+      "jumlah_hidup": 11,
+      "jumlah_mati": 1,
+      "biomassa_hidup_g": 976.4,
+      "bobot_rata_hidup_g": 88.764,
+      "stres_rata_hidup": 8.82
+    },
+    "ikan": [
+      {
+        "id": 37,
+        "kode": "C07-001",
+        "zona_id": 7,
+        "isi_lambung_persen": 5.33,
+        "hari_tick_atas": 18,
+        "hari_tick_bawah": 7,
+        "hari_sum_suhu": 700.6,
+        "status": "hidup",
+        "zona": { "id": 7, "nama": "atas" }
+      }
+    ]
+  }
+  ```
+
+  Angka di atas hanya ilustrasi; pergerakan dan akumulator bersifat acak
+  serta bergantung pada kondisi zona dan config.
+
+  ## Response 503
+
+  ```json
+  { "message": "Konfigurasi sandbox.ikan belum tersedia." }
+  ```
+
+  ## Response 404
+
+  ```json
+  { "message": "Kolam tidak ditemukan." }
+  ```
+
+  ## Response 422
+
+  ```json
+  {
+    "message": "The waktu field is required.",
+    "errors": {
+      "waktu": ["The waktu field is required."]
+    }
+  }
+  ```

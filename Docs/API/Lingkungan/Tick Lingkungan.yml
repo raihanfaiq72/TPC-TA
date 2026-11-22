@@ -57,32 +57,32 @@ docs: |
 
   ```php
   return [
-      'tick_menit' => 60,
+      'tick_menit' => 10,
 
       'lingkungan' => [
-          'puncak_suhu_jam' => 14,
-          'suhu_relaksasi_per_tick' => 0.25,
-          'do_jenuh_ref' => 8.5,
-          'do_jenuh_per_derajat' => 0.2,
-          'rea_atas_per_hari' => 2.0,
-          'rea_bawah_per_hari' => 1.0,
+          'puncak_suhu_jam' => 15,
+          'suhu_relaksasi_per_tick' => 0.20,
+          'do_jenuh_ref' => 9.1,
+          'do_jenuh_per_derajat' => 0.14,
+          'rea_atas_per_hari' => 8.0,
+          'rea_bawah_per_hari' => 3.0,
           'resp_koef_suhu' => 0.05,
-          'resp_per_kg_m3_jam' => 0.01,
-          'busuk_do_per_g_m3_jam' => 0.001,
-          'sisa_pakan_peluruhan_tick' => 0.1,
-          'amonia_hilang_per_hari' => 0.2,
-          'amonia_dari_sisa_busuk' => 0.01,
+          'resp_per_kg_m3_jam' => 0.03,
+          'busuk_do_per_g_m3_jam' => 0.002,
+          'sisa_pakan_peluruhan_tick' => 0.01,
+          'amonia_hilang_per_hari' => 0.40,
+          'amonia_dari_sisa_busuk' => 0.005,
           'sisa_pakan_mengendap_tick' => 0.05,
-          'campur_antar_zona' => 0.1,
+          'campur_antar_zona' => 0.02,
           'ph_turun_per_ppm_amonia' => 0.33,
-          'ph_relaksasi_per_tick' => 0.25,
+          'ph_relaksasi_per_tick' => 0.05,
+          'amonia_dari_bangkai' => 0.01,
       ],
   ];
   ```
 
-  Nilai di atas hanya contoh struktur agar request dapat dijalankan;
-  wajib diganti dengan hasil kalibrasi penelitian. Tanpa config API
-  mengembalikan `503`.
+  Nilai di atas mengikuti `config/sandbox.php` saat ini. Tanpa config
+  API mengembalikan `503`.
 
   ## Request
 

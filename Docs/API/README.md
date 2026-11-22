@@ -21,12 +21,17 @@ Docs/API/
 │   ├── Show Kolam.yml          # GET /api/kolam/{id}
 │   ├── create-kolam.yml        # POST /api/kolam
 │   └── Hapus Kolam.yml         # DELETE /api/kolam/{id}
-└── Lingkungan/
-    ├── folder.yml              # metadata folder
-    ├── Lihat Lingkungan.yml    # GET /api/kolam/{id}/lingkungan
-    ├── Tick Lingkungan.yml     # POST /api/kolam/{id}/lingkungan/tick
-    ├── Tambah Amonia.yml       # POST /api/kolam/{id}/lingkungan/amonia
-    └── Tambah Sisa Pakan.yml   # POST /api/kolam/{id}/lingkungan/sisa-pakan
+├── Lingkungan/
+│   ├── folder.yml              # metadata folder
+│   ├── Lihat Lingkungan.yml    # GET /api/kolam/{id}/lingkungan
+│   ├── Tick Lingkungan.yml     # POST /api/kolam/{id}/lingkungan/tick
+│   ├── Tambah Amonia.yml       # POST /api/kolam/{id}/lingkungan/amonia
+│   └── Tambah Sisa Pakan.yml   # POST /api/kolam/{id}/lingkungan/sisa-pakan
+└── Ikan/
+    ├── folder.yml              # metadata folder + config
+    ├── Lihat Ikan.yml          # GET /api/kolam/{id}/ikan
+    ├── Gerak Ikan.yml          # POST /api/kolam/{id}/ikan/gerak
+    └── Proses Harian Ikan.yml  # POST /api/kolam/{id}/ikan/proses-harian
 ```
 
 ## Cara membuka
@@ -39,6 +44,8 @@ Docs/API/
 6. Jalankan `Buat Kolam`; variable `kolamId` otomatis terisi dari response.
 7. Buka folder `Lingkungan` → `Lihat Lingkungan` → `Tambah Amonia` /
    `Tambah Sisa Pakan` → `Tick Lingkungan`.
+8. Buka folder `Ikan` → `Lihat Ikan` → `Gerak Ikan` (beberapa kali) →
+   `Proses Harian Ikan`.
 
 Kalau `baseUrl` berbeda, ubah di:
 
@@ -65,6 +72,9 @@ variables:
 | POST | `/api/kolam/{id}/lingkungan/tick` | Tick Lingkungan | Jalankan satu langkah simulasi lingkungan |
 | POST | `/api/kolam/{id}/lingkungan/amonia` | Tambah Amonia | Tambah beban amonia ke semua zona |
 | POST | `/api/kolam/{id}/lingkungan/sisa-pakan` | Tambah Sisa Pakan | Tambah sisa pakan ke zona atas |
+| GET | `/api/kolam/{id}/ikan` | Lihat Ikan | Ringkasan populasi + daftar ikan |
+| POST | `/api/kolam/{id}/ikan/gerak` | Gerak Ikan | Pergerakan zona, pengosongan lambung, akumulasi paparan |
+| POST | `/api/kolam/{id}/ikan/proses-harian` | Proses Harian Ikan | Pertumbuhan, stres, kematian, log harian, reset |
 
 API otomatis memakai prefix `/api` dari `bootstrap/app.php`. Alias lama
 `/api/sandbox/kolam` masih tersedia agar koleksi sebelumnya tetap jalan.
@@ -91,6 +101,13 @@ API otomatis memakai prefix `/api` dari `bootstrap/app.php`. Alias lama
   `amonia_asli` berupa number.
 - **Tambah Sisa Pakan** menambahkan `gram` ke zona atas dan memeriksa
   `sisa_pakan_g` berupa number.
+- **Lihat Ikan** menampilkan `ringkasan` populasi dan array `ikan`
+  beserta relasi `zona`.
+- **Gerak Ikan** menjalankan satu tick pergerakan dan memeriksa
+  `ringkasan.jumlah_hidup` serta array `ikan`.
+- **Proses Harian Ikan** memproses pertumbuhan/kematian dan reset
+  akumulator; assertion memeriksa `ringkasan.jumlah_total` dan array
+  `ikan`.
 - **Hapus Kolam** memakai `{{kolamId}}` dan menampilkan response `200`,
   `404`, atau `409` bila data turunan masih menghalangi penghapusan.
 
@@ -99,7 +116,7 @@ API otomatis memakai prefix `/api` dari `bootstrap/app.php`. Alias lama
 1. Buka collection **SmartAqua API**.
 2. Buka tab/menu **Docs** pada collection.
 3. Bruno akan merangkum deskripsi dari blok `docs:` pada tiap request
-   (Ping, Kolam, dan Lingkungan).
+   (Ping, Kolam, Lingkungan, dan Ikan).
 4. Gunakan **Publish / Export Docs** di Bruno untuk membagikan dokumentasi.
 
 
@@ -126,3 +143,10 @@ variable `token` di environment `Local`.
 tersebut API mengembalikan `503` dengan pesan
 `Konfigurasi sandbox.lingkungan belum tersedia.` Request **Lihat Lingkungan**,
 **Tambah Amonia**, dan **Tambah Sisa Pakan** tetap dapat dipakai tanpa config.
+
+**Catatan Ikan:** request **Gerak Ikan** dan **Proses Harian Ikan**
+membutuhkan `config/sandbox.php` dengan key `tick_menit` dan `ikan`. Tanpa
+config tersebut API mengembalikan `503` dengan pesan
+`Konfigurasi sandbox.ikan belum tersedia.` Request **Lihat Ikan** tetap dapat
+dipakai tanpa config. Jalankan **Gerak Ikan** minimal sekali sebelum
+**Proses Harian Ikan** agar ikan memiliki tick paparan.
