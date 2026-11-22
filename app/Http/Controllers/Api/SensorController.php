@@ -155,6 +155,33 @@ class SensorController extends Controller
         ]);
     }
 
+    public function updateStatus(Request $request, int $kolamId, int $perangkatId): JsonResponse
+    {
+        $data = $request->validate([
+            'status' => ['required', 'string', 'in:aktif,mati'],
+        ]);
+
+        $perangkat = Perangkat::query()
+            ->where('kolam_id', $kolamId)
+            ->whereKey($perangkatId)
+            ->first();
+
+        if (! $perangkat instanceof Perangkat) {
+            return response()->json([
+                'message' => 'Perangkat tidak ditemukan.',
+            ], 404);
+        }
+
+        $perangkat->update(['status' => $data['status']]);
+
+        return response()->json([
+            'message' => $data['status'] === 'aktif'
+                ? 'Sensor berhasil diaktifkan.'
+                : 'Sensor berhasil dimatikan.',
+            'perangkat' => $perangkat->fresh(),
+        ]);
+    }
+
     public function terbaru(int $id): JsonResponse
     {
         $rows = Perangkat::query()

@@ -14,7 +14,7 @@ Route::get('/ping', fn () => response()->json([
     'app' => config('app.name'),
 ]));
 
-Route::middleware('throttle:30,1')->group(function () {
+Route::middleware('throttle:600,1')->group(function () {
 
     Route::prefix('kolam')
         ->name('api.kolam.')
@@ -69,6 +69,9 @@ Route::middleware('throttle:30,1')->group(function () {
             Route::post('/baca', 'bacaSemuaSensor')->whereNumber('kolamId')->name('baca');
             Route::get('/terbaru', 'terbaru')->whereNumber('kolamId')->name('terbaru');
             Route::get('/riwayat', 'riwayat')->whereNumber('kolamId')->name('riwayat');
+            Route::patch('/{perangkatId}', 'updateStatus')
+                ->whereNumber(['kolamId', 'perangkatId'])
+                ->name('status');
         });
 
     Route::prefix('kolam/{id}/simulasi')

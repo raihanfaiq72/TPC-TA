@@ -39,10 +39,11 @@ docs:
     | POST | `/kolam/{id}/sensor/baca` | Baca sensor yang jatuh tempo |
     | GET | `/kolam/{id}/sensor/terbaru` | Pembacaan terakhir tiap perangkat |
     | GET | `/kolam/{id}/sensor/riwayat` | Riwayat pembacaan sensor |
+    | PATCH | `/kolam/{id}/sensor/{perangkatId}` | Aktifkan/matikan sensor |
 
     ## Autentikasi
 
-    Endpoint sandbox saat ini publik dengan throttle 30 request/menit.
+    Endpoint sandbox saat ini publik dengan throttle 600 request/menit.
     Setelah Sanctum dipasang, tambahkan `auth:sanctum` pada route dan isi
     variable `token` di environment.
   type: text/markdown

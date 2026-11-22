@@ -35,6 +35,13 @@ class PakanController extends Controller
             return;
         }
 
+        $ikan = Ikan::query()
+            ->where('kolam_id', $kolamId)
+            ->where('status', 'hidup')
+            ->get(['id', 'bobot_g', 'isi_lambung_persen', 'hari_pakan_g']);
+
+        $kapasitasLambung = (float) config('sandbox.ikan.kapasitas_lambung_bobot', 0.035);
+
         $jadwal = JadwalPakan::query()
             ->where('kolam_id', $kolamId)
             ->where('aktif', true)
@@ -77,7 +84,36 @@ class PakanController extends Controller
                 continue;
             }
 
-            $zonaAtas->keadaanZona->increment('sisa_pakan_g', round($jumlah, 3));
+            $dimakan = 0.0;
+
+            if ($kapasitasLambung > 0) {
+                foreach ($ikan as $itemIkan) {
+                    $bobot = (float) $itemIkan->bobot_g;
+                    $kapasitas = $kapasitasLambung * $bobot;
+
+                    if ($kapasitas <= 0) {
+                        continue;
+                    }
+
+                    $bagian = $jumlah * ($bobot / $biomassa);
+                    $isiSekarang = ((float) $itemIkan->isi_lambung_persen / 100) * $kapasitas;
+                    $masuk = min($bagian, max(0.0, $kapasitas - $isiSekarang));
+
+                    if ($masuk <= 0) {
+                        continue;
+                    }
+
+                    $itemIkan->update([
+                        'isi_lambung_persen' => min(100.0, (($isiSekarang + $masuk) / $kapasitas) * 100),
+                        'hari_pakan_g' => (float) $itemIkan->hari_pakan_g + $masuk,
+                    ]);
+
+                    $dimakan += $masuk;
+                }
+            }
+
+            $sisa = max(0.0, $jumlah - $dimakan);
+            $zonaAtas->keadaanZona->increment('sisa_pakan_g', round($sisa, 3));
 
             LogPakan::query()->create([
                 'kolam_id' => $kolamId,

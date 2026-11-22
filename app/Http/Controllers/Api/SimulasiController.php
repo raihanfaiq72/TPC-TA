@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Ikan;
 use App\Models\KeadaanZona;
 use App\Models\Kolam;
+use App\Models\LogPakan;
 use App\Models\ZonaKolam;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -17,14 +19,25 @@ class SimulasiController extends Controller
         private LingkunganController $lingkungan,
         private PakanController $pakan,
         private IkanController $ikan,
+        private SensorController $sensor,
+        private AnalisisController $analisis,
     ) {}
 
     /**
-     * Menjalankan satu tick simulasi.
+     * Menjalankan satu atau beberapa tick simulasi.
+     *
+     * Body opsional:
+     *   { "menit": 600 } // 10 jam / 60 tick pada tick_menit=10
+     *
+     * Jumlah tick dibatasi config sandbox.maks_tick_per_eksekusi.
      */
-    public function tick(int $id): JsonResponse
+    public function tick(Request $request, int $id): JsonResponse
     {
-        return DB::transaction(function () use ($id): JsonResponse {
+        $data = $request->validate([
+            'menit' => ['sometimes', 'integer', 'min:1'],
+        ]);
+
+        return DB::transaction(function () use ($id, $data): JsonResponse {
             $kolam = Kolam::query()
                 ->lockForUpdate()
                 ->find($id);
@@ -35,7 +48,7 @@ class SimulasiController extends Controller
                 ], 404);
             }
 
-            $waktuSebelum = Carbon::parse($kolam->waktu_sandbox_sekarang);
+            $waktuAwal = Carbon::parse($kolam->waktu_sandbox_sekarang);
             $tickMenit = (int) config('sandbox.tick_menit');
 
             if ($tickMenit <= 0) {
@@ -44,40 +57,77 @@ class SimulasiController extends Controller
                 ], 500);
             }
 
-            $waktuTick = $waktuSebelum->format('Y-m-d H:i:s');
-            $waktuBerikutnya = $waktuSebelum->copy()->addMinutes($tickMenit);
+            $menitDiminta = (int) ($data['menit'] ?? $tickMenit);
+            $tickDiminta = (int) ceil($menitDiminta / $tickMenit);
+            $maksTick = max(1, (int) config('sandbox.maks_tick_per_eksekusi', 720));
+            $jumlahTick = min($tickDiminta, $maksTick);
 
-            // 1. Perbarui kondisi lingkungan.
-            $this->lingkungan->perbarui($id, $waktuTick);
+            $waktuSekarang = $waktuAwal->copy();
+            $prosesHarian = false;
+            $jumlahAlert = 0;
 
-            // 2. Jalankan jadwal pemberian pakan.
-            $this->pakan->jalankanJadwal($id, $waktuTick);
+            for ($i = 0; $i < $jumlahTick; $i++) {
+                $waktuTick = $waktuSekarang->format('Y-m-d H:i:s');
+                $waktuBerikutnya = $waktuSekarang->copy()->addMinutes($tickMenit);
 
-            // 3. Pergerakan ikan dan akumulasi paparan.
-            $this->ikan->gerak($id, $waktuTick);
+                // 1. Perbarui kondisi lingkungan.
+                $this->lingkungan->perbarui($id, $waktuTick);
 
-            // 4. Jika tanggal virtual berganti, proses hari yang selesai.
-            $hariBerganti = $waktuSebelum->toDateString()
-                !== $waktuBerikutnya->toDateString();
+                // 2. Jalankan jadwal pemberian pakan.
+                $this->pakan->jalankanJadwal($id, $waktuTick);
 
-            if ($hariBerganti) {
-                $this->ikan->prosesHarian(
-                    $id,
-                    $waktuSebelum->toDateString(),
-                );
+                // 3. Baca sensor dan evaluasi alert dari pembacaan baru.
+                $this->sensor->bacaSemua($id, $waktuTick);
+                $jumlahAlert += $this->analisis->evaluasiAlert($id, $waktuTick);
+
+                // 4. Pergerakan ikan dan akumulasi paparan.
+                $this->ikan->gerak($id, $waktuTick);
+
+                // 5. Jika tanggal virtual berganti, proses hari yang selesai.
+                $hariBerganti = $waktuSekarang->toDateString()
+                    !== $waktuBerikutnya->toDateString();
+
+                if ($hariBerganti) {
+                    $this->ikan->prosesHarian(
+                        $id,
+                        $waktuSekarang->toDateString(),
+                    );
+
+                    // Evaluasi rekomendasi panen mengikuti pertumbuhan harian.
+                    $this->analisis->rekomendasiPanen(
+                        $id,
+                        $waktuBerikutnya->format('Y-m-d H:i:s'),
+                    );
+
+                    $prosesHarian = true;
+                }
+
+                $waktuSekarang = $waktuBerikutnya;
             }
 
-            // 5. Simpan waktu virtual berikutnya.
+            // 6. Simpan waktu virtual paling akhir sekali saja.
             $kolam->update([
-                'waktu_sandbox_sekarang' => $waktuBerikutnya,
+                'waktu_sandbox_sekarang' => $waktuSekarang,
             ]);
+
+            $pakan = LogPakan::query()
+                ->where('kolam_id', $id)
+                ->where('waktu', '>=', $waktuAwal)
+                ->where('waktu', '<', $waktuSekarang)
+                ->get(['jumlah_g']);
 
             return response()->json([
                 'message' => 'Tick simulasi berhasil dijalankan',
-                'waktu_sebelum' => $waktuTick,
-                'waktu_sekarang' => $waktuBerikutnya->format('Y-m-d H:i:s'),
+                'waktu_sebelum' => $waktuAwal->format('Y-m-d H:i:s'),
+                'waktu_sekarang' => $waktuSekarang->format('Y-m-d H:i:s'),
+                'menit_dijalankan' => $jumlahTick * $tickMenit,
+                'tick_dijalankan' => $jumlahTick,
                 'tick_menit' => $tickMenit,
-                'proses_harian' => $hariBerganti,
+                'selesai' => $jumlahTick >= $tickDiminta,
+                'proses_harian' => $prosesHarian,
+                'pakan_kejadian' => $pakan->count(),
+                'pakan_g' => round((float) $pakan->sum('jumlah_g'), 2),
+                'alert_baru' => $jumlahAlert,
             ]);
         });
     }

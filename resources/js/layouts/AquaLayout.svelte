@@ -16,6 +16,19 @@
     const auth = $derived(page.props.auth);
     const initials = $derived(getInitials(auth?.user?.name) || 'SA');
 
+    type AlertRow = {
+        waktu: string;
+        zona: string | null;
+        parameter: string;
+        nilai: number;
+        tingkat: string;
+        status: string;
+    };
+
+    let alerts = $state<AlertRow[]>([]);
+    let alertOpen = $state(false);
+    let alertLoading = $state(false);
+
     const PAGES: Record<string, [string, string]> = {
         '/dashboard': ['Beranda', 'Semua kolam kamu hari ini'],
         '/catat': ['Catat timbang', 'Isi 3 kolom, sisanya otomatis'],
@@ -42,6 +55,55 @@
             : (PAGES[path] ?? ['SmartAqua', 'Bantuan panen lele']),
     );
 
+    const pondId = $derived.by(() => {
+        const match = path.match(/^\/kolam\/(\d+)/);
+
+        return match ? Number(match[1]) : null;
+    });
+
+    const unreadAlerts = $derived(
+        alerts.filter((alert) => alert.status === 'baru').length,
+    );
+
+    async function loadAlerts(id: number): Promise<void> {
+        alertLoading = true;
+
+        try {
+            const response = await fetch(`/api/kolam/${id}/alert`, {
+                headers: { Accept: 'application/json' },
+            });
+
+            if (!response.ok) {
+                alerts = [];
+                return;
+            }
+
+            const rows = (await response.json()) as AlertRow[];
+            alerts = rows.filter((alert) => alert.tingkat !== 'aman').slice(0, 20);
+        } catch {
+            alerts = [];
+        } finally {
+            alertLoading = false;
+        }
+    }
+
+    $effect(() => {
+        if (pondId === null) {
+            alerts = [];
+            return;
+        }
+
+        void loadAlerts(pondId);
+        const timer = setInterval(() => void loadAlerts(pondId), 30000);
+        const refresh = (): void => void loadAlerts(pondId);
+        window.addEventListener('aqua:refresh-alerts', refresh);
+
+        return () => {
+            clearInterval(timer);
+            window.removeEventListener('aqua:refresh-alerts', refresh);
+        };
+    });
+
     function isActive(href: string): boolean {
         return path === href;
     }
@@ -52,6 +114,7 @@
 
     function handleKeydown(event: KeyboardEvent): void {
         if (event.key === 'Escape') {
+            alertOpen = false;
             closeHelp();
         }
     }
@@ -180,18 +243,54 @@
                     >
                     Bantuan
                 </button>
-                <button
-                    class="icon-btn"
-                    aria-label="Notifikasi"
-                    onclick={() => say('Tidak ada pesan baru')}
-                >
-                    <svg viewBox="0 0 24 24"
-                        ><path
-                            d="M18 15.5V11a6 6 0 1 0-12 0v4.5L4.5 18h15L18 15.5Z"
-                        /><path d="M10 20.5a2 2 0 0 0 4 0" /></svg
+                <div class="alert-menu-wrap">
+                    <button
+                        class="icon-btn"
+                        aria-label={`Notifikasi${unreadAlerts > 0 ? ` (${unreadAlerts} baru)` : ''}`}
+                        aria-expanded={alertOpen}
+                        onclick={() => {
+                            alertOpen = !alertOpen;
+                            if (alertOpen && pondId !== null) void loadAlerts(pondId);
+                        }}
                     >
-                    <span class="dot"></span>
-                </button>
+                        <svg viewBox="0 0 24 24"
+                            ><path
+                                d="M18 15.5V11a6 6 0 1 0-12 0v4.5L4.5 18h15L18 15.5Z"
+                            /><path d="M10 20.5a2 2 0 0 0 4 0" /></svg
+                        >
+                        {#if unreadAlerts > 0}<span class="dot"></span>{/if}
+                    </button>
+                    {#if alertOpen}
+                        <div class="alert-menu">
+                            <div class="alert-menu-head">
+                                <div>
+                                    <b>Peringatan kolam</b>
+                                    <small>{unreadAlerts} belum ditangani</small>
+                                </div>
+                                <span class="alert-menu-count">{alerts.length}</span>
+                            </div>
+                            {#if alertLoading}
+                                <div class="alert-empty">Memuat alert...</div>
+                            {:else if alerts.length === 0}
+                                <div class="alert-empty">Tidak ada peringatan aktif.</div>
+                            {:else}
+                                {#each alerts.slice(0, 8) as alert}
+                                    <button class="alert-row {alert.tingkat}" onclick={() => say(`Alert ${alert.parameter} · ${alert.tingkat}`)}>
+                                        <span class="alert-status"></span>
+                                        <span class="alert-copy">
+                                            <b>{alert.parameter.toUpperCase()} · {alert.zona ?? 'kolam'}</b>
+                                            <small>{alert.waktu} · nilai {alert.nilai}</small>
+                                        </span>
+                                        <em>{alert.tingkat}</em>
+                                    </button>
+                                {/each}
+                            {/if}
+                            <Link class="alert-menu-foot" href={pondId ? `/kolam/${pondId}` : '/kolam'}>
+                                Buka detail kolam →
+                            </Link>
+                        </div>
+                    {/if}
+                </div>
                 <button class="icon-btn" aria-label="Keluar" onclick={logout}>
                     <svg viewBox="0 0 24 24"
                         ><path d="M14.5 12H4.5" /><path d="m8.5 8-4 4 4 4" /><path
