@@ -1,0 +1,93 @@
+info:
+  name: Riwayat Pembacaan
+  type: http
+  seq: 3
+  tags:
+    - sandbox
+    - sensor
+http:
+  method: GET
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/sensor/riwayat"
+  params:
+    - name: parameter
+      value: do
+      type: query
+      enabled: true
+    - name: zona
+      value: atas
+      type: query
+      enabled: true
+    - name: dari
+      value: "2026-11-08"
+      type: query
+      enabled: true
+    - name: sampai
+      value: "2026-11-09"
+      type: query
+      enabled: true
+  headers:
+    - name: Accept
+      value: application/json
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: isArray
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Riwayat Pembacaan
+
+  Mengambil riwayat pembacaan satu parameter, dengan filter zona dan rentang
+  waktu opsional. Maksimal **5000** baris, diurutkan dari `waktu_ukur`
+  paling lama.
+
+  ## Request
+
+  ```http
+  GET {{baseUrl}}/api/kolam/{{kolamId}}/sensor/riwayat?parameter=do&zona=atas&dari=2026-11-08&sampai=2026-11-09
+  Accept: application/json
+  ```
+
+  | Query | Tipe | Wajib | Keterangan |
+  |---|---|---|---|
+  | parameter | string | tidak | Default `suhu`; contoh `do`, `ph`, `amonia`, `suhu`, `level` |
+  | zona | string | tidak | `atas`/`bawah`; kosong = semua zona |
+  | dari | date | tidak | Batas bawah `waktu_ukur` (inklusif) |
+  | sampai | date | tidak | Batas atas `waktu_ukur` (eksklusif) |
+
+  ## Response 200
+
+  ```json
+  [
+    {
+      "waktu_ukur": "2026-11-08 06:00:00",
+      "zona": "atas",
+      "parameter": "do",
+      "nilai": 4.8,
+      "kualitas_data": "normal"
+    },
+    {
+      "waktu_ukur": "2026-11-08 10:00:00",
+      "zona": "atas",
+      "parameter": "do",
+      "nilai": 3.6,
+      "kualitas_data": "normal"
+    },
+    {
+      "waktu_ukur": "2026-11-08 12:30:00",
+      "zona": "atas",
+      "parameter": "do",
+      "nilai": 18.9,
+      "kualitas_data": "outlier"
+    }
+  ]
+  ```
+
+  `sampai=2026-11-09` berarti data sebelum pukul 00:00 tanggal tersebut.
+  Gunakan `sampai=2026-11-10` bila ingin memasukkan seluruh 2026-11-09.

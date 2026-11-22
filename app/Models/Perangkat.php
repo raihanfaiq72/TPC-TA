@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 /**
@@ -78,6 +79,14 @@ class Perangkat extends Model
     public function pembacaanSensors(): HasMany
     {
         return $this->hasMany(PembacaanSensor::class);
+    }
+
+    /**
+     * @return HasOne<PembacaanSensor, $this>
+     */
+    public function pembacaanTerbaru(): HasOne
+    {
+        return $this->hasOne(PembacaanSensor::class)->latestOfMany();
     }
 
     /**

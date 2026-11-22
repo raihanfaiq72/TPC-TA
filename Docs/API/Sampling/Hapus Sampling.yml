@@ -1,0 +1,54 @@
+info:
+  name: Hapus Sampling
+  type: http
+  seq: 6
+  tags:
+    - sandbox
+    - sampling
+http:
+  method: DELETE
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/sampling/{{samplingId}}"
+  headers:
+    - name: Accept
+      value: application/json
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.message
+      operator: isString
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Hapus Sampling
+
+  Menghapus satu record sampling milik kolam.
+
+  Rekomendasi panen yang sudah pernah dibuat **tidak ikut dihapus**; record
+  rekomendasi tetap menjadi riwayat evaluasi sebelumnya.
+
+  ## Request
+
+  ```http
+  DELETE {{baseUrl}}/api/kolam/{{kolamId}}/sampling/{{samplingId}}
+  Accept: application/json
+  ```
+
+  ## Response 200
+
+  ```json
+  {
+    "message": "Data sampling berhasil dihapus",
+    "catatan": "Rekomendasi panen yang sudah tersimpan tetap menjadi riwayat evaluasi sebelumnya."
+  }
+  ```
+
+  ## Response 404
+
+  ```json
+  { "message": "Data sampling tidak ditemukan" }
+  ```

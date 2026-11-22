@@ -35,12 +35,21 @@ Docs/API/
 ├── Sampling/
 │   ├── folder.yml              # metadata + status implementasi
 │   ├── Ambil Sampel.yml        # GET /api/kolam/{id}/sampel
-│   └── Simpan Sampling.yml     # POST /api/kolam/{id}/sampling
-└── Analisis/
-    ├── folder.yml              # metadata + catatan analisis
-    ├── Daftar Alert.yml        # GET /api/kolam/{id}/alert
-    ├── Rekomendasi Terbaru.yml # GET /api/kolam/{id}/rekomendasi
-    └── Ringkasan Validasi.yml  # GET /api/kolam/{id}/validasi
+│   ├── Daftar Sampling.yml     # GET /api/kolam/{id}/sampling
+│   ├── Simpan Sampling.yml     # POST /api/kolam/{id}/sampling
+│   ├── Detail Sampling.yml     # GET /api/kolam/{id}/sampling/{samplingId}
+│   ├── Ubah Sampling.yml       # PUT/PATCH /api/kolam/{id}/sampling/{samplingId}
+│   └── Hapus Sampling.yml      # DELETE /api/kolam/{id}/sampling/{samplingId}
+├── Analisis/
+│   ├── folder.yml              # metadata + catatan analisis
+│   ├── Daftar Alert.yml        # GET /api/kolam/{id}/alert
+│   ├── Rekomendasi Terbaru.yml # GET /api/kolam/{id}/rekomendasi
+│   └── Ringkasan Validasi.yml  # GET /api/kolam/{id}/validasi
+└── Sensor/
+    ├── folder.yml              # metadata + aturan pembacaan
+    ├── Baca Sensor.yml         # POST /api/kolam/{id}/sensor/baca
+    ├── Pembacaan Terbaru.yml   # GET /api/kolam/{id}/sensor/terbaru
+    └── Riwayat Pembacaan.yml   # GET /api/kolam/{id}/sensor/riwayat
 ```
 
 ## Cara membuka
@@ -55,9 +64,13 @@ Docs/API/
    `Tambah Sisa Pakan` → `Tick Lingkungan`.
 8. Buka folder `Ikan` → `Lihat Ikan` → `Gerak Ikan` (beberapa kali) →
    `Proses Harian Ikan`.
-9. Buka folder `Sampling` → `Ambil Sampel` → `Simpan Sampling`.
+9. Buka folder `Sampling` → `Ambil Sampel` → `Simpan Sampling` →
+   `Daftar Sampling` → `Detail Sampling`; gunakan `Ubah/Hapus Sampling`
+   bila perlu.
 10. Buka folder `Analisis` → `Daftar Alert` → `Rekomendasi Terbaru` →
     `Ringkasan Validasi`.
+11. Buka folder `Sensor` → `Baca Sensor` → `Pembacaan Terbaru` →
+    `Riwayat Pembacaan`.
 
 Kalau `baseUrl` berbeda, ubah di:
 
@@ -88,10 +101,17 @@ variables:
 | POST | `/api/kolam/{id}/ikan/gerak` | Gerak Ikan | Pergerakan zona, pengosongan lambung, akumulasi paparan |
 | POST | `/api/kolam/{id}/ikan/proses-harian` | Proses Harian Ikan | Pertumbuhan, stres, kematian, log harian, reset |
 | GET | `/api/kolam/{id}/sampel` | Ambil Sampel | Ambil n ikan hidup secara acak |
+| GET | `/api/kolam/{id}/sampling` | Daftar Sampling | Riwayat sampling per kolam |
 | POST | `/api/kolam/{id}/sampling` | Simpan Sampling | Simpan sampling + evaluasi rekomendasi panen |
+| GET | `/api/kolam/{id}/sampling/{samplingId}` | Detail Sampling | Detail satu record sampling |
+| PUT/PATCH | `/api/kolam/{id}/sampling/{samplingId}` | Ubah Sampling | Update sampling + evaluasi ulang |
+| DELETE | `/api/kolam/{id}/sampling/{samplingId}` | Hapus Sampling | Hapus record sampling |
 | GET | `/api/kolam/{id}/alert` | Daftar Alert | 200 alert terbaru per kolam |
 | GET | `/api/kolam/{id}/rekomendasi` | Rekomendasi Terbaru | Rekomendasi panen terakhir |
 | GET | `/api/kolam/{id}/validasi` | Ringkasan Validasi | Validasi kondisi populasi ikan |
+| POST | `/api/kolam/{id}/sensor/baca` | Baca Sensor | Baca perangkat yang jatuh tempo |
+| GET | `/api/kolam/{id}/sensor/terbaru` | Pembacaan Terbaru | Pembacaan terakhir tiap perangkat |
+| GET | `/api/kolam/{id}/sensor/riwayat` | Riwayat Pembacaan | Riwayat sensor terfilter |
 
 > **Route Sampling sudah aktif** dan `AnalisisController` sudah tersedia,
 > sehingga `Simpan Sampling` dapat mengembalikan rekomendasi panen.
@@ -133,6 +153,15 @@ API otomatis memakai prefix `/api` dari `bootstrap/app.php`. Alias lama
 - **Simpan Sampling** mengirim jumlah/bobot/panjang sampel dan memeriksa
   `tanggal` hasil response. Rekomendasi panen dibuat oleh
   `AnalisisController`.
+- **Daftar Sampling** memakai response array dan otomatis menyimpan
+  `samplingId` dari baris pertama.
+- **Detail/Ubah/Hapus Sampling** memakai `{{samplingId}}`; update
+  mendukung `PUT` maupun `PATCH`.
+- **Baca Sensor** memicu perangkat yang jatuh tempo dan memeriksa
+  `jumlah_dibaca`.
+- **Pembacaan Terbaru** memeriksa response berupa array.
+- **Riwayat Pembacaan** memakai query `parameter`, `zona`, `dari`, dan
+  `sampai`, lalu memeriksa array hasil.
 - **Daftar Alert**, **Rekomendasi Terbaru**, dan **Ringkasan Validasi**
   tersedia sebagai endpoint analisis tambahan hasil implementasi
   `AnalisisController`.
@@ -148,7 +177,7 @@ API otomatis memakai prefix `/api` dari `bootstrap/app.php`. Alias lama
 1. Buka collection **SmartAqua API**.
 2. Buka tab/menu **Docs** pada collection.
 3. Bruno akan merangkum deskripsi dari blok `docs:` pada tiap request
-   (Ping, Kolam, Lingkungan, Ikan, Sampling, dan Analisis).
+   (Ping, Kolam, Lingkungan, Ikan, Sampling, Analisis, dan Sensor).
 4. Gunakan **Publish / Export Docs** di Bruno untuk membagikan dokumentasi.
 
 

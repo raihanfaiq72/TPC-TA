@@ -1,0 +1,63 @@
+info:
+  name: Detail Sampling
+  type: http
+  seq: 4
+  tags:
+    - sandbox
+    - sampling
+http:
+  method: GET
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/sampling/{{samplingId}}"
+  headers:
+    - name: Accept
+      value: application/json
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isNumber
+    - expression: res.body.kolam_id
+      operator: isNumber
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Detail Sampling
+
+  Mengambil satu record sampling berdasarkan `samplingId` dan memastikan
+  record tersebut memang milik `kolamId`.
+
+  Gunakan **Daftar Sampling** lebih dulu untuk mengisi `samplingId`, atau
+  isi manual di environment/runtime variable.
+
+  ## Request
+
+  ```http
+  GET {{baseUrl}}/api/kolam/{{kolamId}}/sampling/{{samplingId}}
+  Accept: application/json
+  ```
+
+  ## Response 200
+
+  ```json
+  {
+    "id": 34,
+    "kolam_id": 9,
+    "tanggal": "2026-11-08T00:00:00.000000Z",
+    "jumlah_sampel": 5,
+    "bobot_total_sampel_g": 440.5,
+    "bobot_rata_g": 88.1,
+    "panjang_rata_cm": 17.9,
+    "dibuat_pada": "2026-11-22T11:42:40.000000Z"
+  }
+  ```
+
+  ## Response 404
+
+  ```json
+  { "message": "Data sampling tidak ditemukan" }
+  ```

@@ -99,4 +99,117 @@ class SamplingController extends Controller
             'rekomendasi' => $rekomendasi,
         ]);
     }
+
+    public function index(int $id): JsonResponse
+    {
+        $kolam = Kolam::query()->find($id);
+
+        if (! $kolam instanceof Kolam) {
+            return response()->json([
+                'message' => 'Kolam tidak ditemukan',
+            ], 404);
+        }
+
+        $sampling = SamplingPertumbuhan::query()
+            ->where('kolam_id', $id)
+            ->orderByDesc('tanggal')
+            ->orderByDesc('id')
+            ->get();
+
+        return response()->json($sampling);
+    }
+
+    public function show(int $id, int $samplingId): JsonResponse
+    {
+        $sampling = SamplingPertumbuhan::query()
+            ->where('id', $samplingId)
+            ->where('kolam_id', $id)
+            ->first();
+
+        if (! $sampling instanceof SamplingPertumbuhan) {
+            return response()->json([
+                'message' => 'Data sampling tidak ditemukan',
+            ], 404);
+        }
+
+        return response()->json($sampling);
+    }
+
+    public function update(Request $request, int $id, int $samplingId): JsonResponse
+    {
+        $sampling = SamplingPertumbuhan::query()
+            ->where('id', $samplingId)
+            ->where('kolam_id', $id)
+            ->first();
+
+        if (! $sampling instanceof SamplingPertumbuhan) {
+            return response()->json([
+                'message' => 'Data sampling tidak ditemukan',
+            ], 404);
+        }
+
+        $data = $request->validate([
+            'jumlah_sampel' => ['sometimes', 'required', 'integer', 'min:1'],
+            'bobot_total_sampel_g' => ['sometimes', 'required', 'numeric', 'gt:0'],
+            'panjang_rata_cm' => ['sometimes', 'required', 'numeric', 'gt:0'],
+        ]);
+
+        if ($data === []) {
+            return response()->json([
+                'message' => 'Tidak ada data yang diubah',
+            ], 422);
+        }
+
+        $jumlahSampel = (int) ($data['jumlah_sampel'] ?? $sampling->jumlah_sampel);
+
+        $hidup = Ikan::query()
+            ->where('kolam_id', $id)
+            ->where('status', 'hidup')
+            ->count();
+
+        if ($jumlahSampel > $hidup) {
+            return response()->json([
+                'error' => "jumlah_sampel melebihi ikan hidup ({$hidup})",
+            ], 422);
+        }
+
+        $sampling->update($data);
+
+        $kolam = Kolam::query()->find($id);
+
+        if (! $kolam instanceof Kolam) {
+            return response()->json([
+                'message' => 'Kolam tidak ditemukan',
+            ], 404);
+        }
+
+        $waktu = Carbon::parse($kolam->waktu_sandbox_sekarang)->toDateTimeString();
+        $rekomendasi = $this->analisis->rekomendasiPanen($id, $waktu);
+
+        return response()->json([
+            'message' => 'Data sampling berhasil diperbarui',
+            'rekomendasi' => $rekomendasi,
+        ]);
+    }
+
+    public function destroy(int $id, int $samplingId): JsonResponse
+    {
+        $sampling = SamplingPertumbuhan::query()
+            ->where('id', $samplingId)
+            ->where('kolam_id', $id)
+            ->first();
+
+        if (! $sampling instanceof SamplingPertumbuhan) {
+            return response()->json([
+                'message' => 'Data sampling tidak ditemukan',
+            ], 404);
+        }
+
+        $sampling->delete();
+
+        return response()->json([
+            'message' => 'Data sampling berhasil dihapus',
+            'catatan' => 'Rekomendasi panen yang sudah tersimpan tetap menjadi riwayat evaluasi sebelumnya.',
+        ]);
+    }
 }

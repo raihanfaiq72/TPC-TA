@@ -1,0 +1,229 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\JenisPerangkat;
+use App\Models\KeadaanZona;
+use App\Models\Kolam;
+use App\Models\PembacaanSensor;
+use App\Models\Perangkat;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+
+
+class SensorController extends Controller
+{
+    private function gauss(): float
+    {
+        $u1 = (mt_rand() + 1) / (mt_getrandmax() + 1);
+        $u2 = mt_rand() / mt_getrandmax();
+
+        return sqrt(-2 * log($u1)) * cos(2 * M_PI * $u2);
+    }
+
+    private function acak(): float
+    {
+        return mt_rand() / mt_getrandmax();
+    }
+
+    public function bacaSemua(int $kolamId, string $waktu): int
+    {
+        $waktuCarbon = Carbon::parse($waktu);
+
+        $keadaan = KeadaanZona::query()
+            ->where('kolam_id', $kolamId)
+            ->get()
+            ->keyBy('zona_id');
+
+        $perangkat = Perangkat::query()
+            ->with([
+                'jenisPerangkat',
+                'kolam:id,tinggi_air_m',
+                'zona:id,nama',
+            ])
+            ->where('kolam_id', $kolamId)
+            ->where('status', 'aktif')
+            ->whereHas('jenisPerangkat', fn ($query) => $query->where('kode', '!=', 'feeder'))
+            ->get()
+            ->filter(function (Perangkat $item) use ($waktuCarbon): bool {
+                if ($item->terakhir_baca === null) {
+                    return true;
+                }
+
+                $selisihMenit = intdiv(
+                    (int) $waktuCarbon->timestamp - (int) $item->terakhir_baca->timestamp,
+                    60,
+                );
+
+                return $selisihMenit >= $item->interval_menit;
+            })
+            ->values();
+
+        if ($perangkat->isEmpty()) {
+            return 0;
+        }
+
+        $turunBaterai = (float) config('sandbox.sensor.baterai_turun_per_baca', 0);
+
+        foreach ($perangkat as $alat) {
+            $jenis = $alat->jenisPerangkat;
+
+            if (! $jenis instanceof JenisPerangkat) {
+                continue;
+            }
+
+            $zona = $alat->zona_id !== null
+                ? $keadaan->get($alat->zona_id)
+                : null;
+
+            $asli = match ($jenis->kode) {
+                'suhu' => $zona instanceof KeadaanZona ? (float) $zona->suhu_asli : 0.0,
+                'ph' => $zona instanceof KeadaanZona ? (float) $zona->ph_asli : 0.0,
+                'do' => $zona instanceof KeadaanZona ? (float) $zona->do_asli : 0.0,
+                'amonia' => $zona instanceof KeadaanZona ? (float) $zona->amonia_asli : 0.0,
+                'level' => $alat->kolam instanceof Kolam ? (float) $alat->kolam->tinggi_air_m * 100 : 0.0,
+                default => 0.0,
+            };
+
+            $nilai = $asli + $this->gauss() * (float) $jenis->noise_sd;
+            $kualitas = 'normal';
+
+            if ($this->acak() < (float) $jenis->peluang_error) {
+                if ($this->acak() < 0.7) {
+                    $arah = mt_rand(0, 1) ? 1 : -1;
+                    $nilai = $asli * (1 + $arah * (0.3 + 0.3 * $this->acak()));
+                    $kualitas = 'outlier';
+                } else {
+                    $nilai = null;
+                    $kualitas = 'gagal';
+                }
+            }
+
+            $minimum = (float) ($jenis->nilai_min_fisik ?? 0);
+            $maksimum = (float) ($jenis->nilai_maks_fisik ?? 0);
+
+            if ($nilai !== null && ($nilai < $minimum || $nilai > $maksimum)) {
+                $kualitas = 'outlier';
+                $nilai = max($minimum, min($maksimum, $nilai));
+            }
+
+            $baterai = (int) round((float) $alat->baterai_persen);
+
+            PembacaanSensor::query()->create([
+                'perangkat_id' => $alat->id,
+                'kolam_id' => $kolamId,
+                'zona_id' => $alat->zona_id,
+                'parameter' => $jenis->parameter,
+                'nilai' => $nilai === null ? null : round($nilai, 3),
+                'satuan' => $jenis->satuan,
+                'waktu_ukur' => $waktuCarbon,
+                'waktu_diterima' => $waktuCarbon,
+                'kualitas_data' => $kualitas,
+                'baterai_persen' => $baterai,
+                'sinyal_rssi' => -55 - mt_rand(0, 20),
+            ]);
+
+            $alat->update([
+                'terakhir_baca' => $waktuCarbon,
+                'baterai_persen' => max(0.0, (float) $alat->baterai_persen - $turunBaterai),
+            ]);
+        }
+
+        return $perangkat->count();
+    }
+
+    public function bacaSemuaSensor(Request $request, int $kolamId): JsonResponse
+    {
+        $data = $request->validate([
+            'waktu' => ['required', 'date'],
+        ]);
+
+        if (! Kolam::query()->whereKey($kolamId)->exists()) {
+            return response()->json([
+                'message' => 'Kolam tidak ditemukan.',
+            ], 404);
+        }
+
+        $waktu = Carbon::parse((string) $data['waktu'])->format('Y-m-d H:i:s');
+        $jumlah = $this->bacaSemua($kolamId, $waktu);
+
+        return response()->json([
+            'kolam_id' => $kolamId,
+            'waktu' => $waktu,
+            'jumlah_dibaca' => $jumlah,
+        ]);
+    }
+
+    public function terbaru(int $id): JsonResponse
+    {
+        $rows = Perangkat::query()
+            ->with(['pembacaanTerbaru', 'zona:id,nama'])
+            ->where('kolam_id', $id)
+            ->orderBy('kode')
+            ->get()
+            ->map(function (Perangkat $alat): ?array {
+                $baca = $alat->pembacaanTerbaru;
+
+                if (! $baca instanceof PembacaanSensor) {
+                    return null;
+                }
+
+                return [
+                    'perangkat' => $alat->kode,
+                    'zona' => $alat->zona?->nama,
+                    'parameter' => $baca->parameter,
+                    'nilai' => $baca->nilai === null ? null : (float) $baca->nilai,
+                    'satuan' => $baca->satuan,
+                    'waktu_ukur' => $baca->waktu_ukur->toDateTimeString(),
+                    'kualitas_data' => $baca->kualitas_data,
+                ];
+            })
+            ->filter()
+            ->values();
+
+        return response()->json($rows);
+    }
+
+    public function riwayat(Request $request, int $id): JsonResponse
+    {
+        $parameter = (string) $request->query('parameter', 'suhu');
+        $zona = $request->query('zona');
+        $dari = $request->query('dari');
+        $sampai = $request->query('sampai');
+
+        $query = PembacaanSensor::query()
+            ->with('zona:id,nama')
+            ->where('kolam_id', $id)
+            ->where('parameter', $parameter);
+
+        if ($zona !== null) {
+            $namaZona = (string) $zona;
+            $query->whereHas('zona', fn ($subQuery) => $subQuery->where('nama', $namaZona));
+        }
+
+        if (is_string($dari) && $dari !== '') {
+            $query->where('waktu_ukur', '>=', Carbon::parse($dari));
+        }
+
+        if (is_string($sampai) && $sampai !== '') {
+            $query->where('waktu_ukur', '<', Carbon::parse($sampai));
+        }
+
+        $rows = $query
+            ->orderBy('waktu_ukur')
+            ->limit(5000)
+            ->get()
+            ->map(fn (PembacaanSensor $baca): array => [
+                'waktu_ukur' => $baca->waktu_ukur->toDateTimeString(),
+                'zona' => $baca->zona?->nama,
+                'parameter' => $baca->parameter,
+                'nilai' => $baca->nilai === null ? null : (float) $baca->nilai,
+                'kualitas_data' => $baca->kualitas_data,
+            ])
+            ->values();
+
+        return response()->json($rows);
+    }
+}

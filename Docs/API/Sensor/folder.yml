@@ -1,0 +1,36 @@
+info:
+  name: Sensor
+  type: folder
+  seq: 6
+  tags:
+    - sandbox
+    - sensor
+request:
+  headers:
+    - name: Accept
+      value: application/json
+docs:
+  content: |
+    # Sensor
+
+    Endpoint dunia IoT untuk memicu pembacaan sensor dan melihat data
+    pembacaan.
+
+    - `POST /api/kolam/{kolamId}/sensor/baca` — baca semua perangkat yang jatuh tempo
+    - `GET /api/kolam/{kolamId}/sensor/terbaru` — pembacaan terakhir tiap perangkat
+    - `GET /api/kolam/{kolamId}/sensor/riwayat` — riwayat pembacaan terfilter
+
+    ## Aturan pembacaan
+
+    - Hanya perangkat `status = aktif` dan bukan feeder yang membaca.
+    - Perangkat membaca bila `terakhir_baca` NULL atau selisih menit
+      terhadap `waktu` >= `interval_menit`.
+    - Nilai = kondisi asli zona + noise Gaussian(`noise_sd`).
+    - `peluang_error`: 70% outlier (digeser 30–60%), 30% gagal (`nilai NULL`).
+    - Nilai di luar `nilai_min_fisik..nilai_maks_fisik` diubah menjadi
+      outlier dan dijepit ke batas fisik.
+    - Setiap pembacaan menurunkan baterai sebesar
+      `sandbox.sensor.baterai_turun_per_baca`.
+
+    `waktu` yang dikirim adalah waktu virtual sandbox, bukan waktu nyata.
+  type: text/markdown

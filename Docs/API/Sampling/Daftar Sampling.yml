@@ -1,0 +1,86 @@
+info:
+  name: Daftar Sampling
+  type: http
+  seq: 3
+  tags:
+    - sandbox
+    - sampling
+http:
+  method: GET
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/sampling"
+  headers:
+    - name: Accept
+      value: application/json
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: isArray
+  actions:
+    - type: set-variable
+      phase: after-response
+      selector:
+        expression: res.body[0].id
+        method: jsonq
+      variable:
+        name: samplingId
+        scope: runtime
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Daftar Sampling
+
+  Mengambil seluruh riwayat sampling satu kolam, diurutkan dari `tanggal`
+  terbaru lalu `id` terbaru.
+
+  Request ini juga menyimpan `samplingId` dari baris pertama ke runtime
+  variable agar **Detail/Ubah/Hapus Sampling** bisa langsung dijalankan.
+  Jika daftar kosong, isi `samplingId` secara manual.
+
+  ## Request
+
+  ```http
+  GET {{baseUrl}}/api/kolam/{{kolamId}}/sampling
+  Accept: application/json
+  ```
+
+  ## Response 200
+
+  ```json
+  [
+    {
+      "id": 33,
+      "kolam_id": 9,
+      "tanggal": "2026-11-06T00:00:00.000000Z",
+      "jumlah_sampel": 25,
+      "bobot_total_sampel_g": 2210,
+      "bobot_rata_g": 88.4,
+      "panjang_rata_cm": 18,
+      "dibuat_pada": "2026-11-22T11:42:37.000000Z"
+    },
+    {
+      "id": 32,
+      "kolam_id": 9,
+      "tanggal": "2026-11-01T00:00:00.000000Z",
+      "jumlah_sampel": 25,
+      "bobot_total_sampel_g": 1750,
+      "bobot_rata_g": 70,
+      "panjang_rata_cm": 16.6,
+      "dibuat_pada": "2026-11-22T11:42:37.000000Z"
+    }
+  ]
+  ```
+
+  `bobot_rata_g` adalah generated column
+  `bobot_total_sampel_g / jumlah_sampel`.
+
+  ## Response 404
+
+  ```json
+  { "message": "Kolam tidak ditemukan" }
+  ```

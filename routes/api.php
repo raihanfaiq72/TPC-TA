@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\IkanController;
 use App\Http\Controllers\Api\KolamController;
 use App\Http\Controllers\Api\LingkunganController;
 use App\Http\Controllers\Api\SamplingController;
+use App\Http\Controllers\Api\SensorController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', fn () => response()->json([
@@ -48,7 +49,21 @@ Route::middleware('throttle:30,1')->group(function () {
         ->controller(SamplingController::class)
         ->group(function () {
             Route::get('/sampel', 'ambilSampel')->whereNumber('kolamId')->name('sampel');
+            Route::get('/sampling', 'index')->whereNumber('kolamId')->name('sampling.index');
             Route::post('/sampling', 'store')->whereNumber('kolamId')->name('sampling');
+            Route::get('/sampling/{samplingId}', 'show')->whereNumber(['kolamId', 'samplingId'])->name('sampling.show');
+            Route::put('/sampling/{samplingId}', 'update')->whereNumber(['kolamId', 'samplingId'])->name('sampling.update');
+            Route::patch('/sampling/{samplingId}', 'update')->whereNumber(['kolamId', 'samplingId'])->name('sampling.update.patch');
+            Route::delete('/sampling/{samplingId}', 'destroy')->whereNumber(['kolamId', 'samplingId'])->name('sampling.destroy');
+        });
+
+    Route::prefix('kolam/{kolamId}/sensor')
+        ->name('api.kolam.sensor.')
+        ->controller(SensorController::class)
+        ->group(function () {
+            Route::post('/baca', 'bacaSemuaSensor')->whereNumber('kolamId')->name('baca');
+            Route::get('/terbaru', 'terbaru')->whereNumber('kolamId')->name('terbaru');
+            Route::get('/riwayat', 'riwayat')->whereNumber('kolamId')->name('riwayat');
         });
 
     Route::prefix('kolam/{kolamId}')

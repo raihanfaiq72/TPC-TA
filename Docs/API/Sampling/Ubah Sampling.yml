@@ -1,0 +1,98 @@
+info:
+  name: Ubah Sampling
+  type: http
+  seq: 5
+  tags:
+    - sandbox
+    - sampling
+http:
+  method: PUT
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/sampling/{{samplingId}}"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Accept
+      value: application/json
+  body:
+    type: json
+    data: |
+      {
+        "jumlah_sampel": 5,
+        "bobot_total_sampel_g": 452.0,
+        "panjang_rata_cm": 18.1
+      }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.message
+      operator: isString
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Ubah Sampling
+
+  Memperbarui sebagian atau seluruh field sampling. Gunakan `PUT` atau
+  `PATCH`; body boleh berisi salah satu field saja.
+
+  `bobot_rata_g` tidak perlu dikirim karena dihitung ulang otomatis oleh
+  generated column setelah `bobot_total_sampel_g` atau `jumlah_sampel`
+  berubah.
+
+  Setelah update, rekomendasi panen dievaluasi ulang memakai
+  `waktu_sandbox_sekarang`.
+
+  ## Request
+
+  ```http
+  PUT {{baseUrl}}/api/kolam/{{kolamId}}/sampling/{{samplingId}}
+  Content-Type: application/json
+  Accept: application/json
+
+  {
+    "jumlah_sampel": 5,
+    "bobot_total_sampel_g": 452.0,
+    "panjang_rata_cm": 18.1
+  }
+  ```
+
+  | Field | Tipe | Wajib | Keterangan |
+  |---|---|---|---|
+  | jumlah_sampel | integer >= 1 | tidak | Tidak boleh melebihi ikan hidup |
+  | bobot_total_sampel_g | number > 0 | tidak | Total bobot sampel |
+  | panjang_rata_cm | number > 0 | tidak | Panjang rata-rata |
+
+  ## Response 200
+
+  ```json
+  {
+    "message": "Data sampling berhasil diperbarui",
+    "rekomendasi": {
+      "status": "hampir siap",
+      "skor_kesiapan": 83.27,
+      "alasan": "Bobot rata-rata sampling 88.1 g dari target 100 g (88%); kualitas air aman 72% selama 7 hari terakhir."
+    }
+  }
+  ```
+
+  ## Response 422 — tidak ada field
+
+  ```json
+  { "message": "Tidak ada data yang diubah" }
+  ```
+
+  ## Response 422 — jumlah melebihi ikan hidup
+
+  ```json
+  { "error": "jumlah_sampel melebihi ikan hidup (11)" }
+  ```
+
+  ## Response 404
+
+  ```json
+  { "message": "Data sampling tidak ditemukan" }
+  ```

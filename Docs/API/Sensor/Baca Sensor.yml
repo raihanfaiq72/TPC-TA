@@ -1,0 +1,90 @@
+info:
+  name: Baca Sensor
+  type: http
+  seq: 1
+  tags:
+    - sandbox
+    - sensor
+http:
+  method: POST
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/sensor/baca"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Accept
+      value: application/json
+  body:
+    type: json
+    data: |
+      {
+        "waktu": "2026-11-08 14:10:00"
+      }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.kolam_id
+      operator: isNumber
+    - expression: res.body.jumlah_dibaca
+      operator: isNumber
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Baca Sensor
+
+  Memicu pembacaan untuk semua perangkat aktif pada kolam yang sudah jatuh
+  tempo. Jumlah perangkat yang benar-benar membaca bisa lebih kecil dari
+  jumlah perangkat karena `interval_menit`.
+
+  Endpoint ini adalah wrapper HTTP dari `SensorController::bacaSemua()`.
+
+  ## Request
+
+  ```http
+  POST {{baseUrl}}/api/kolam/{{kolamId}}/sensor/baca
+  Content-Type: application/json
+  Accept: application/json
+
+  {
+    "waktu": "2026-11-08 14:10:00"
+  }
+  ```
+
+  | Field | Tipe | Wajib | Keterangan |
+  |---|---|---|---|
+  | waktu | date | ya | Waktu virtual pembacaan |
+
+  ## Response 200
+
+  ```json
+  {
+    "kolam_id": 9,
+    "waktu": "2026-11-08 14:10:00",
+    "jumlah_dibaca": 2
+  }
+  ```
+
+  `jumlah_dibaca` hanya menghitung perangkat yang lolos aturan interval.
+  Pembacaan baru bisa dilihat melalui **Pembacaan Terbaru** atau
+  **Riwayat Pembacaan**.
+
+  ## Response 404
+
+  ```json
+  { "message": "Kolam tidak ditemukan." }
+  ```
+
+  ## Response 422
+
+  ```json
+  {
+    "message": "The waktu field is required.",
+    "errors": {
+      "waktu": ["The waktu field is required."]
+    }
+  }
+  ```

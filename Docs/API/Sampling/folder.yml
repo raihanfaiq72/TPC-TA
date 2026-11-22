@@ -13,25 +13,25 @@ docs:
   content: |
     # Sampling
 
-    Endpoint input manusia untuk mengambil sampel pertumbuhan dan menyimpan
-    hasil sampling mingguan.
+    Endpoint input manusia untuk mengambil sampel pertumbuhan, menyimpan
+    hasil sampling mingguan, dan mengelola riwayat sampling.
 
     - `GET /api/kolam/{kolamId}/sampel?n=30` — ambil n ikan acak
+    - `GET /api/kolam/{kolamId}/sampling` — daftar sampling
     - `POST /api/kolam/{kolamId}/sampling` — simpan hasil sampling
+    - `GET /api/kolam/{kolamId}/sampling/{samplingId}` — detail sampling
+    - `PUT/PATCH /api/kolam/{kolamId}/sampling/{samplingId}` — ubah sampling
+    - `DELETE /api/kolam/{kolamId}/sampling/{samplingId}` — hapus sampling
 
     ## Status implementasi
 
     Controller tersedia di:
 
-    `app/Http/Controllers/Sandbox/SamplingController.php`
+    `app/Http/Controllers/Api/SamplingController.php`
 
-    Route sudah didaftarkan di `routes/api.php`:
-
-    - `GET /api/kolam/{kolamId}/sampel`
-    - `POST /api/kolam/{kolamId}/sampling`
-
-    `AnalisisController` sudah tersedia, sehingga request sampling dapat
-    dijalankan dan akan mengembalikan rekomendasi panen terbaru.
+    Semua route di atas sudah didaftarkan di `routes/api.php`.
+    `AnalisisController` juga sudah tersedia, sehingga simpan/ubah sampling
+    dapat mengembalikan rekomendasi panen terbaru.
 
     ## Alur mingguan
 
@@ -39,6 +39,8 @@ docs:
     2. Isi hasil timbangan pada **Simpan Sampling**.
     3. Setelah sampling disimpan, rekomendasi panen dievaluasi ulang oleh
        `AnalisisController`.
+    4. Gunakan **Daftar Sampling** → **Detail Sampling** untuk melihat
+       riwayat, lalu **Ubah/Hapus Sampling** bila perlu koreksi.
 
     Tanggal sampling memakai `waktu_sandbox_sekarang` dari kolam, bukan
     tanggal nyata.
