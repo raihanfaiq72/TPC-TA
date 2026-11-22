@@ -1,0 +1,79 @@
+info:
+  name: Ringkasan Validasi
+  type: http
+  seq: 3
+  tags:
+    - sandbox
+    - analisis
+http:
+  method: GET
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/validasi"
+  headers:
+    - name: Accept
+      value: application/json
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.ringkasan.awal
+      operator: isNumber
+    - expression: res.body.penyebab_mati
+      operator: isArray
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Ringkasan Validasi
+
+  Mengambil ringkasan kondisi populasi ikan untuk **validasi dunia sandbox**:
+  jumlah awal/hidup, survival rate, bobot, simpangan baku, panjang, biomassa,
+  dan rekap penyebab kematian.
+
+  Endpoint ini hanya untuk validasi; jangan dipakai sebagai dasar keputusan
+  produksi.
+
+  ## Request
+
+  ```http
+  GET {{baseUrl}}/api/kolam/{{kolamId}}/validasi
+  Accept: application/json
+  ```
+
+  ## Response 200
+
+  ```json
+  {
+    "ringkasan": {
+      "awal": 12,
+      "hidup": 11,
+      "sr_persen": 91.67,
+      "bobot_rata_g": 88.76,
+      "bobot_sd_g": 2.98,
+      "panjang_rata_cm": 17.96,
+      "biomassa_g": 976.4
+    },
+    "penyebab_mati": [
+      {
+        "penyebab_mati": "stres_suhu",
+        "n": 1
+      }
+    ]
+  }
+  ```
+
+  | Field | Keterangan |
+  |---|---|
+  | awal | Jumlah seluruh ikan yang tercatat |
+  | hidup | Jumlah ikan berstatus hidup |
+  | sr_persen | Survival rate (%) |
+  | bobot_rata_g | Rata-rata bobot ikan hidup |
+  | bobot_sd_g | Standar deviasi bobot ikan hidup |
+  | panjang_rata_cm | Rata-rata panjang ikan hidup |
+  | biomassa_g | Total biomassa ikan hidup |
+  | penyebab_mati[].n | Jumlah ikan mati per penyebab |
+
+  `penyebab_mati` berupa array; `zona` tidak disertakan karena ringkasan ini
+  agregat per kolam.

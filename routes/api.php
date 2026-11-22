@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Controllers\Api\AnalisisController;
 use App\Http\Controllers\Api\IkanController;
 use App\Http\Controllers\Api\KolamController;
 use App\Http\Controllers\Api\LingkunganController;
+use App\Http\Controllers\Api\SamplingController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', fn () => response()->json([
@@ -39,6 +41,23 @@ Route::middleware('throttle:30,1')->group(function () {
             Route::get('/', 'show')->whereNumber('kolamId')->name('show');
             Route::post('/gerak', 'gerakIkan')->whereNumber('kolamId')->name('gerak');
             Route::post('/proses-harian', 'prosesHarianIkan')->whereNumber('kolamId')->name('prosesHarian');
+        });
+
+    Route::prefix('kolam/{kolamId}')
+        ->name('api.kolam.')
+        ->controller(SamplingController::class)
+        ->group(function () {
+            Route::get('/sampel', 'ambilSampel')->whereNumber('kolamId')->name('sampel');
+            Route::post('/sampling', 'store')->whereNumber('kolamId')->name('sampling');
+        });
+
+    Route::prefix('kolam/{kolamId}')
+        ->name('api.kolam.analisis.')
+        ->controller(AnalisisController::class)
+        ->group(function () {
+            Route::get('/alert', 'daftarAlert')->whereNumber('kolamId')->name('alert');
+            Route::get('/rekomendasi', 'rekomendasiTerbaru')->whereNumber('kolamId')->name('rekomendasi');
+            Route::get('/validasi', 'ringkasanValidasi')->whereNumber('kolamId')->name('validasi');
         });
 
     // Alias

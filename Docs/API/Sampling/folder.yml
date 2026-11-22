@@ -1,0 +1,45 @@
+info:
+  name: Sampling
+  type: folder
+  seq: 4
+  tags:
+    - sandbox
+    - sampling
+request:
+  headers:
+    - name: Accept
+      value: application/json
+docs:
+  content: |
+    # Sampling
+
+    Endpoint input manusia untuk mengambil sampel pertumbuhan dan menyimpan
+    hasil sampling mingguan.
+
+    - `GET /api/kolam/{kolamId}/sampel?n=30` — ambil n ikan acak
+    - `POST /api/kolam/{kolamId}/sampling` — simpan hasil sampling
+
+    ## Status implementasi
+
+    Controller tersedia di:
+
+    `app/Http/Controllers/Sandbox/SamplingController.php`
+
+    Route sudah didaftarkan di `routes/api.php`:
+
+    - `GET /api/kolam/{kolamId}/sampel`
+    - `POST /api/kolam/{kolamId}/sampling`
+
+    `AnalisisController` sudah tersedia, sehingga request sampling dapat
+    dijalankan dan akan mengembalikan rekomendasi panen terbaru.
+
+    ## Alur mingguan
+
+    1. Jalankan **Ambil Sampel** untuk mendapat bobot/panjang ikan acak.
+    2. Isi hasil timbangan pada **Simpan Sampling**.
+    3. Setelah sampling disimpan, rekomendasi panen dievaluasi ulang oleh
+       `AnalisisController`.
+
+    Tanggal sampling memakai `waktu_sandbox_sekarang` dari kolam, bukan
+    tanggal nyata.
+  type: text/markdown

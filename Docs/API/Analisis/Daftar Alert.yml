@@ -1,0 +1,75 @@
+info:
+  name: Daftar Alert
+  type: http
+  seq: 1
+  tags:
+    - sandbox
+    - analisis
+http:
+  method: GET
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/alert"
+  headers:
+    - name: Accept
+      value: application/json
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: isArray
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Daftar Alert
+
+  Mengambil maksimal **200 alert terbaru** untuk satu kolam, diurutkan dari
+  `waktu` terbaru. Response berupa array; array kosong berarti belum ada
+  alert.
+
+  Request ini hanya membaca tabel `alerts`. Pembuatan alert dilakukan oleh
+  `evaluasiAlert()` saat alur simulasi memproses pembacaan sensor.
+
+  ## Request
+
+  ```http
+  GET {{baseUrl}}/api/kolam/{{kolamId}}/alert
+  Accept: application/json
+  ```
+
+  ## Response 200
+
+  ```json
+  [
+    {
+      "waktu": "2026-11-08 14:00:00",
+      "zona": "bawah",
+      "parameter": "amonia",
+      "nilai": 0.55,
+      "tingkat": "waspada",
+      "status": "baru"
+    },
+    {
+      "waktu": "2026-11-08 14:00:00",
+      "zona": "atas",
+      "parameter": "do",
+      "nilai": 2.6,
+      "tingkat": "kritis",
+      "status": "baru"
+    },
+    {
+      "waktu": "2026-11-08 14:00:00",
+      "zona": "atas",
+      "parameter": "suhu",
+      "nilai": 28.6,
+      "tingkat": "aman",
+      "status": "ditangani"
+    }
+  ]
+  ```
+
+  `zona` bernilai `null` untuk alert yang tidak terikat zona tertentu.
+  `tingkat` berisi `aman`, `waspada`, atau `kritis`.

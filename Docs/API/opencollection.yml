@@ -27,6 +27,11 @@ docs:
     | GET | `/kolam/{id}/ikan` | Ringkasan dan daftar ikan |
     | POST | `/kolam/{id}/ikan/gerak` | Jalankan satu tick gerak ikan |
     | POST | `/kolam/{id}/ikan/proses-harian` | Proses pertumbuhan dan kematian harian |
+    | GET | `/kolam/{id}/sampel` | Ambil n ikan hidup secara acak |
+    | POST | `/kolam/{id}/sampling` | Simpan sampling dan evaluasi rekomendasi |
+    | GET | `/kolam/{id}/alert` | Daftar alert terbaru |
+    | GET | `/kolam/{id}/rekomendasi` | Rekomendasi panen terbaru |
+    | GET | `/kolam/{id}/validasi` | Ringkasan validasi populasi |
 
     ## Autentikasi
 

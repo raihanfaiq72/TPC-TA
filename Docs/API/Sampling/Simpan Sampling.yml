@@ -1,0 +1,108 @@
+info:
+  name: Simpan Sampling
+  type: http
+  seq: 2
+  tags:
+    - sandbox
+    - sampling
+http:
+  method: POST
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/sampling"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Accept
+      value: application/json
+  body:
+    type: json
+    data: |
+      {
+        "jumlah_sampel": 30,
+        "bobot_total_sampel_g": 2651.7,
+        "panjang_rata_cm": 17.94
+      }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.tanggal
+      operator: isString
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Simpan Sampling
+
+  Menyimpan hasil sampling mingguan ke `sampling_pertumbuhans` dan meminta
+  `AnalisisController` mengevaluasi ulang rekomendasi panen.
+
+  `bobot_rata_g` tidak dikirim dari Bruno karena merupakan generated column:
+  `bobot_total_sampel_g / jumlah_sampel`.
+
+  Tanggal diambil dari `kolams.waktu_sandbox_sekarang`, bukan tanggal nyata.
+
+  ## Request
+
+  ```http
+  POST {{baseUrl}}/api/kolam/{{kolamId}}/sampling
+  Content-Type: application/json
+  Accept: application/json
+
+  {
+    "jumlah_sampel": 30,
+    "bobot_total_sampel_g": 2651.7,
+    "panjang_rata_cm": 17.94
+  }
+  ```
+
+  | Field | Tipe | Wajib | Keterangan |
+  |---|---|---|---|
+  | jumlah_sampel | integer >= 1 | ya | Tidak boleh melebihi jumlah ikan hidup |
+  | bobot_total_sampel_g | number > 0 | ya | Total bobot seluruh ikan sampel |
+  | panjang_rata_cm | number > 0 | ya | Panjang rata-rata sampel |
+
+  ## Response 200
+
+  ```json
+  {
+    "tanggal": "2026-11-08",
+    "rekomendasi": {
+      "status": "hampir siap",
+      "skor_kesiapan": 82.54,
+      "alasan": "Bobot rata-rata sampling 88.1 g dari target 100 g (88%); kualitas air aman 70% selama 7 hari terakhir."
+    }
+  }
+  ```
+
+  `rekomendasi` adalah ringkasan yang dikembalikan
+  `AnalisisController::rekomendasiPanen()`. Data lengkapnya tersimpan di
+  `rekomendasi_panens` dan bisa diambil lewat
+  `GET /api/kolam/{kolamId}/rekomendasi`.
+
+  ## Response 422 — jumlah melebihi ikan hidup
+
+  ```json
+  { "error": "jumlah_sampel melebihi ikan hidup (11)" }
+  ```
+
+  ## Response 422 — validasi field
+
+  ```json
+  {
+    "message": "The bobot total sampel g field must be greater than 0.",
+    "errors": {
+      "bobot_total_sampel_g": [
+        "The bobot total sampel g field must be greater than 0."
+      ]
+    }
+  }
+  ```
+
+  ## Response 404
+
+  ```json
+  { "message": "Kolam tidak ditemukan." }
+  ```

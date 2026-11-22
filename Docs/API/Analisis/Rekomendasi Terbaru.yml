@@ -1,0 +1,78 @@
+info:
+  name: Rekomendasi Terbaru
+  type: http
+  seq: 2
+  tags:
+    - sandbox
+    - analisis
+http:
+  method: GET
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/rekomendasi"
+  headers:
+    - name: Accept
+      value: application/json
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: isString
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Rekomendasi Terbaru
+
+  Mengambil record **rekomendasi_panens** terakhir untuk kolam, diurutkan
+  berdasarkan `id` terbaru.
+
+  Rekomendasi baru dibuat oleh `AnalisisController::rekomendasiPanen()`,
+  yang dipanggil setelah **Simpan Sampling**.
+
+  ## Request
+
+  ```http
+  GET {{baseUrl}}/api/kolam/{{kolamId}}/rekomendasi
+  Accept: application/json
+  ```
+
+  ## Response 200
+
+  ```json
+  {
+    "id": 22,
+    "kolam_id": 8,
+    "tanggal_evaluasi": "2026-11-08T14:00:00.000000Z",
+    "bobot_rata_g": 88.1,
+    "skor_bobot": 88.1,
+    "skor_air": 69.57,
+    "skor_kesiapan": 82.54,
+    "estimasi_hari_ke_target": null,
+    "status": "hampir siap",
+    "alasan": "Bobot rata-rata sampling 88.1 g dari target 100 g (88%); kualitas air aman 70% selama 7 hari terakhir."
+  }
+  ```
+
+  Field yang perlu dibaca:
+
+  | Field | Keterangan |
+  |---|---|
+  | bobot_rata_g | Bobot rata-rata sampling terbaru |
+  | skor_bobot | Persentase bobot terhadap target |
+  | skor_air | Persentase pembacaan normal di pita aman |
+  | skor_kesiapan | Gabungan skor bobot dan skor air |
+  | estimasi_hari_ke_target | Estimasi dari SGR dua sampling terakhir |
+  | status | `belum siap`, `hampir siap`, atau `siap panen` |
+
+  ## Response null
+
+  Bila belum ada rekomendasi:
+
+  ```json
+  null
+  ```
+
+  Jalankan **Simpan Sampling** terlebih dahulu agar rekomendasi dibuat.

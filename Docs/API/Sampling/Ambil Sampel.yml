@@ -1,0 +1,83 @@
+info:
+  name: Ambil Sampel
+  type: http
+  seq: 1
+  tags:
+    - sandbox
+    - sampling
+http:
+  method: GET
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/sampel"
+  params:
+    - name: n
+      value: "30"
+      type: query
+      enabled: true
+  headers:
+    - name: Accept
+      value: application/json
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.jumlah_sampel
+      operator: isNumber
+    - expression: res.body.ikan
+      operator: isArray
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Ambil Sampel
+
+  Mengambil **n ikan hidup secara acak** dari kolam. Endpoint ini menggantikan
+  proses menangkap ikan untuk ditimbang: bobot dan panjang yang dikembalikan
+  bisa dipakai sebagai isi form sampling.
+
+  Nilai `n` dibatasi `1..200`; default `30`. Jika ikan hidup lebih sedikit
+  dari `n`, semua ikan hidup yang tersedia akan dikembalikan.
+
+  ## Request
+
+  ```http
+  GET {{baseUrl}}/api/kolam/{{kolamId}}/sampel?n=30
+  Accept: application/json
+  ```
+
+  | Query | Tipe | Wajib | Keterangan |
+  |---|---|---|---|
+  | n | integer | tidak | Jumlah ikan acak, default 30, maksimal 200 |
+
+  ## Response 200
+
+  ```json
+  {
+    "jumlah_sampel": 30,
+    "bobot_total_sampel_g": 2651.7,
+    "panjang_rata_cm": 17.94,
+    "ikan": [
+      {
+        "kode": "C07-001",
+        "bobot_g": 91.4,
+        "panjang_cm": 18.1
+      },
+      {
+        "kode": "C07-007",
+        "bobot_g": 85.9,
+        "panjang_cm": 17.7
+      }
+    ]
+  }
+  ```
+
+  `ikan` pada contoh dipersingkat. Response sebenarnya memuat sebanyak
+  `jumlah_sampel` baris (atau seluruh ikan hidup jika lebih sedikit).
+
+  ## Response 404
+
+  ```json
+  { "message": "Kolam tidak ditemukan." }
+  ```

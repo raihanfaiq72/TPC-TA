@@ -27,11 +27,20 @@ Docs/API/
 │   ├── Tick Lingkungan.yml     # POST /api/kolam/{id}/lingkungan/tick
 │   ├── Tambah Amonia.yml       # POST /api/kolam/{id}/lingkungan/amonia
 │   └── Tambah Sisa Pakan.yml   # POST /api/kolam/{id}/lingkungan/sisa-pakan
-└── Ikan/
-    ├── folder.yml              # metadata folder + config
-    ├── Lihat Ikan.yml          # GET /api/kolam/{id}/ikan
-    ├── Gerak Ikan.yml          # POST /api/kolam/{id}/ikan/gerak
-    └── Proses Harian Ikan.yml  # POST /api/kolam/{id}/ikan/proses-harian
+├── Ikan/
+│   ├── folder.yml              # metadata folder + config
+│   ├── Lihat Ikan.yml          # GET /api/kolam/{id}/ikan
+│   ├── Gerak Ikan.yml          # POST /api/kolam/{id}/ikan/gerak
+│   └── Proses Harian Ikan.yml  # POST /api/kolam/{id}/ikan/proses-harian
+├── Sampling/
+│   ├── folder.yml              # metadata + status implementasi
+│   ├── Ambil Sampel.yml        # GET /api/kolam/{id}/sampel
+│   └── Simpan Sampling.yml     # POST /api/kolam/{id}/sampling
+└── Analisis/
+    ├── folder.yml              # metadata + catatan analisis
+    ├── Daftar Alert.yml        # GET /api/kolam/{id}/alert
+    ├── Rekomendasi Terbaru.yml # GET /api/kolam/{id}/rekomendasi
+    └── Ringkasan Validasi.yml  # GET /api/kolam/{id}/validasi
 ```
 
 ## Cara membuka
@@ -46,6 +55,9 @@ Docs/API/
    `Tambah Sisa Pakan` → `Tick Lingkungan`.
 8. Buka folder `Ikan` → `Lihat Ikan` → `Gerak Ikan` (beberapa kali) →
    `Proses Harian Ikan`.
+9. Buka folder `Sampling` → `Ambil Sampel` → `Simpan Sampling`.
+10. Buka folder `Analisis` → `Daftar Alert` → `Rekomendasi Terbaru` →
+    `Ringkasan Validasi`.
 
 Kalau `baseUrl` berbeda, ubah di:
 
@@ -75,6 +87,14 @@ variables:
 | GET | `/api/kolam/{id}/ikan` | Lihat Ikan | Ringkasan populasi + daftar ikan |
 | POST | `/api/kolam/{id}/ikan/gerak` | Gerak Ikan | Pergerakan zona, pengosongan lambung, akumulasi paparan |
 | POST | `/api/kolam/{id}/ikan/proses-harian` | Proses Harian Ikan | Pertumbuhan, stres, kematian, log harian, reset |
+| GET | `/api/kolam/{id}/sampel` | Ambil Sampel | Ambil n ikan hidup secara acak |
+| POST | `/api/kolam/{id}/sampling` | Simpan Sampling | Simpan sampling + evaluasi rekomendasi panen |
+| GET | `/api/kolam/{id}/alert` | Daftar Alert | 200 alert terbaru per kolam |
+| GET | `/api/kolam/{id}/rekomendasi` | Rekomendasi Terbaru | Rekomendasi panen terakhir |
+| GET | `/api/kolam/{id}/validasi` | Ringkasan Validasi | Validasi kondisi populasi ikan |
+
+> **Route Sampling sudah aktif** dan `AnalisisController` sudah tersedia,
+> sehingga `Simpan Sampling` dapat mengembalikan rekomendasi panen.
 
 API otomatis memakai prefix `/api` dari `bootstrap/app.php`. Alias lama
 `/api/sandbox/kolam` masih tersedia agar koleksi sebelumnya tetap jalan.
@@ -108,6 +128,18 @@ API otomatis memakai prefix `/api` dari `bootstrap/app.php`. Alias lama
 - **Proses Harian Ikan** memproses pertumbuhan/kematian dan reset
   akumulator; assertion memeriksa `ringkasan.jumlah_total` dan array
   `ikan`.
+- **Ambil Sampel** mengambil `n` ikan hidup secara acak dan memeriksa
+  `jumlah_sampel` serta array `ikan`.
+- **Simpan Sampling** mengirim jumlah/bobot/panjang sampel dan memeriksa
+  `tanggal` hasil response. Rekomendasi panen dibuat oleh
+  `AnalisisController`.
+- **Daftar Alert**, **Rekomendasi Terbaru**, dan **Ringkasan Validasi**
+  tersedia sebagai endpoint analisis tambahan hasil implementasi
+  `AnalisisController`.
+- **Daftar Alert** memeriksa response berupa array.
+- **Rekomendasi Terbaru** memeriksa `status` rekomendasi terakhir.
+- **Ringkasan Validasi** memeriksa `ringkasan.awal` dan array
+  `penyebab_mati`.
 - **Hapus Kolam** memakai `{{kolamId}}` dan menampilkan response `200`,
   `404`, atau `409` bila data turunan masih menghalangi penghapusan.
 
@@ -116,7 +148,7 @@ API otomatis memakai prefix `/api` dari `bootstrap/app.php`. Alias lama
 1. Buka collection **SmartAqua API**.
 2. Buka tab/menu **Docs** pada collection.
 3. Bruno akan merangkum deskripsi dari blok `docs:` pada tiap request
-   (Ping, Kolam, Lingkungan, dan Ikan).
+   (Ping, Kolam, Lingkungan, Ikan, Sampling, dan Analisis).
 4. Gunakan **Publish / Export Docs** di Bruno untuk membagikan dokumentasi.
 
 

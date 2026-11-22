@@ -1,0 +1,36 @@
+info:
+  name: Analisis
+  type: folder
+  seq: 5
+  tags:
+    - sandbox
+    - analisis
+request:
+  headers:
+    - name: Accept
+      value: application/json
+docs:
+  content: |
+    # Analisis
+
+    Endpoint baca untuk hasil analisis kualitas air, rekomendasi panen, dan
+    validasi populasi ikan.
+
+    - `GET /api/kolam/{kolamId}/alert` — 200 alert terbaru
+    - `GET /api/kolam/{kolamId}/rekomendasi` — rekomendasi panen terakhir
+    - `GET /api/kolam/{kolamId}/validasi` — ringkasan validasi populasi
+
+    `evaluasiAlert()` dan `rekomendasiPanen()` adalah method internal yang
+    dipanggil oleh alur simulasi/sampling. Yang tersedia sebagai endpoint
+    adalah tiga request di atas.
+
+    ## Catatan
+
+    - `alert` membaca tabel `alerts`, diurutkan dari waktu terbaru,
+      maksimal 200 baris.
+    - `rekomendasi` membaca record terakhir dari `rekomendasi_panens`.
+      Response `null` bila belum ada rekomendasi.
+    - `validasi` hanya untuk memeriksa kebenaran dunia sandbox (SR, bobot,
+      panjang, biomassa, penyebab kematian); jangan dipakai sebagai
+      keputusan produksi.
+  type: text/markdown
