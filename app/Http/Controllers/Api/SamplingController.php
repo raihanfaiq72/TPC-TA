@@ -55,6 +55,7 @@ class SamplingController extends Controller
     {
         $data = $request->validate([
             'jumlah_sampel' => ['required', 'integer', 'min:1'],
+            'jumlah_mati' => ['sometimes', 'integer', 'min:0'],
             'bobot_total_sampel_g' => ['required', 'numeric', 'gt:0'],
             'panjang_rata_cm' => ['required', 'numeric', 'gt:0'],
         ]);
@@ -85,6 +86,7 @@ class SamplingController extends Controller
             'kolam_id' => $kolam->id,
             'tanggal' => $tanggal,
             'jumlah_sampel' => (int) $data['jumlah_sampel'],
+            'jumlah_mati' => (int) ($data['jumlah_mati'] ?? 0),
             'bobot_total_sampel_g' => (float) $data['bobot_total_sampel_g'],
             'panjang_rata_cm' => (float) $data['panjang_rata_cm'],
         ]);
@@ -150,6 +152,7 @@ class SamplingController extends Controller
 
         $data = $request->validate([
             'jumlah_sampel' => ['sometimes', 'required', 'integer', 'min:1'],
+            'jumlah_mati' => ['sometimes', 'required', 'integer', 'min:0'],
             'bobot_total_sampel_g' => ['sometimes', 'required', 'numeric', 'gt:0'],
             'panjang_rata_cm' => ['sometimes', 'required', 'numeric', 'gt:0'],
         ]);

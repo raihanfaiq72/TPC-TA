@@ -23,6 +23,11 @@ docs:
     - `PUT/PATCH /api/kolam/{kolamId}/sampling/{samplingId}` — ubah sampling
     - `DELETE /api/kolam/{kolamId}/sampling/{samplingId}` — hapus sampling
 
+    `Sampling` menerima input manusia berupa `jumlah_sampel`,
+    `jumlah_mati`, `bobot_total_sampel_g`, dan `panjang_rata_cm`.
+    `jumlah_mati` mencatat ikan mati yang diketahui manusia dan tidak
+    mengubah status ikan secara otomatis.
+
     ## Status implementasi
 
     Controller tersedia di:

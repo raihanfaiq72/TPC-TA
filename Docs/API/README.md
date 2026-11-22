@@ -150,9 +150,9 @@ API otomatis memakai prefix `/api` dari `bootstrap/app.php`. Alias lama
   `ikan`.
 - **Ambil Sampel** mengambil `n` ikan hidup secara acak dan memeriksa
   `jumlah_sampel` serta array `ikan`.
-- **Simpan Sampling** mengirim jumlah/bobot/panjang sampel dan memeriksa
-  `tanggal` hasil response. Rekomendasi panen dibuat oleh
-  `AnalisisController`.
+- **Simpan Sampling** mengirim jumlah/bobot/panjang sampel dan
+  `jumlah_mati` (input manusia), lalu memeriksa `tanggal` hasil response.
+  Rekomendasi panen dibuat oleh `AnalisisController`.
 - **Daftar Sampling** memakai response array dan otomatis menyimpan
   `samplingId` dari baris pertama.
 - **Detail/Ubah/Hapus Sampling** memakai `{{samplingId}}`; update

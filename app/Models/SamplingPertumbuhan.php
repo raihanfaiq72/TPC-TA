@@ -12,6 +12,7 @@ use Illuminate\Support\Carbon;
  * @property int $kolam_id
  * @property Carbon $tanggal
  * @property int $jumlah_sampel
+ * @property int $jumlah_mati
  * @property float $bobot_total_sampel_g
  * @property-read float $bobot_rata_g
  * @property float $panjang_rata_cm
@@ -21,6 +22,7 @@ use Illuminate\Support\Carbon;
     'kolam_id',
     'tanggal',
     'jumlah_sampel',
+    'jumlah_mati',
     'bobot_total_sampel_g',
     'panjang_rata_cm',
 ])]
@@ -38,6 +40,7 @@ class SamplingPertumbuhan extends Model
         return [
             'tanggal' => 'date',
             'jumlah_sampel' => 'integer',
+            'jumlah_mati' => 'integer',
             'bobot_total_sampel_g' => 'float',
             'bobot_rata_g' => 'float',
             'panjang_rata_cm' => 'float',

@@ -4,16 +4,20 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Ikan;
+use App\Models\IkanLogHarian;
 use App\Models\JenisPakan;
 use App\Models\JenisPerangkat;
 use App\Models\KeadaanZona;
 use App\Models\Kolam;
+use App\Models\PembacaanSensor;
+use App\Models\ProfilLingkungan;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class KolamController extends Controller
 {
@@ -236,7 +240,9 @@ class KolamController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        $kolam = Kolam::query()->find($id);
+        $kolam = Kolam::query()
+            ->withCount(['ikans as jumlah_ikan_hidup' => fn (Builder $query) => $query->where('status', 'hidup')])
+            ->find($id);
 
         if (! $kolam) {
             return response()->json(['message' => 'Kolam tidak ditemukan'], 404);
@@ -253,6 +259,135 @@ class KolamController extends Controller
             'zona' => $zona,
             'perangkat' => $perangkat,
             'jadwal_pakan' => $jadwalPakan,
+        ]);
+    }
+
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $kolam = Kolam::query()->find($id);
+
+        if (! $kolam) {
+            return response()->json(['message' => 'Kolam tidak ditemukan'], 404);
+        }
+
+        $data = $request->validate([
+            'nama' => ['sometimes', 'required', 'string', 'max:100'],
+            'panjang_m' => ['sometimes', 'required', 'numeric', 'gt:0'],
+            'lebar_m' => ['sometimes', 'required', 'numeric', 'gt:0'],
+            'tinggi_air_m' => ['sometimes', 'required', 'numeric', 'gt:0'],
+            'kecepatan_waktu' => ['sometimes', 'required', 'numeric', 'gt:0'],
+            'bobot_target_panen_g' => ['sometimes', 'required', 'numeric', 'gt:0'],
+        ]);
+
+        $kolam->update($data);
+
+        return response()->json([
+            'message' => 'Data kolam berhasil diperbarui.',
+            'kolam' => $kolam->fresh(),
+        ]);
+    }
+
+    public function reset(int $id): JsonResponse
+    {
+        $kolam = Kolam::query()->find($id);
+
+        if (! $kolam) {
+            return response()->json(['message' => 'Kolam tidak ditemukan'], 404);
+        }
+
+        DB::transaction(function () use ($kolam): void {
+            $ikanIds = Ikan::query()->where('kolam_id', $kolam->id)->pluck('id');
+            IkanLogHarian::query()->whereIn('ikan_id', $ikanIds)->delete();
+            Ikan::query()->where('kolam_id', $kolam->id)->delete();
+            PembacaanSensor::query()->where('kolam_id', $kolam->id)->delete();
+
+            foreach ($kolam->zonas()->get() as $zona) {
+                $profil = ProfilLingkungan::query()
+                    ->where('kolam_id', $kolam->id)
+                    ->where('zona_id', $zona->id)
+                    ->get()
+                    ->keyBy('parameter');
+
+                KeadaanZona::query()->updateOrCreate(
+                    ['zona_id' => $zona->id],
+                    [
+                        'kolam_id' => $kolam->id,
+                        'suhu_asli' => (float) ($profil['suhu']->nilai_dasar ?? 0) + (float) ($profil['suhu']->offset_zona ?? 0),
+                        'ph_asli' => (float) ($profil['ph']->nilai_dasar ?? 7) + (float) ($profil['ph']->offset_zona ?? 0),
+                        'do_asli' => (float) ($profil['do']->nilai_dasar ?? 0) + (float) ($profil['do']->offset_zona ?? 0),
+                        'amonia_asli' => (float) ($profil['amonia']->nilai_dasar ?? 0) + (float) ($profil['amonia']->offset_zona ?? 0),
+                        'sisa_pakan_g' => 0,
+                        'diperbarui_pada' => $kolam->waktu_mulai_sandbox,
+                    ],
+                );
+            }
+
+            $jenis = JenisPerangkat::query()->get()->keyBy('kode');
+            $zona = $kolam->zonas()->get()->keyBy('nama');
+            $total = (int) $kolam->jumlah_ikan_awal;
+            $minBobot = 0.3 * (float) $kolam->bobot_awal_rata_g;
+            $baris = [];
+
+            for ($i = 1; $i <= $total; $i++) {
+                $bobot = max($minBobot, (float) $kolam->bobot_awal_rata_g + $this->gauss() * (float) $kolam->bobot_awal_sd_g);
+                $panjang = pow($bobot / max(0.000001, (float) $kolam->koef_a), 1 / 3);
+                $zonaIkan = mt_rand(0, 1) === 1 ? $zona['atas'] : $zona['bawah'];
+
+                $baris[] = [
+                    'kolam_id' => $kolam->id,
+                    'kode' => sprintf('%s-F%04d', $kolam->kode, $i),
+                    'faktor_genetik' => round(max(0.7, min(1.3, 1 + 0.1 * $this->gauss())), 3),
+                    'preferensi_zona' => round(max(0.0, min(1.0, 0.6 + 0.2 * $this->gauss())), 3),
+                    'bobot_awal_g' => round($bobot, 3),
+                    'panjang_awal_cm' => round($panjang, 3),
+                    'bobot_g' => round($bobot, 3),
+                    'panjang_cm' => round($panjang, 3),
+                    'zona_id' => $zonaIkan->id,
+                ];
+
+                if (count($baris) === 500 || $i === $total) {
+                    Ikan::query()->insert($baris);
+                    $baris = [];
+                }
+            }
+
+            $kolam->update(['waktu_sandbox_sekarang' => $kolam->waktu_mulai_sandbox, 'status' => 'aktif']);
+            $kolam->perangkats()->update([
+                'terakhir_baca' => null,
+                'baterai_persen' => 100,
+                'status' => 'aktif',
+            ]);
+        });
+
+        return response()->json([
+            'message' => 'Kolam berhasil diperbarui dari awal.',
+            'kolam' => $kolam->fresh(),
+        ]);
+    }
+
+    public function uploadFoto(Request $request, int $id): JsonResponse
+    {
+        $kolam = Kolam::query()->find($id);
+
+        if (! $kolam) {
+            return response()->json(['message' => 'Kolam tidak ditemukan'], 404);
+        }
+
+        $data = $request->validate([
+            'foto' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        ]);
+
+        $path = $data['foto']->store('kolam', 'public');
+
+        if ($kolam->foto_path !== null) {
+            Storage::disk('public')->delete($kolam->foto_path);
+        }
+
+        $kolam->update(['foto_path' => $path]);
+
+        return response()->json([
+            'message' => 'Foto kolam berhasil disimpan.',
+            'foto_url' => $kolam->fresh()->foto_url,
         ]);
     }
 

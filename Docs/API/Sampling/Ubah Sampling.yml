@@ -18,6 +18,7 @@ http:
     data: |
       {
         "jumlah_sampel": 5,
+        "jumlah_mati": 2,
         "bobot_total_sampel_g": 452.0,
         "panjang_rata_cm": 18.1
       }
@@ -55,6 +56,7 @@ docs: |
 
   {
     "jumlah_sampel": 5,
+    "jumlah_mati": 2,
     "bobot_total_sampel_g": 452.0,
     "panjang_rata_cm": 18.1
   }
@@ -63,6 +65,7 @@ docs: |
   | Field | Tipe | Wajib | Keterangan |
   |---|---|---|---|
   | jumlah_sampel | integer >= 1 | tidak | Tidak boleh melebihi ikan hidup |
+  | jumlah_mati | integer >= 0 | tidak | Jumlah ikan mati input manusia |
   | bobot_total_sampel_g | number > 0 | tidak | Total bobot sampel |
   | panjang_rata_cm | number > 0 | tidak | Panjang rata-rata |
 

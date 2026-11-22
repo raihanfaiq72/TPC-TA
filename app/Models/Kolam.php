@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @property int $id
@@ -34,6 +35,7 @@ use Illuminate\Support\Carbon;
 #[Fillable([
     'kode',
     'nama',
+    'foto_path',
     'jenis',
     'panjang_m',
     'lebar_m',
@@ -80,6 +82,15 @@ class Kolam extends Model
             'kecepatan_waktu' => 'float',
             'created_at' => 'datetime',
         ];
+    }
+
+    protected $appends = ['foto_url'];
+
+    public function getFotoUrlAttribute(): ?string
+    {
+        return $this->foto_path === null
+            ? null
+            : Storage::disk('public')->url($this->foto_path);
     }
 
     /**

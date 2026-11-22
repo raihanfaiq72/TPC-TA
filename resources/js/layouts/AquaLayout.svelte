@@ -36,7 +36,11 @@
         }
     });
 
-    const info = $derived(PAGES[path] ?? ['SmartAqua', 'Bantuan panen lele']);
+    const info = $derived(
+        path.startsWith('/kolam/')
+            ? ['Detail kolam', 'Pantauan perangkat dan kondisi air']
+            : (PAGES[path] ?? ['SmartAqua', 'Bantuan panen lele']),
+    );
 
     function isActive(href: string): boolean {
         return path === href;
@@ -121,7 +125,7 @@
             <div class="nav-t hide-m">Lainnya</div>
             <Link
                 href="/kolam"
-                class={cn('nav hide-m', isActive('/kolam') && 'on')}
+                class={cn('nav hide-m', (isActive('/kolam') || path.startsWith('/kolam/')) && 'on')}
             >
                 <svg viewBox="0 0 24 24"
                     ><path

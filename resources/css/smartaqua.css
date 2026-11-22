@@ -589,6 +589,7 @@
 /* ===== 4. KARTU & BLOK ===== */
 .aqua-app .card {
     background: var(--card);
+    color: var(--text);
     border: 1px solid var(--line);
     border-radius: var(--r);
     padding: 20px;
@@ -1404,6 +1405,174 @@
     white-space: nowrap;
 }
 
+/* dashboard kolam dan pantauan perangkat */
+.aqua-app .pond-gallery {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+}
+.aqua-app .pond-card {
+    overflow: hidden;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    box-shadow: var(--sh);
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+.aqua-app .pond-card:hover {
+    transform: translateY(-4px);
+    border-color: #b9c9ed;
+    box-shadow: 0 18px 34px -22px rgba(27, 44, 111, 0.42);
+}
+.aqua-app .pond-photo {
+    height: 190px;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, #9bd6e8, #1d6291);
+}
+.aqua-app .pond-photo img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    transition: transform 0.35s;
+}
+.aqua-app .pond-default-photo {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 8px;
+    height: 100%;
+    color: rgba(255,255,255,.82);
+    background: linear-gradient(145deg, #5ca9bf, #174f75);
+    font-size: 11px;
+    font-weight: 800;
+}
+.aqua-app .pond-default-photo svg {
+    width: 58px;
+    height: 58px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.aqua-app .pond-card:hover .pond-photo img { transform: scale(1.05); }
+.aqua-app .pond-photo-shade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(7, 23, 54, 0.04), rgba(7, 23, 54, 0.72));
+}
+.aqua-app .pond-live, .aqua-app .pond-code {
+    position: absolute;
+    top: 14px;
+    padding: 5px 9px;
+    border-radius: 999px;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
+.aqua-app .pond-live { left: 14px; background: rgba(18, 54, 89, 0.68); }
+.aqua-app .pond-live i, .aqua-app .status-pulse {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 5px;
+    border-radius: 50%;
+    background: #61e69e;
+    box-shadow: 0 0 0 0 rgba(97, 230, 158, 0.7);
+    animation: aqua-pulse 1.8s infinite;
+}
+.aqua-app .pond-code { right: 14px; background: rgba(255,255,255,0.18); backdrop-filter: blur(7px); }
+.aqua-app .pond-card-body { padding: 17px; }
+.aqua-app .pond-card-title { display: flex; align-items: flex-start; gap: 10px; }
+.aqua-app .pond-card-title h2 { font-size: 17px; letter-spacing: -0.02em; }
+.aqua-app .pond-card-title p { margin-top: 3px; color: var(--muted); font-size: 12px; }
+.aqua-app .pond-arrow { margin-left: auto; font-size: 22px; color: var(--green); line-height: 1; }
+.aqua-app .pond-card-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 18px; }
+.aqua-app .pond-card-stats span { padding: 9px 7px; background: var(--soft); border-radius: 10px; }
+.aqua-app .pond-card-stats b, .aqua-app .pond-card-stats small { display: block; }
+.aqua-app .pond-card-stats b { font-size: 12px; }
+.aqua-app .pond-card-stats small { margin-top: 2px; color: var(--muted); font-size: 9.5px; }
+.aqua-app .pond-card-footer { display: flex; justify-content: space-between; gap: 8px; margin-top: 16px; color: var(--muted); font-size: 11px; }
+.aqua-app .pond-card-footer span:last-child { color: var(--green); font-weight: 800; }
+.aqua-app .pond-card-body { display: block; }
+.aqua-app .pond-upload {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    margin: 0 17px 17px;
+    padding: 9px;
+    border: 1px dashed var(--line2);
+    border-radius: 10px;
+    color: var(--green);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 800;
+}
+.aqua-app .pond-upload:hover { background: var(--green-l); border-color: var(--green); }
+.aqua-app .pond-upload.uploading { opacity: .6; pointer-events: none; }
+.aqua-app .pond-upload input { display: none; }
+.aqua-app .pond-upload svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.aqua-app .loading-card, .aqua-app .empty-card { padding: 28px; text-align: center; }
+.aqua-app .empty-card p { margin: 6px 0 18px; color: var(--muted); }
+.aqua-app .pond-empty-icon { font-size: 42px; color: var(--green); }
+.aqua-app .note.bad { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.aqua-app .note.bad span { color: inherit; opacity: 0.82; }
+
+.aqua-app .detail-breadcrumb { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; color: var(--muted); font-size: 12px; }
+.aqua-app .detail-breadcrumb a { color: var(--green); font-weight: 800; }
+.aqua-app .pond-detail-hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; padding: 26px; border-radius: 22px; color: #fff; background: radial-gradient(circle at 85% 12%, rgba(116, 196, 255, 0.45), transparent 30%), linear-gradient(125deg, #172b74, #0879a5); box-shadow: 0 16px 30px -20px rgba(20, 54, 133, 0.65); }
+.aqua-app .pond-detail-hero h1 { margin-top: 7px; color: #fff; font-size: 29px; letter-spacing: -0.035em; }
+.aqua-app .pond-detail-hero .lead { max-width: 590px; color: rgba(255,255,255,0.76); }
+.aqua-app .eyebrow { font-size: 10px; font-weight: 900; letter-spacing: 0.12em; color: #a9f3d0; }
+.aqua-app .hero-meta { display: flex; gap: 23px; margin-top: 21px; color: rgba(255,255,255,0.68); font-size: 11px; }
+.aqua-app .hero-meta b { display: block; color: #fff; font-size: 17px; }
+.aqua-app .hero-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.aqua-app .hero-actions .btn { background: #fff; color: var(--green-d); }
+.aqua-app .live-note { color: rgba(255,255,255,0.72); font-size: 11px; }
+.aqua-app .detail-alert { margin-top: 14px; }
+.aqua-app .monitor-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, .75fr); gap: 18px; margin-top: 18px; }
+.aqua-app .pool-map-card, .aqua-app .device-inspector { min-width: 0; }
+.aqua-app .pond-stage { height: 500px; position: relative; overflow: hidden; margin: 16px 0; border-radius: 18px; background: #fff; border: 1px solid #dbe6ec; }
+.aqua-app .pond-reference-image { position: absolute; z-index: 1; inset: 1% 6%; width: 88%; height: 98%; object-fit: contain; filter: contrast(1.03) saturate(.94); }
+.aqua-app .pond-water { position: absolute; z-index: 3; left: 31%; top: 50%; width: 38%; height: 24%; overflow: hidden; border-radius: 50%; background: radial-gradient(ellipse at 40% 30%, rgba(125, 208, 216, .18), rgba(41, 154, 184, .08) 70%, rgba(21, 104, 132, .12)); box-shadow: inset 0 0 12px rgba(38, 117, 143, .10); }
+.aqua-app .pond-water::after { content: ''; position: absolute; z-index: 1; inset: 0; border: 1px solid rgba(31, 118, 145, .12); border-radius: 50%; }
+.aqua-app .pond-fish-canvas { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; cursor: crosshair; }
+.aqua-app .pond-fish-hotspot { position: absolute; z-index: 6; inset: 0; border-radius: 50%; cursor: pointer; background: transparent; }
+.aqua-app .pond-population { position: absolute; z-index: 7; left: 50%; bottom: 4%; transform: translateX(-50%); min-width: 116px; padding: 7px 11px; border: 1px solid #b9d3dc; border-radius: 999px; color: #173b4f; background: rgba(255,255,255,.96); box-shadow: 0 5px 16px rgba(17,72,95,.18); text-align: center; font-size: 9px; font-weight: 800; pointer-events: none; }.aqua-app .pond-population b { display: block; color: #0d5e74; font-size: 13px; }
+.aqua-app .water-line { position: absolute; z-index: 3; height: 2px; border-radius: 100%; background: rgba(225, 251, 255, .52); pointer-events: none; }
+.aqua-app .line-one { left: 10%; right: 15%; top: 33%; transform: rotate(4deg); }.aqua-app .line-two { left: 18%; right: 7%; top: 62%; transform: rotate(-3deg); }
+.aqua-app .bubble { position: absolute; z-index: 3; border: 1px solid rgba(255,255,255,.55); border-radius: 50%; animation: bubble-rise 4s ease-in infinite; }.aqua-app .bubble-one { left: 39%; top: 67%; width: 8px; height: 8px; }.aqua-app .bubble-two { left: 68%; top: 48%; width: 5px; height: 5px; animation-delay: -2s; }
+.aqua-app .zone-label { position: absolute; z-index: 8; color: #173b4f; background: rgba(255,255,255,.84); border: 1px solid rgba(125,158,173,.38); border-radius: 999px; padding: 5px 8px; font-size: 8px; font-weight: 900; letter-spacing: .08em; pointer-events: none; }.aqua-app .zone-top { left: 50%; top: 20%; transform: translateX(-50%); }.aqua-app .zone-bottom { left: 50%; bottom: 24%; transform: translateX(-50%); }
+.aqua-app .pond-compass { position: absolute; z-index: 9; right: 20px; top: 18px; display: grid; place-items: center; width: 27px; height: 27px; border: 1px solid rgba(20,64,87,.25); border-radius: 50%; color: #285d78; background: rgba(255,255,255,.88); font-size: 10px; font-weight: 900; }
+.aqua-app .device-node { position: absolute; z-index: 10; display: grid; place-items: center; width: 48px; height: 48px; margin: -24px; border: 3px solid #fff; border-radius: 50%; color: #fff; background: #16794a; box-shadow: 0 5px 14px rgba(5, 37, 59, .25); transition: transform .18s, box-shadow .18s; }.aqua-app .device-node:hover, .aqua-app .device-node.selected { transform: scale(1.17); box-shadow: 0 0 0 5px rgba(255,255,255,.55), 0 7px 18px rgba(5, 37, 59, .3); }.aqua-app .device-node.warn { background: #d78a1a; }.aqua-app .device-node.bad { background: #b3271f; }.aqua-app .device-node i, .aqua-app .device-led i { width: 9px; height: 9px; display: block; border-radius: 50%; background: #c9ffe1; animation: aqua-pulse 1.4s infinite; }.aqua-app .device-node span { font-size: 8px; font-weight: 900; text-transform: uppercase; }
+.aqua-app .device-focus { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; background: var(--soft); }.aqua-app .device-focus-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; color: var(--green); background: var(--green-l); }.aqua-app .device-focus b, .aqua-app .device-focus span { display: block; }.aqua-app .device-focus span { color: var(--muted); font-size: 11px; }.aqua-app .device-focus strong { font-size: 17px; }
+.aqua-app .device-list { display: flex; flex-direction: column; }.aqua-app .device-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 13px 0; text-align: left; border-bottom: 1px solid var(--line); }.aqua-app .device-row.selected { color: var(--green); }.aqua-app .device-led { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--ok-bg); }.aqua-app .device-led.warn { background: var(--warn-bg); }.aqua-app .device-led.bad { background: var(--bad-bg); }.aqua-app .device-led.warn i { background: #e0a12a; }.aqua-app .device-led.bad i { background: var(--bad); }.aqua-app .device-row-copy { flex: 1; min-width: 0; }.aqua-app .device-row-copy b, .aqua-app .device-row-copy small, .aqua-app .device-row-value b, .aqua-app .device-row-value small { display: block; }.aqua-app .device-row-copy b { font-size: 13px; }.aqua-app .device-row-copy small, .aqua-app .device-row-value small { color: var(--muted); font-size: 10px; }.aqua-app .device-row-value { text-align: right; }.aqua-app .device-row-value b { font-size: 13px; }.aqua-app .device-chevron { color: var(--muted); font-size: 22px; }.aqua-app .device-inspector-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; color: var(--muted); font-size: 10px; }.aqua-app .legend-dot { display: inline-block; width: 7px; height: 7px; margin: 0 3px 0 8px; border-radius: 50%; background: var(--ok); }.aqua-app .legend-dot.yellow { background: #d78a1a; }.aqua-app .legend-dot.red { background: var(--bad); }
+.aqua-app .section-title-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin: 28px 0 12px; }.aqua-app .section-title-row h2 { font-size: 18px; }.aqua-app .section-title-row p { color: var(--muted); font-size: 12px; }.aqua-app .metric-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }.aqua-app .metric-card { padding: 15px; border: 1px solid var(--line); border-radius: 15px; background: var(--card); box-shadow: var(--sh); border-top: 3px solid var(--ok); }.aqua-app .metric-card.warn { border-top-color: #d78a1a; }.aqua-app .metric-card.bad { border-top-color: var(--bad); }.aqua-app .metric-card-top { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; font-weight: 800; }.aqua-app .metric-card .status-pulse { margin: 2px 0 0; }.aqua-app .metric-card strong { display: block; margin-top: 8px; font-size: 24px; letter-spacing: -.04em; }.aqua-app .metric-card small { color: var(--muted); font-size: 10px; }
+.aqua-app .sim-console { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 18px 0; padding: 13px 15px; border: 1px solid #cbd9f4; border-radius: 16px; background: linear-gradient(110deg, #f8fbff, #eef5ff); box-shadow: var(--sh); }
+.aqua-app .sim-console-main, .aqua-app .sim-play, .aqua-app .sim-controls, .aqua-app .sim-console-actions { display: flex; align-items: center; gap: 12px; }
+.aqua-app .sim-console { color: #1d2a4f; }
+.aqua-app .sim-console b { color: #1d2a4f; }
+.aqua-app .sim-play { min-width: 270px; }.aqua-app .play-button { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; color: #fff; background: var(--green); box-shadow: 0 5px 13px rgba(38,60,146,.3); font-size: 16px; }.aqua-app .play-button.playing { background: #0c8b87; }
+.aqua-app .sim-label { display: block; color: var(--green); font-size: 9px; font-weight: 900; letter-spacing: .12em; }.aqua-app .sim-play b, .aqua-app .sim-play small { display: block; }.aqua-app .sim-play b { font-size: 12px; }.aqua-app .sim-play small { color: var(--muted); font-size: 10px; }
+.aqua-app .sim-controls label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }.aqua-app .sim-controls select { padding: 7px 23px 7px 8px; border: 1px solid var(--line2); border-radius: 8px; background: #fff; font-size: 11px; }
+.aqua-app .history-section { margin-top: 26px; }.aqua-app .history-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, .7fr); gap: 16px; }.aqua-app .history-chart { min-height: 220px; }.aqua-app .history-chart-head { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }.aqua-app .history-bars { display: flex; align-items: flex-end; gap: 9px; height: 150px; margin-top: 21px; padding: 0 8px; border-bottom: 1px solid var(--line); }.aqua-app .history-bar-wrap { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 6px; }.aqua-app .history-bar { width: min(28px, 85%); min-height: 8px; border-radius: 7px 7px 0 0; background: linear-gradient(180deg, #58b6c4, var(--green)); }.aqua-app .history-bar-wrap small { color: var(--muted); font-size: 9px; }.aqua-app .death-total { color: var(--bad); font-size: 25px; }.aqua-app .death-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); color: var(--text2); font-size: 12px; text-transform: capitalize; }.aqua-app .death-row i { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--bad); }.aqua-app .death-row b { color: var(--bad); }.aqua-app .death-clear, .aqua-app .history-empty { color: var(--muted); font-size: 12px; }.aqua-app .history-empty { padding: 20px; }.aqua-app .edit-form { display: grid; grid-template-columns: repeat(2, 1fr); gap: 11px; margin: 18px 0; }.aqua-app .edit-form label { color: var(--muted); font-size: 11px; }.aqua-app .edit-form input { display: block; width: 100%; margin-top: 5px; padding: 9px; border: 1px solid var(--line2); border-radius: 9px; background: #fff; font-size: 13px; }.aqua-app .reset-warning { margin: 18px 0; padding: 12px; border-radius: 10px; color: var(--warn); background: var(--warn-bg); font-size: 12px; }.aqua-app .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.aqua-app .pond-modal { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 18px; }
+.aqua-app .pond-modal-backdrop { position: absolute; inset: 0; background: rgba(8, 24, 58, .48); backdrop-filter: blur(5px); }
+.aqua-app .pond-modal-box { position: relative; z-index: 1; width: min(440px, 100%); padding: 25px; border: 1px solid rgba(255,255,255,.65); border-radius: 22px; background: var(--card); box-shadow: 0 24px 70px rgba(7, 24, 60, .28); animation: modal-in .2s ease-out; }
+.aqua-app .pond-modal-close { position: absolute; top: 10px; right: 15px; color: var(--muted); font-size: 27px; line-height: 1; }
+.aqua-app .modal-kicker { display: flex; align-items: center; gap: 6px; color: var(--green); font-size: 10px; font-weight: 900; letter-spacing: .12em; }
+.aqua-app .modal-kicker .device-led { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; background: var(--ok-bg); }.aqua-app .modal-kicker .device-led.warn { background: var(--warn-bg); }.aqua-app .modal-kicker .device-led.bad { background: var(--bad-bg); }.aqua-app .modal-kicker .device-led i { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+.aqua-app .pond-modal-box h2 { margin-top: 8px; font-size: 23px; letter-spacing: -.03em; }.aqua-app .modal-subtitle { color: var(--muted); font-size: 12px; }
+.aqua-app .modal-reading { margin: 20px 0 14px; padding: 16px; border-radius: 14px; background: var(--soft); }.aqua-app .modal-reading span, .aqua-app .modal-reading small { display: block; color: var(--muted); font-size: 11px; }.aqua-app .modal-reading strong { display: block; margin: 4px 0; color: var(--green); font-size: 34px; letter-spacing: -.05em; }
+.aqua-app .modal-info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 18px; }.aqua-app .modal-info-grid span { padding: 10px; border-radius: 10px; background: var(--soft); }.aqua-app .modal-info-grid small, .aqua-app .modal-info-grid b { display: block; }.aqua-app .modal-info-grid small { color: var(--muted); font-size: 10px; }.aqua-app .modal-info-grid b { margin-top: 2px; font-size: 12px; }
+.aqua-app .fish-modal-icon { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--green-l); font-size: 19px; line-height: 1; }.aqua-app .fish-count-panel { display: flex; align-items: baseline; gap: 8px; margin: 20px 0 14px; padding: 18px; border-radius: 14px; color: #fff; background: linear-gradient(135deg, #1d398b, #0b8b9b); }.aqua-app .fish-count-panel strong { font-size: 34px; letter-spacing: -.06em; }.aqua-app .fish-count-panel span { color: rgba(255,255,255,.74); font-size: 11px; }
+@keyframes aqua-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(97,230,158,.68); } 50% { box-shadow: 0 0 0 6px rgba(97,230,158,0); } }
+@keyframes water-shift { to { transform: translateX(24px); } } @keyframes fish-swim { 50% { transform: translate(20px, -7px); } } @keyframes bubble-rise { 0% { opacity: 0; transform: translateY(15px); } 25%, 75% { opacity: .8; } 100% { opacity: 0; transform: translateY(-45px); } } @keyframes modal-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } } @keyframes spin { to { transform: rotate(360deg); } } .aqua-app .spin { display: inline-block; animation: spin .8s linear infinite; }
+
 /* tombol lengket di bawah */
 .aqua-app .stickybar {
     position: sticky;
@@ -1642,6 +1811,69 @@
     }
     .aqua-app .kpi .v {
         font-size: 22px;
+    }
+}
+
+@media (max-width: 1000px) {
+    .aqua-app .pond-gallery,
+    .aqua-app .metric-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .aqua-app .monitor-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .aqua-app .history-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+@media (max-width: 520px) {
+    .aqua-app .pond-gallery,
+    .aqua-app .metric-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .aqua-app .pond-detail-hero {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 20px;
+    }
+    .aqua-app .pond-detail-hero h1 {
+        font-size: 24px;
+    }
+    .aqua-app .hero-actions {
+        align-items: flex-start;
+        width: 100%;
+    }
+    .aqua-app .hero-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    .aqua-app .hero-meta {
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .aqua-app .pond-stage {
+        height: 340px;
+    }
+    .aqua-app .bioflok-tank { left: 5%; right: 5%; }
+    .aqua-app .sim-console, .aqua-app .sim-console-main, .aqua-app .sim-controls {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+    .aqua-app .sim-console-actions {
+        width: 100%;
+    }
+    .aqua-app .sim-console-actions .btn {
+        flex: 1;
+    }
+    .aqua-app .sim-play {
+        min-width: 0;
+    }
+    .aqua-app .edit-form {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .aqua-app .device-inspector-foot {
+        align-items: flex-start;
+        flex-direction: column;
     }
 }
 

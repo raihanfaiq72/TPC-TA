@@ -18,6 +18,7 @@ http:
     data: |
       {
         "jumlah_sampel": 30,
+        "jumlah_mati": 2,
         "bobot_total_sampel_g": 2651.7,
         "panjang_rata_cm": 17.94
       }
@@ -42,6 +43,9 @@ docs: |
   `bobot_rata_g` tidak dikirim dari Bruno karena merupakan generated column:
   `bobot_total_sampel_g / jumlah_sampel`.
 
+  `jumlah_mati` adalah input manusia untuk mencatat jumlah ikan mati pada
+  periode sampling. Nilai ini tidak mengubah status ikan di tabel `ikans`.
+
   Tanggal diambil dari `kolams.waktu_sandbox_sekarang`, bukan tanggal nyata.
 
   ## Request
@@ -53,6 +57,7 @@ docs: |
 
   {
     "jumlah_sampel": 30,
+    "jumlah_mati": 2,
     "bobot_total_sampel_g": 2651.7,
     "panjang_rata_cm": 17.94
   }
@@ -61,6 +66,7 @@ docs: |
   | Field | Tipe | Wajib | Keterangan |
   |---|---|---|---|
   | jumlah_sampel | integer >= 1 | ya | Tidak boleh melebihi jumlah ikan hidup |
+  | jumlah_mati | integer >= 0 | tidak | Jumlah ikan mati yang diinput manusia; default 0 |
   | bobot_total_sampel_g | number > 0 | ya | Total bobot seluruh ikan sampel |
   | panjang_rata_cm | number > 0 | ya | Panjang rata-rata sampel |
 

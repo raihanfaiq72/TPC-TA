@@ -543,6 +543,58 @@ class IkanController extends Controller
         ]);
     }
 
+    public function riwayat(int $kolamId): JsonResponse
+    {
+        if (! Kolam::query()->whereKey($kolamId)->exists()) {
+            return response()->json(['message' => 'Kolam tidak ditemukan.'], 404);
+        }
+
+        $logs = IkanLogHarian::query()
+            ->whereHas('ikan', fn (Builder $query) => $query->where('kolam_id', $kolamId))
+            ->orderBy('tanggal_sandbox')
+            ->get();
+
+        $kematian = Ikan::query()
+            ->where('kolam_id', $kolamId)
+            ->where('status', 'mati')
+            ->get(['tanggal_mati', 'penyebab_mati']);
+
+        $rows = $logs
+            ->groupBy(fn (IkanLogHarian $log): string => $log->tanggal_sandbox->toDateString())
+            ->map(function ($daily, string $tanggal) use ($kematian): array {
+                $matiHariIni = $kematian->filter(
+                    fn (Ikan $ikan): bool => $ikan->tanggal_mati?->toDateString() === $tanggal,
+                );
+
+                return [
+                    'tanggal' => $tanggal,
+                    'bobot_rata_g' => round((float) $daily->avg('bobot_g'), 2),
+                    'biomassa_g' => round((float) $daily->sum('bobot_g'), 2),
+                    'stres_rata' => round((float) $daily->avg('stres'), 2),
+                    'jumlah_mati' => $matiHariIni->count(),
+                    'penyebab_mati' => $matiHariIni
+                        ->groupBy(fn (Ikan $ikan): string => $ikan->penyebab_mati ?? 'tidak diketahui')
+                        ->map(fn ($rows, string $penyebab): array => [
+                            'penyebab' => $penyebab,
+                            'jumlah' => $rows->count(),
+                        ])
+                        ->values(),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'riwayat' => $rows,
+            'kematian' => $kematian
+                ->groupBy(fn (Ikan $ikan): string => $ikan->penyebab_mati ?? 'tidak diketahui')
+                ->map(fn ($rows, string $penyebab): array => [
+                    'penyebab' => $penyebab,
+                    'jumlah' => $rows->count(),
+                ])
+                ->values(),
+        ]);
+    }
+
     public function gerakIkan(Request $request, int $kolamId): JsonResponse
     {
         $data = $request->validate([

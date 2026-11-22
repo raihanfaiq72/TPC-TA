@@ -13,6 +13,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('hasil', 'Hasil')->name('hasil');
     Route::inertia('panen', 'Panen')->name('panen');
     Route::inertia('kolam', 'Kolam')->name('kolam');
+    Route::inertia('kolam/{id}', 'KolamDetail')->whereNumber('id')->name('kolam.detail');
     Route::inertia('pengaturan', 'Pengaturan')->name('pengaturan');
 });
 
