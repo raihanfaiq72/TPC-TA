@@ -1,0 +1,65 @@
+info:
+  name: Buat Kolam (validasi gagal)
+  type: http
+  seq: 2
+  tags:
+    - sandbox
+    - validation
+http:
+  method: POST
+  url: "{{baseUrl}}/api/sandbox/kolam"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Accept
+      value: application/json
+  body:
+    type: json
+    data: |
+      {
+        "kode": "",
+        "nama": "",
+        "panjang_m": 0,
+        "lebar_m": -1,
+        "tinggi_air_m": 0,
+        "jumlah_ikan_awal": 0,
+        "bobot_awal_rata_g": 0,
+        "bobot_awal_sd_g": -1,
+        "panjang_awal_rata_cm": 0
+      }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "422"
+    - expression: res.body.message
+      operator: isString
+    - expression: res.body.errors.kode
+      operator: isArray
+    - expression: res.body.errors.panjang_m
+      operator: isArray
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Buat Kolam — Validasi Gagal
+
+  Contoh request yang sengaja mengirim data tidak valid. API harus
+  mengembalikan HTTP 422 dengan detail error per field.
+
+  ## Response 422
+
+  ```json
+  {
+    "message": "The kode field is required. (and 8 more errors)",
+    "errors": {
+      "kode": ["The kode field is required."],
+      "nama": ["The nama field is required."],
+      "panjang_m": ["The panjang m field must be greater than 0."]
+    }
+  }
+  ```
+
+  Gunakan request ini untuk mendokumentasikan perilaku validasi.

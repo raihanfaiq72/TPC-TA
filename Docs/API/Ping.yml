@@ -1,0 +1,37 @@
+info:
+  name: Ping
+  type: http
+  seq: 1
+  tags:
+    - health
+http:
+  method: GET
+  url: "{{baseUrl}}/api/ping"
+  headers:
+    - name: Accept
+      value: application/json
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Ping
+
+  Mengecek apakah API berjalan dan mengembalikan nama aplikasi.
+
+  ## Request
+
+  ```http
+  GET {{baseUrl}}/api/ping
+  Accept: application/json
+  ```
+
+  ## Response 200
+
+  ```json
+  {
+    "status": "ok",
+    "app": "SmartAqua"
+  }
+  ```

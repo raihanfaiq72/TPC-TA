@@ -1,0 +1,106 @@
+info:
+  name: Buat Kolam
+  type: http
+  seq: 1
+  tags:
+    - sandbox
+    - kolam
+http:
+  method: POST
+  url: "{{baseUrl}}/api/sandbox/kolam"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Accept
+      value: application/json
+  body:
+    type: json
+    data: |
+      {
+        "kode": "{{kodeKolam}}",
+        "nama": "Kolam Demo Bruno",
+        "panjang_m": 3,
+        "lebar_m": 2,
+        "tinggi_air_m": 1.5,
+        "jumlah_ikan_awal": 100,
+        "bobot_awal_rata_g": 1.2,
+        "bobot_awal_sd_g": 0.15,
+        "panjang_awal_rata_cm": 3.5,
+        "kecepatan_waktu": 60,
+        "waktu_mulai": "2026-11-08 06:00:00",
+        "dosis_harian_persen": 5,
+        "bobot_target_panen_g": 100
+      }
+runtime:
+  scripts:
+    - type: before-request
+      code: |
+        const stamp = Date.now().toString().slice(-6);
+        bru.setVar("kodeKolam", `C${stamp}`);
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.kode
+      operator: isString
+    - expression: res.body.id
+      operator: isNumber
+    - expression: res.body.volume_air_m3
+      operator: isNumber
+  actions:
+    - type: set-variable
+      phase: after-response
+      selector:
+        expression: res.body.id
+        method: jsonq
+      variable:
+        name: kolamId
+        scope: runtime
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Buat Kolam Sandbox
+
+  Membuat satu kolam simulasi lengkap: kolam, 2 zona, 10 perangkat,
+  8 profil lingkungan, 2 keadaan zona, 3 jadwal pakan, dan populasi ikan.
+
+  Kode kolam dibuat otomatis lewat pre-request script (`C` + 6 digit
+  timestamp), jadi request ini aman dijalankan berulang tanpa bentrok
+  unique constraint.
+
+  ## Body
+
+  | Field | Tipe | Wajib | Keterangan |
+  |---|---|---|---|
+  | kode | string (max 20) | ya | Kode unik kolam |
+  | nama | string (max 100) | ya | Nama kolam |
+  | panjang_m | number > 0 | ya | Panjang kolam (meter) |
+  | lebar_m | number > 0 | ya | Lebar kolam (meter) |
+  | tinggi_air_m | number > 0 | ya | Tinggi air (meter) |
+  | jumlah_ikan_awal | integer 1..20000 | ya | Jumlah ikan saat tebar |
+  | bobot_awal_rata_g | number > 0 | ya | Bobot rata-rata awal (gram) |
+  | bobot_awal_sd_g | number >= 0 | ya | Simpangan baku bobot awal |
+  | panjang_awal_rata_cm | number > 0 | ya | Panjang rata-rata awal (cm) |
+  | kecepatan_waktu | number > 0 | tidak | Menit virtual per detik nyata (default 60) |
+  | waktu_mulai | date | tidak | Default hari ini 06:00 |
+  | dosis_harian_persen | number > 0 | tidak | Default 5 |
+  | bobot_target_panen_g | number > 0 | tidak | Default 100 |
+
+  ## Response 201
+
+  ```json
+  {
+    "id": 1,
+    "kode": "C123456",
+    "jumlah_ikan_awal": 100,
+    "volume_air_m3": 9,
+    "biomassa_awal_g": 120.5,
+    "padat_tebar_per_m3": 11.11
+  }
+  ```
+
+  ID hasil response disimpan ke runtime variable `kolamId` agar bisa
+  dipakai request berikutnya.

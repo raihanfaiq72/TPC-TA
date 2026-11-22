@@ -1,7 +1,30 @@
 opencollection: 1.0.0
 
 info:
-  name: API
+  name: SmartAqua API
+docs:
+  content: |
+    # SmartAqua API
+
+    API untuk provisioning dan simulasi kolam lele.
+
+    ## Base URL
+
+    `http://localhost:8000/api`
+
+    ## Endpoint
+
+    | Method | Path | Keterangan |
+    |---|---|---|
+    | GET | `/ping` | Cek status API |
+    | POST | `/sandbox/kolam` | Membuat kolam sandbox lengkap |
+
+    ## Autentikasi
+
+    Endpoint sandbox saat ini publik dengan throttle 30 request/menit.
+    Setelah Sanctum dipasang, tambahkan `auth:sanctum` pada route dan isi
+    variable `token` di environment.
+  type: text/markdown
 bundled: false
 extensions:
   bruno:
