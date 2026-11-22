@@ -1516,6 +1516,102 @@
 .aqua-app .pond-upload.uploading { opacity: .6; pointer-events: none; }
 .aqua-app .pond-upload input { display: none; }
 .aqua-app .pond-upload svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.aqua-app .pond-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 17px 17px;
+}
+.aqua-app .pond-card-actions .btn { flex: 1; justify-content: center; }
+.aqua-app .btn.danger {
+    color: #b42318;
+    border-color: #f2c4c0;
+    background: #fff6f5;
+}
+.aqua-app .btn.danger:hover { border-color: #e6a29c; background: #ffebe9; }
+.aqua-app .pond-modal-box.pond-form-box {
+    width: min(660px, 100%);
+    max-height: min(92vh, 820px);
+    overflow-y: auto;
+}
+.aqua-app .pond-form { display: grid; gap: 16px; margin-top: 20px; }
+.aqua-app .pond-form label {
+    color: #52647e;
+    font-size: 11px;
+    font-weight: 700;
+}
+.aqua-app .pond-form input {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 10px 11px;
+    border: 1px solid #cbd8ea;
+    border-radius: 10px;
+    color: #14235c;
+    background: #fff;
+    font-size: 13px;
+}
+.aqua-app .pond-form input:focus,
+.aqua-app .edit-form input:focus {
+    outline: 2px solid rgba(38, 60, 146, .18);
+    border-color: #6e83df;
+}
+.aqua-app .pond-field-wide { display: block; }
+.aqua-app .pond-fieldset {
+    margin: 0;
+    padding: 14px;
+    border: 1px solid #e1e9f5;
+    border-radius: 14px;
+    background: #f8fbff;
+}
+.aqua-app .pond-fieldset legend {
+    padding: 0 6px;
+    color: #263c92;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .02em;
+}
+.aqua-app .field-hint {
+    margin: 0 0 10px;
+    color: #7b8aa6;
+    font-size: 11px;
+    line-height: 1.5;
+}
+.aqua-app .pond-field-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+.aqua-app .pond-volume-preview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 14px 0;
+    padding: 11px 13px;
+    border: 1px solid #cfe0f5;
+    border-radius: 12px;
+    background: #eef6ff;
+    color: #52647e;
+    font-size: 11px;
+}
+.aqua-app .pond-volume-preview b { color: #1b4d89; font-size: 14px; }
+.aqua-app .pond-volume-preview small { color: #64748b; font-size: 10px; font-weight: 600; }
+.aqua-app .pond-advanced {
+    border-top: 1px solid #e7edf7;
+    padding-top: 12px;
+}
+.aqua-app .pond-advanced summary {
+    color: #52647e;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 800;
+}
+.aqua-app .pond-advanced .pond-field-grid { margin-top: 12px; }
+.aqua-app .edit-field-wide { grid-column: 1 / -1; }
+.aqua-app .pond-form-box .note.bad { margin: 10px 0 0; }
+.aqua-app .pond-form .modal-actions { margin-top: 2px; }
 .aqua-app .loading-card, .aqua-app .empty-card { padding: 28px; text-align: center; }
 .aqua-app .empty-card p { margin: 6px 0 18px; color: var(--muted); }
 .aqua-app .pond-empty-icon { font-size: 42px; color: var(--green); }
@@ -1824,6 +1920,32 @@
     }
     .aqua-app .history-layout {
         grid-template-columns: minmax(0, 1fr);
+    }
+    .aqua-app .pond-field-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (max-width: 520px) {
+    .aqua-app .pond-field-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .aqua-app .pond-card-actions {
+        flex-direction: column;
+    }
+    .aqua-app .pond-card-actions .btn {
+        width: 100%;
+    }
+    .aqua-app .pond-volume-preview {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .aqua-app .pond-modal {
+        padding: 10px;
+    }
+    .aqua-app .pond-form-box {
+        max-height: 94vh;
+        padding: 20px 16px;
     }
 }
 @media (max-width: 520px) {

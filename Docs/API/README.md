@@ -20,6 +20,7 @@ Docs/API/
 │   ├── Index kolam.yml         # GET /api/kolam
 │   ├── Show Kolam.yml          # GET /api/kolam/{id}
 │   ├── create-kolam.yml        # POST /api/kolam
+│   ├── Ubah Kolam.yml          # PUT /api/kolam/{id}
 │   └── Hapus Kolam.yml         # DELETE /api/kolam/{id}
 ├── Lingkungan/
 │   ├── folder.yml              # metadata folder
@@ -61,6 +62,8 @@ Docs/API/
 4. Pilih environment **Local** di pojok kanan atas.
 5. Jalankan `Ping` → `Kolam → Daftar Kolam` → `Detail Kolam`.
 6. Jalankan `Buat Kolam`; variable `kolamId` otomatis terisi dari response.
+   Gunakan `Ubah Kolam` untuk mencoba perubahan ukuran, lalu `Hapus Kolam`
+   bila ingin membersihkan data.
 7. Buka folder `Lingkungan` → `Lihat Lingkungan` → `Tambah Amonia` /
    `Tambah Sisa Pakan` → `Tick Lingkungan`.
 8. Buka folder `Ikan` → `Lihat Ikan` → `Gerak Ikan` (beberapa kali) →
@@ -93,6 +96,7 @@ variables:
 | GET | `/api/kolam` | Daftar Kolam | Semua kolam + jumlah ikan hidup & zona |
 | GET | `/api/kolam/{id}` | Detail Kolam | Kolam + zona + perangkat + jadwal pakan |
 | POST | `/api/kolam` | Buat Kolam | Provisioning kolam + zona + perangkat + ikan |
+| PUT | `/api/kolam/{id}` | Ubah Kolam | Perbarui nama/ukuran; volume & kepadatan dihitung ulang |
 | DELETE | `/api/kolam/{id}` | Hapus Kolam | Hapus kolam beserta data turunannya |
 | GET | `/api/kolam/{id}/lingkungan` | Lihat Lingkungan | Keadaan suhu, pH, DO, amonia, sisa pakan per zona |
 | POST | `/api/kolam/{id}/lingkungan/tick` | Tick Lingkungan | Jalankan satu langkah simulasi lingkungan |
@@ -134,6 +138,9 @@ API otomatis memakai prefix `/api` dari `bootstrap/app.php`. Alias lama
   - `id` dan `volume_air_m3` berupa number
 - ID hasil pembuatan kolam disimpan ke variable `kolamId`
   (post-response action) untuk dipakai request selanjutnya.
+- **Ubah Kolam** mengirim ukuran baru (`panjang_m`, `lebar_m`,
+  `tinggi_air_m`), lalu memastikan `volume_air_m3` dan
+  `padat_tebar_per_m3` sudah dihitung ulang.
 - **Lihat Lingkungan** memeriksa `kolam`, array `zona`, dan array
   `skenario`, termasuk keadaan serta profil lingkungan tiap zona.
 - **Tick Lingkungan** menjalankan satu langkah simulasi pada `waktu`

@@ -18,4 +18,6 @@ docs:
     - `GET /api/kolam` — daftar kolam
     - `GET /api/kolam/{id}` — detail kolam
     - `POST /api/kolam` — provisioning kolam baru
+    - `PUT /api/kolam/{id}` — perbarui nama/ukuran kolam
+    - `DELETE /api/kolam/{id}` — hapus kolam dan data turunannya
   type: text/markdown

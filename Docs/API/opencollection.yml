@@ -19,7 +19,9 @@ docs:
     | GET | `/ping` | Cek status API |
     | GET | `/kolam` | Daftar kolam |
     | POST | `/kolam` | Membuat kolam sandbox lengkap |
+    | PUT | `/kolam/{id}` | Perbarui nama/ukuran kolam + hitung ulang kepadatan |
     | GET | `/kolam/{id}` | Detail kolam + zona + perangkat + jadwal pakan |
+    | DELETE | `/kolam/{id}` | Hapus kolam beserta data turunannya |
     | GET | `/kolam/{id}/lingkungan` | Keadaan lingkungan per zona |
     | POST | `/kolam/{id}/lingkungan/tick` | Jalankan satu tick simulasi lingkungan |
     | POST | `/kolam/{id}/lingkungan/amonia` | Tambahkan beban amonia |

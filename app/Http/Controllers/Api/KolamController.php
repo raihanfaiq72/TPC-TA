@@ -222,7 +222,7 @@ class KolamController extends Controller
 
             $kolam->update([
                 'biomassa_awal_g' => $kolam->ikans()->sum('bobot_awal_g'),
-                'padat_tebar_per_m3' => $kolam->jumlah_ikan_awal / $kolam->volume_air_m3,
+                'padat_tebar_per_m3' => round($kolam->jumlah_ikan_awal / $kolam->volume_air_m3, 2),
             ]);
 
             return $kolam;
@@ -280,6 +280,13 @@ class KolamController extends Controller
         ]);
 
         $kolam->update($data);
+        $kolam->refresh();
+
+        if ($kolam->volume_air_m3 > 0) {
+            $kolam->update([
+                'padat_tebar_per_m3' => round($kolam->jumlah_ikan_awal / $kolam->volume_air_m3, 2),
+            ]);
+        }
 
         return response()->json([
             'message' => 'Data kolam berhasil diperbarui.',
@@ -405,6 +412,10 @@ class KolamController extends Controller
             return response()->json([
                 'message' => 'Kolam belum dapat dihapus. Periksa foreign key dan relasi data turunannya.',
             ], 409);
+        }
+
+        if ($kolam->foto_path !== null) {
+            Storage::disk('public')->delete($kolam->foto_path);
         }
 
         return response()->json(['message' => 'Kolam berhasil dihapus']);

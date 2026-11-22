@@ -109,7 +109,11 @@
     let editOpen = $state(false);
     let resetOpen = $state(false);
     let editBusy = $state(false);
+    let editError = $state('');
     let editForm = $state({ nama: '', panjang_m: 0, lebar_m: 0, tinggi_air_m: 0, kecepatan_waktu: 60, bobot_target_panen_g: 100 });
+    const editVolume = $derived(
+        Math.max(0, editForm.panjang_m * editForm.lebar_m * editForm.tinggi_air_m),
+    );
     let playTimer: ReturnType<typeof setInterval> | undefined;
     let fishCanvas = $state<HTMLCanvasElement>();
     let fishAnimationFrame: number | undefined;
@@ -383,6 +387,7 @@
 
     function openEdit(): void {
         if (!detail) return;
+        editError = '';
         editForm = {
             nama: detail.kolam.nama,
             panjang_m: detail.kolam.panjang_m,
@@ -396,18 +401,31 @@
 
     async function saveEdit(): Promise<void> {
         editBusy = true;
+        editError = '';
         try {
             const response = await fetch(`/api/kolam/${id}`, {
                 method: 'PUT',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
                 body: JSON.stringify(editForm),
             });
-            if (!response.ok) throw new Error('Perubahan kolam tidak dapat disimpan.');
+
+            const payload = (await response.json().catch(() => null)) as
+                | { message?: string; errors?: Record<string, string[]> }
+                | null;
+
+            if (!response.ok) {
+                const messages = payload?.errors
+                    ? Object.values(payload.errors).flat().join(' ')
+                    : payload?.message;
+
+                throw new Error(messages ?? 'Perubahan kolam tidak dapat disimpan.');
+            }
+
             editOpen = false;
             await Promise.all([loadDetail(), loadSimulation()]);
             say('Data kolam berhasil diperbarui');
         } catch (reason) {
-            error = reason instanceof Error ? reason.message : 'Perubahan kolam tidak dapat disimpan.';
+            editError = reason instanceof Error ? reason.message : 'Perubahan kolam tidak dapat disimpan.';
         } finally {
             editBusy = false;
         }
@@ -672,6 +690,11 @@
         void (async () => {
             try {
                 await loadDetail();
+
+                if (new URLSearchParams(window.location.search).has('edit')) {
+                    openEdit();
+                }
+
                 await Promise.all([loadReadings(), loadSimulation(), loadHistory(), loadRecommendation(), loadFish()]);
             } catch (reason) {
                 error = reason instanceof Error ? reason.message : 'Data realtime belum tersedia.';
@@ -1119,14 +1142,21 @@
             <button class="pond-modal-close" aria-label="Tutup" onclick={() => (editOpen = false)}>×</button>
             <span class="modal-kicker">PENGATURAN KOLAM</span>
             <h2>Edit kolam</h2>
-            <p class="modal-subtitle">Perubahan ukuran memengaruhi volume dan perhitungan lingkungan.</p>
+            <p class="modal-subtitle">Ubah ukuran sesuai kolam sebenarnya. Volume air dan kepadatan tebar dihitung ulang otomatis.</p>
+            {#if editError}
+                <div class="note bad">{editError}</div>
+            {/if}
             <div class="edit-form">
-                <label>Nama kolam<input bind:value={editForm.nama} /></label>
-                <label>Panjang (m)<input type="number" step="0.1" min="0.1" bind:value={editForm.panjang_m} /></label>
-                <label>Lebar (m)<input type="number" step="0.1" min="0.1" bind:value={editForm.lebar_m} /></label>
-                <label>Tinggi air (m)<input type="number" step="0.1" min="0.1" bind:value={editForm.tinggi_air_m} /></label>
-                <label>Target panen (g)<input type="number" min="1" bind:value={editForm.bobot_target_panen_g} /></label>
-                <label>Kecepatan waktu<input type="number" min="1" bind:value={editForm.kecepatan_waktu} /></label>
+                <label class="edit-field-wide">Nama kolam<input bind:value={editForm.nama} required maxlength="100" /></label>
+                <label>Panjang (m)<input type="number" step="0.1" min="0.1" inputmode="decimal" bind:value={editForm.panjang_m} required /></label>
+                <label>Lebar (m)<input type="number" step="0.1" min="0.1" inputmode="decimal" bind:value={editForm.lebar_m} required /></label>
+                <label>Tinggi air (m)<input type="number" step="0.1" min="0.1" inputmode="decimal" bind:value={editForm.tinggi_air_m} required /></label>
+                <label>Target panen (g)<input type="number" min="1" step="1" inputmode="numeric" bind:value={editForm.bobot_target_panen_g} /></label>
+                <label>Kecepatan waktu<input type="number" min="1" step="1" inputmode="numeric" bind:value={editForm.kecepatan_waktu} /></label>
+            </div>
+            <div class="pond-volume-preview">
+                <span>Volume air setelah disimpan</span>
+                <b>{editVolume.toFixed(2)} m³ <small>({Math.round(editVolume * 1000).toLocaleString('id-ID')} liter)</small></b>
             </div>
             <button class="btn pri block" disabled={editBusy} onclick={() => void saveEdit()}>{editBusy ? 'Menyimpan...' : 'Simpan perubahan'}</button>
         </dialog>

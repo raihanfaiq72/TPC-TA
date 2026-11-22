@@ -1,0 +1,82 @@
+info:
+  name: Ubah Kolam
+  type: http
+  seq: 4
+  tags:
+    - sandbox
+    - kolam
+http:
+  method: PUT
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Accept
+      value: application/json
+  body:
+    type: json
+    data: |
+      {
+        "nama": "Kolam Demo Bruno (diperbarui)",
+        "panjang_m": 4,
+        "lebar_m": 2,
+        "tinggi_air_m": 1.5,
+        "bobot_target_panen_g": 120,
+        "kecepatan_waktu": 60
+      }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.kolam.volume_air_m3
+      operator: eq
+      value: "12"
+    - expression: res.body.kolam.padat_tebar_per_m3
+      operator: isNumber
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Ubah Kolam
+
+  Memperbarui identitas dan ukuran kolam. Nilai `panjang_m`, `lebar_m`,
+  dan `tinggi_air_m` adalah ukuran sebenarnya yang dimasukkan pengguna.
+  `volume_air_m3` dihitung ulang oleh generated column, lalu
+  `padat_tebar_per_m3` ikut dihitung ulang oleh API.
+
+  ## Body
+
+  | Field | Tipe | Wajib | Keterangan |
+  |---|---|---|---|
+  | nama | string (max 100) | tidak | Nama kolam |
+  | panjang_m | number > 0 | tidak | Panjang kolam (meter) |
+  | lebar_m | number > 0 | tidak | Lebar kolam (meter) |
+  | tinggi_air_m | number > 0 | tidak | Tinggi air (meter) |
+  | kecepatan_waktu | number > 0 | tidak | Menit virtual per detik nyata |
+  | bobot_target_panen_g | number > 0 | tidak | Target bobot panen (gram) |
+
+  ## Response 200
+
+  ```json
+  {
+    "message": "Data kolam berhasil diperbarui.",
+    "kolam": {
+      "id": 1,
+      "nama": "Kolam Demo Bruno (diperbarui)",
+      "panjang_m": 4,
+      "lebar_m": 2,
+      "tinggi_air_m": 1.5,
+      "volume_air_m3": 12,
+      "padat_tebar_per_m3": 8.33
+    }
+  }
+  ```
+
+  ## Response 404
+
+  ```json
+  { "message": "Kolam tidak ditemukan" }
+  ```
