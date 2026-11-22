@@ -69,7 +69,7 @@
                 </div>
                 <div>
                     <b>SmartAqua</b>
-                    <span>Bantuan panen lele</span>
+                    <span>IPB University</span>
                 </div>
             </div>
 

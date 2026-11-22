@@ -1,8 +1,8 @@
 <script module lang="ts">
     export const layout = {
-        title: 'Confirm password',
+        title: 'Konfirmasi kata sandi',
         description:
-            'This is a secure area of the application. Please confirm your password before continuing.',
+            'Area ini aman. Konfirmasi kata sandi sebelum melanjutkan.',
     };
 </script>
 
@@ -17,20 +17,21 @@
     import { store } from '@/routes/password/confirm';
 </script>
 
-<AppHead title="Confirm password" />
+<AppHead title="Konfirmasi kata sandi" />
 
 
 <Form {...store.form()} resetOnSuccess>
     {#snippet children({ errors, processing })}
         <div class="space-y-6">
             <div class="grid gap-2">
-                <Label for="password">Password</Label>
+                <Label for="password">Kata sandi</Label>
                 <PasswordInput
                     id="password"
                     name="password"
                     class="mt-1 block w-full"
                     required
                     autocomplete="current-password"
+                    placeholder="Kata sandi"
                 />
                 <InputError message={errors.password} />
             </div>
@@ -38,12 +39,12 @@
             <div class="flex items-center">
                 <Button
                     type="submit"
-                    class="w-full"
+                    class="h-11 w-full rounded-xl bg-[#263c92] text-sm font-bold text-white hover:bg-[#1b2c6f]"
                     disabled={processing}
                     data-test="confirm-password-button"
                 >
                     {#if processing}<Spinner />{/if}
-                    Confirm password
+                    Konfirmasi
                 </Button>
             </div>
         </div>

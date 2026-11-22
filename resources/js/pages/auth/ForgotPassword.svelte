@@ -1,7 +1,7 @@
 <script module lang="ts">
     export const layout = {
-        title: 'Forgot password',
-        description: 'Enter your email to receive a password reset link',
+        title: 'Lupa kata sandi',
+        description: 'Masukkan email untuk menerima tautan reset kata sandi.',
     };
 </script>
 
@@ -24,7 +24,7 @@
     } = $props();
 </script>
 
-<AppHead title="Forgot password" />
+<AppHead title="Lupa kata sandi" />
 
 {#if status}
     <div class="mb-4 text-center text-sm font-medium text-green-600">
@@ -36,13 +36,13 @@
     <Form {...email.form()}>
         {#snippet children({ errors, processing })}
             <div class="grid gap-2">
-                <Label for="email">Email address</Label>
+                <Label for="email">Email</Label>
                 <Input
                     id="email"
                     type="email"
                     name="email"
                     autocomplete="off"
-                    placeholder="email@example.com"
+                    placeholder="nama@apps.ipb.ac.id"
                 />
                 <InputError message={errors.email} />
             </div>
@@ -50,19 +50,21 @@
             <div class="my-6 flex items-center justify-start">
                 <Button
                     type="submit"
-                    class="w-full"
+                    class="h-11 w-full rounded-xl bg-[#263c92] text-sm font-bold text-white hover:bg-[#1b2c6f]"
                     disabled={processing}
                     data-test="email-password-reset-link-button"
                 >
                     {#if processing}<Spinner />{/if}
-                    Email password reset link
+                    Kirim tautan reset
                 </Button>
             </div>
         {/snippet}
     </Form>
 
-    <div class="space-x-1 text-center text-sm text-muted-foreground">
-        <span>Or, return to</span>
-        <TextLink href={login()}>log in</TextLink>
+    <div class="space-x-1 text-center text-sm text-slate-600">
+        <span>Atau, kembali ke</span>
+        <TextLink href={login()} class="font-semibold text-[#263c92]"
+            >masuk</TextLink
+        >
     </div>
 </div>

@@ -6,25 +6,27 @@
 
 /* ===== 1. ATURAN DASAR ===== */
 .aqua-app {
-    --bg: #f4f7f6;
+    --bg: #f5f7fc;
     --card: #ffffff;
-    --soft: #f2f6f5;
-    --text: #10201e;
-    --text2: #3d514e;
-    --muted: #6f8481;
-    --line: #e2eae8;
-    --line2: #cfdad8;
-    --green: #0f7a68;
-    --green-d: #0b5e50;
-    --green-l: #e6f4f1;
+    --soft: #f1f4fb;
+    --text: #14235c;
+    --text2: #334155;
+    --muted: #64748b;
+    --line: #e4e8f6;
+    --line2: #cfd8ee;
+    --green: #263c92;
+    --green-d: #1b2c6f;
+    --green-l: #e8edfb;
     --ok: #16794a;
     --ok-bg: #e7f6ed;
     --warn: #a1620a;
     --warn-bg: #fdf2df;
     --bad: #b3271f;
     --bad-bg: #fdecea;
-    --blue: #1d5f9e;
-    --blue-bg: #eaf2fb;
+    --blue: #086ad8;
+    --blue-bg: #e6f2ff;
+    --gold: #f7d84a;
+    --gold-d: #d9a900;
     --r: 18px;
     --r2: 13px;
     --r3: 10px;
@@ -53,6 +55,8 @@
     --bad-bg: #d9d9d9;
     --blue: #000;
     --blue-bg: #f0f0f0;
+    --gold: #ffffff;
+    --gold-d: #ffffff;
     --r: 8px;
     --r2: 6px;
     --r3: 5px;
@@ -632,7 +636,7 @@
 
 /* kartu status besar (jawaban utama) */
 .aqua-app .status-card {
-    background: linear-gradient(150deg, #0f7a68, #0a5648);
+    background: linear-gradient(150deg, #263c92, #1b2c6f);
     color: #fff;
     border-radius: var(--r);
     padding: 24px;
@@ -695,7 +699,7 @@
     color: var(--green-d);
 }
 .aqua-app .status-card .btn.pri:hover {
-    background: #eaf6f3;
+    background: #eef2ff;
 }
 .aqua-app .progress {
     height: 8px;
@@ -708,7 +712,7 @@
     display: block;
     height: 100%;
     border-radius: 999px;
-    background: #7ef0c6;
+    background: var(--gold);
 }
 .aqua-app .progress.flat {
     background: var(--soft);
@@ -1553,7 +1557,7 @@
 .aqua-app .toast svg {
     width: 16px;
     height: 16px;
-    stroke: #6ee7b7;
+    stroke: var(--gold);
     fill: none;
     stroke-width: 2.4;
     stroke-linecap: round;

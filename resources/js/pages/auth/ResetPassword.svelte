@@ -1,7 +1,7 @@
 <script module lang="ts">
     export const layout = {
-        title: 'Reset password',
-        description: 'Please enter your new password below',
+        title: 'Atur ulang kata sandi',
+        description: 'Masukkan kata sandi baru kamu di bawah ini.',
     };
 </script>
 
@@ -27,7 +27,7 @@
     } = $props();
 </script>
 
-<AppHead title="Reset password" />
+<AppHead title="Atur ulang kata sandi" />
 
 <Form
     {...update.form()}
@@ -51,26 +51,26 @@
             </div>
 
             <div class="grid gap-2">
-                <Label for="password">Password</Label>
+                <Label for="password">Kata sandi</Label>
                 <PasswordInput
                     id="password"
                     name="password"
                     autocomplete="new-password"
                     class="mt-1 block w-full"
-                    placeholder="Password"
+                    placeholder="Kata sandi baru"
                     passwordrules={passwordRules}
                 />
                 <InputError message={errors.password} />
             </div>
 
             <div class="grid gap-2">
-                <Label for="password_confirmation">Confirm password</Label>
+                <Label for="password_confirmation">Konfirmasi kata sandi</Label>
                 <PasswordInput
                     id="password_confirmation"
                     name="password_confirmation"
                     autocomplete="new-password"
                     class="mt-1 block w-full"
-                    placeholder="Confirm password"
+                    placeholder="Ulangi kata sandi"
                     passwordrules={passwordRules}
                 />
                 <InputError message={errors.password_confirmation} />
@@ -78,12 +78,12 @@
 
             <Button
                 type="submit"
-                class="mt-4 w-full"
+                class="mt-4 h-11 w-full rounded-xl bg-[#263c92] text-sm font-bold text-white hover:bg-[#1b2c6f]"
                 disabled={processing}
                 data-test="reset-password-button"
             >
                 {#if processing}<Spinner />{/if}
-                Reset password
+                Simpan kata sandi
             </Button>
         </div>
     {/snippet}
