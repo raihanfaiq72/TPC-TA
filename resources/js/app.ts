@@ -1,5 +1,6 @@
 import { createInertiaApp } from '@inertiajs/svelte';
 import AppLayout from '@/layouts/AppLayout.svelte';
+import AquaLayout from '@/layouts/AquaLayout.svelte';
 import AuthLayout from '@/layouts/AuthLayout.svelte';
 import SettingsLayout from '@/layouts/settings/Layout.svelte';
 import { initializeFlashToast } from '@/lib/flash-toast';
@@ -18,11 +19,11 @@ void createInertiaApp({
             case name.startsWith('settings/'):
                 return [AppLayout, SettingsLayout];
             default:
-                return AppLayout;
+                return AquaLayout;
         }
     },
     progress: {
-        color: '#4B5563',
+        color: '#0f7a68',
     },
 });
 

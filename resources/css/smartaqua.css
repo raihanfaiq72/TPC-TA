@@ -1,0 +1,1684 @@
+/* =========================================================
+   SmartAqua — gaya visual untuk area aplikasi setelah login.
+   Semua aturan di-scope ke .aqua-app agar halaman auth/settings
+   bawaan starter kit tidak ikut berubah.
+   ========================================================= */
+
+/* ===== 1. ATURAN DASAR ===== */
+.aqua-app {
+    --bg: #f4f7f6;
+    --card: #ffffff;
+    --soft: #f2f6f5;
+    --text: #10201e;
+    --text2: #3d514e;
+    --muted: #6f8481;
+    --line: #e2eae8;
+    --line2: #cfdad8;
+    --green: #0f7a68;
+    --green-d: #0b5e50;
+    --green-l: #e6f4f1;
+    --ok: #16794a;
+    --ok-bg: #e7f6ed;
+    --warn: #a1620a;
+    --warn-bg: #fdf2df;
+    --bad: #b3271f;
+    --bad-bg: #fdecea;
+    --blue: #1d5f9e;
+    --blue-bg: #eaf2fb;
+    --r: 18px;
+    --r2: 13px;
+    --r3: 10px;
+    --sh:
+        0 1px 2px rgba(16, 32, 30, 0.04),
+        0 10px 26px -18px rgba(16, 32, 30, 0.28);
+    --sb: 240px;
+}
+.aqua-app.wire {
+    --bg: #fff;
+    --card: #fff;
+    --soft: #f5f5f5;
+    --text: #000;
+    --text2: #1f1f1f;
+    --muted: #5b5b5b;
+    --line: #cfcfcf;
+    --line2: #9d9d9d;
+    --green: #000;
+    --green-d: #000;
+    --green-l: #ededed;
+    --ok: #000;
+    --ok-bg: #eee;
+    --warn: #000;
+    --warn-bg: #e3e3e3;
+    --bad: #000;
+    --bad-bg: #d9d9d9;
+    --blue: #000;
+    --blue-bg: #f0f0f0;
+    --r: 8px;
+    --r2: 6px;
+    --r3: 5px;
+    --sh: none;
+}
+.aqua-app.wire .card,
+.aqua-app.wire .status-card,
+.aqua-app.wire .action,
+.aqua-app.wire .kpi,
+.aqua-app.wire .task,
+.aqua-app.wire .modal-box {
+    border: 1.5px solid #000 !important;
+    box-shadow: none !important;
+}
+.aqua-app.wire .status-card {
+    background: #fff !important;
+    color: #000 !important;
+}
+.aqua-app.wire .status-card * {
+    color: #000 !important;
+}
+.aqua-app.wire .status-card .btn {
+    background: #fff !important;
+    border: 1px solid #000 !important;
+    color: #000 !important;
+}
+.aqua-app.wire .status-card .btn.pri {
+    background: #000 !important;
+    color: #fff !important;
+}
+.aqua-app.wire .action .aic,
+.aqua-app.wire .task .tic,
+.aqua-app.wire .kpi .kic {
+    background: #fff !important;
+    border: 1px solid #000;
+    color: #000 !important;
+}
+.aqua-app.wire .action .aic svg,
+.aqua-app.wire .task .tic svg,
+.aqua-app.wire .kpi .kic svg {
+    stroke: #000 !important;
+}
+.aqua-app.wire .btn.pri {
+    background: #000 !important;
+    color: #fff !important;
+    border-color: #000 !important;
+}
+.aqua-app.wire .toggle.on {
+    background: #000 !important;
+}
+.aqua-app.wire .brand-logo {
+    background: #000;
+}
+.aqua-app.wire .progress i,
+.aqua-app.wire .bar i {
+    background: #000 !important;
+}
+.aqua-app.wire .chart .ln {
+    stroke: #000;
+}
+.aqua-app.wire .chart .ar {
+    fill: #ededed;
+}
+.aqua-app.wire .chart .bar-fill {
+    fill: #000;
+}
+.aqua-app.wire .search,
+.aqua-app.wire .icon-btn,
+.aqua-app.wire .mode-btn {
+    border: 1.5px solid #000;
+}
+
+.aqua-app,
+.aqua-app * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+.aqua-app {
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.5;
+    font-family:
+        Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial,
+        sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+.aqua-app button,
+.aqua-app input,
+.aqua-app select {
+    font: inherit;
+    color: inherit;
+}
+.aqua-app button {
+    background: none;
+    border: 0;
+    cursor: pointer;
+}
+.aqua-app a {
+    color: inherit;
+    text-decoration: none;
+}
+.aqua-app svg {
+    display: block;
+}
+
+/* ===== 2. KERANGKA ===== */
+.aqua-app .app {
+    display: grid;
+    grid-template-columns: var(--sb) minmax(0, 1fr);
+    min-height: 100vh;
+}
+.aqua-app .side {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    background: var(--card);
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    padding: 18px 12px 14px;
+    gap: 3px;
+    z-index: 40;
+}
+.aqua-app .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 8px 16px;
+}
+.aqua-app .brand-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
+    background: var(--green);
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+}
+.aqua-app .brand-logo svg {
+    width: 22px;
+    height: 22px;
+    stroke: #fff;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.aqua-app .brand b {
+    display: block;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+}
+.aqua-app .brand span {
+    font-size: 11.5px;
+    color: var(--muted);
+}
+.aqua-app .nav-t {
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 14px 10px 6px;
+}
+.aqua-app .nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 12px;
+    border-radius: var(--r2);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text2);
+    width: 100%;
+    text-align: left;
+    transition: background 0.15s;
+}
+.aqua-app .nav svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex: 0 0 auto;
+    opacity: 0.8;
+}
+.aqua-app .nav:hover {
+    background: var(--soft);
+}
+.aqua-app .nav.on {
+    background: var(--green-l);
+    color: var(--green-d);
+    font-weight: 800;
+}
+.aqua-app .nav.on svg {
+    opacity: 1;
+}
+.aqua-app .nav .pill {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--bad);
+    color: #fff;
+}
+.aqua-app .side .grow {
+    flex: 1;
+    min-height: 14px;
+}
+.aqua-app .side-note {
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r2);
+    padding: 13px;
+    margin: 0 2px 10px;
+}
+.aqua-app .side-note b {
+    font-size: 13px;
+    display: block;
+    margin-bottom: 3px;
+}
+.aqua-app .side-note p {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.4;
+}
+.aqua-app .user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px;
+    border-radius: var(--r2);
+    border: 1px solid var(--line);
+    width: 100%;
+    text-align: left;
+}
+.aqua-app .user:hover {
+    background: var(--soft);
+}
+.aqua-app .user .t {
+    min-width: 0;
+}
+.aqua-app .user .t b {
+    display: block;
+    font-size: 13px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.aqua-app .user .t span {
+    font-size: 11.5px;
+    color: var(--muted);
+}
+.aqua-app .av {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--green-l);
+    color: var(--green-d);
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    font-size: 13px;
+    flex: 0 0 auto;
+}
+.aqua-app.wire .av {
+    background: #eee;
+}
+
+/* main */
+.aqua-app .main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+.aqua-app .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 24px;
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+}
+.aqua-app .top-title {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+.aqua-app .top-sub {
+    font-size: 12px;
+    color: var(--muted);
+}
+.aqua-app .topbar .grow {
+    flex: 1;
+}
+.aqua-app .help-btn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 38px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line2);
+    background: var(--card);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text2);
+}
+.aqua-app .help-btn:hover {
+    background: var(--soft);
+}
+.aqua-app .help-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+.aqua-app .icon-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    display: grid;
+    place-items: center;
+    background: var(--card);
+    position: relative;
+}
+.aqua-app .icon-btn:hover {
+    background: var(--soft);
+}
+.aqua-app .icon-btn svg {
+    width: 18px;
+    height: 18px;
+    stroke: var(--text2);
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.aqua-app .icon-btn .dot {
+    position: absolute;
+    top: 8px;
+    right: 9px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--bad);
+    border: 1.5px solid var(--card);
+}
+.aqua-app .content {
+    padding: 22px 24px 96px;
+    width: 100%;
+    max-width: 1080px;
+    margin: 0 auto;
+    flex: 1;
+}
+.aqua-app .page {
+    display: none;
+}
+.aqua-app .page.on {
+    display: block;
+}
+.aqua-app .page.on.fade {
+    animation: fade 0.18s ease;
+}
+@keyframes fade {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* ===== 3. TIPOGRAFI & TOMBOL ===== */
+.aqua-app h1 {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+}
+.aqua-app h2 {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+.aqua-app h3 {
+    font-size: 15px;
+    font-weight: 800;
+}
+.aqua-app .lead {
+    font-size: 14px;
+    color: var(--text2);
+    margin-top: 6px;
+    max-width: 60ch;
+}
+.aqua-app .muted {
+    color: var(--muted);
+}
+.aqua-app .small {
+    font-size: 12.5px;
+}
+.aqua-app .tiny {
+    font-size: 11.5px;
+    line-height: 1.4;
+}
+.aqua-app .head {
+    margin-bottom: 18px;
+}
+.aqua-app .head-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+.aqua-app .head-row .grow {
+    flex: 1;
+    min-width: 200px;
+}
+.aqua-app .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 44px;
+    padding: 0 20px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 700;
+    border: 1px solid var(--line2);
+    background: var(--card);
+    color: var(--text);
+    transition:
+        transform 0.08s,
+        background 0.15s;
+    white-space: nowrap;
+}
+.aqua-app .btn:hover {
+    background: var(--soft);
+}
+.aqua-app .btn:active {
+    transform: scale(0.985);
+}
+.aqua-app .btn svg {
+    width: 17px;
+    height: 17px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.aqua-app .btn.pri {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+}
+.aqua-app .btn.pri:hover {
+    background: var(--green-d);
+    border-color: var(--green-d);
+}
+.aqua-app .btn.soft {
+    background: var(--green-l);
+    border-color: transparent;
+    color: var(--green-d);
+}
+.aqua-app .btn.sm {
+    height: 36px;
+    padding: 0 14px;
+    font-size: 13px;
+}
+.aqua-app .btn.block {
+    width: 100%;
+}
+.aqua-app .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 11px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    background: var(--soft);
+    color: var(--text2);
+    border: 1px solid var(--line);
+    white-space: nowrap;
+}
+.aqua-app .badge .d {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+.aqua-app .badge.ok {
+    background: var(--ok-bg);
+    color: var(--ok);
+    border-color: transparent;
+}
+.aqua-app .badge.warn {
+    background: var(--warn-bg);
+    color: var(--warn);
+    border-color: transparent;
+}
+.aqua-app .badge.bad {
+    background: var(--bad-bg);
+    color: var(--bad);
+    border-color: transparent;
+}
+.aqua-app .badge.acc {
+    background: var(--green-l);
+    color: var(--green-d);
+    border-color: transparent;
+}
+
+/* ===== 4. KARTU & BLOK ===== */
+.aqua-app .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 20px;
+    box-shadow: var(--sh);
+}
+.aqua-app .card-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+.aqua-app .card-head .grow {
+    flex: 1;
+    min-width: 0;
+}
+.aqua-app .card-head p {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: 2px;
+}
+.aqua-app .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.aqua-app .grid {
+    display: grid;
+    gap: 14px;
+}
+.aqua-app .g2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.aqua-app .g3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.aqua-app .gsplit {
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+    align-items: start;
+}
+.aqua-app .divider {
+    height: 1px;
+    background: var(--line);
+    margin: 16px 0;
+}
+
+/* kartu status besar (jawaban utama) */
+.aqua-app .status-card {
+    background: linear-gradient(150deg, #0f7a68, #0a5648);
+    color: #fff;
+    border-radius: var(--r);
+    padding: 24px;
+    box-shadow: var(--sh);
+    position: relative;
+    overflow: hidden;
+}
+.aqua-app .status-card::after {
+    content: '';
+    position: absolute;
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.07);
+    right: -80px;
+    top: -100px;
+}
+.aqua-app .status-card .label {
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.72);
+}
+.aqua-app .status-card .big {
+    font-size: 29px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin: 8px 0 6px;
+    position: relative;
+    z-index: 1;
+}
+.aqua-app .status-card .say {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.85);
+    max-width: 44ch;
+    position: relative;
+    z-index: 1;
+}
+.aqua-app .status-card .acts {
+    display: flex;
+    gap: 9px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+    position: relative;
+    z-index: 1;
+}
+.aqua-app .status-card .btn {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #fff;
+}
+.aqua-app .status-card .btn:hover {
+    background: rgba(255, 255, 255, 0.26);
+}
+.aqua-app .status-card .btn.pri {
+    background: #fff;
+    border-color: #fff;
+    color: var(--green-d);
+}
+.aqua-app .status-card .btn.pri:hover {
+    background: #eaf6f3;
+}
+.aqua-app .progress {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.25);
+    overflow: hidden;
+    margin-top: 4px;
+}
+.aqua-app .progress i {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: #7ef0c6;
+}
+.aqua-app .progress.flat {
+    background: var(--soft);
+}
+.aqua-app .progress.flat i {
+    background: var(--green);
+}
+.aqua-app .prog-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
+    margin: 16px 0 6px;
+    position: relative;
+    z-index: 1;
+}
+
+/* kartu pilihan aksi ("mau ngapain?") */
+.aqua-app .action {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 16px;
+    text-align: left;
+    width: 100%;
+    box-shadow: var(--sh);
+    transition:
+        transform 0.12s,
+        border-color 0.15s;
+}
+.aqua-app .action:hover {
+    transform: translateY(-2px);
+    border-color: var(--line2);
+}
+.aqua-app .aic {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    background: var(--green-l);
+    color: var(--green-d);
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+}
+.aqua-app .aic svg {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.aqua-app .action .t {
+    flex: 1;
+    min-width: 0;
+}
+.aqua-app .action .t b {
+    display: block;
+    font-size: 14.5px;
+    font-weight: 800;
+    line-height: 1.25;
+    color: var(--text);
+}
+.aqua-app .action .t span {
+    font-size: 12.5px;
+    color: var(--muted);
+    display: block;
+    margin-top: 2px;
+    line-height: 1.35;
+}
+.aqua-app .action .chev {
+    width: 16px;
+    height: 16px;
+    stroke: var(--muted);
+    fill: none;
+    stroke-width: 2.2;
+    flex: 0 0 auto;
+}
+
+/* daftar tugas */
+.aqua-app .task {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r2);
+    padding: 13px 14px;
+    width: 100%;
+    text-align: left;
+}
+.aqua-app .task .tic {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: var(--soft);
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+}
+.aqua-app .task .tic svg {
+    width: 17px;
+    height: 17px;
+    stroke: var(--text2);
+    fill: none;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.aqua-app .task .t {
+    flex: 1;
+    min-width: 0;
+}
+.aqua-app .task .t b {
+    display: block;
+    font-size: 13.5px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--text);
+}
+.aqua-app .task .t span {
+    font-size: 12px;
+    color: var(--muted);
+}
+.aqua-app .task.done {
+    background: var(--soft);
+    border-style: dashed;
+}
+.aqua-app .task.done b {
+    text-decoration: line-through;
+    color: var(--muted);
+}
+
+/* angka ringkas */
+.aqua-app .kpi {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 16px;
+    box-shadow: var(--sh);
+}
+.aqua-app .kpi .kic {
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+    background: var(--green-l);
+    color: var(--green-d);
+    display: grid;
+    place-items: center;
+    margin-bottom: 10px;
+}
+.aqua-app .kpi .kic svg {
+    width: 17px;
+    height: 17px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.9;
+}
+.aqua-app .kpi .v {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+}
+.aqua-app .kpi .v small {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 0;
+}
+.aqua-app .kpi .n {
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 2px;
+}
+.aqua-app .kpi .x {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+    line-height: 1.35;
+}
+
+/* daftar baris info */
+.aqua-app .rows {
+    display: flex;
+    flex-direction: column;
+}
+.aqua-app .row-i {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+}
+.aqua-app .row-i:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+.aqua-app .row-i:first-child {
+    padding-top: 0;
+}
+.aqua-app .row-i .t {
+    flex: 1;
+    min-width: 0;
+}
+.aqua-app .row-i .t b {
+    display: block;
+    font-size: 13.5px;
+    font-weight: 700;
+}
+.aqua-app .row-i .t span {
+    font-size: 12px;
+    color: var(--muted);
+}
+.aqua-app .row-i .lead2 {
+    font-size: 12.5px;
+    color: var(--text2);
+    margin-top: 2px;
+}
+
+/* langkah (stepper) */
+.aqua-app .steps {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+.aqua-app .step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--muted);
+}
+.aqua-app .step .n {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--soft);
+    border: 1px solid var(--line2);
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    font-weight: 800;
+}
+.aqua-app .step.on {
+    color: var(--green-d);
+}
+.aqua-app .step.on .n {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+}
+.aqua-app .step-line {
+    flex: 1;
+    min-width: 14px;
+    height: 2px;
+    background: var(--line);
+    border-radius: 2px;
+}
+
+/* form */
+.aqua-app .form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 16px;
+}
+.aqua-app .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+.aqua-app .field > label {
+    font-size: 13px;
+    font-weight: 700;
+}
+.aqua-app .field .hint {
+    font-size: 12px;
+    color: var(--muted);
+}
+.aqua-app input,
+.aqua-app select {
+    height: 46px;
+    border: 1.5px solid var(--line2);
+    border-radius: var(--r3);
+    padding: 0 13px;
+    background: var(--card);
+    font-size: 15px;
+    font-weight: 600;
+    width: 100%;
+    outline: 0;
+    transition:
+        border-color 0.15s,
+        box-shadow 0.15s;
+}
+.aqua-app input:focus,
+.aqua-app select:focus {
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px var(--green-l);
+}
+.aqua-app input[readonly] {
+    background: var(--soft);
+    color: var(--text2);
+}
+.aqua-app input.big {
+    font-size: 18px;
+    font-weight: 800;
+    height: 52px;
+}
+.aqua-app .unit {
+    position: relative;
+}
+.aqua-app .unit input {
+    padding-right: 56px;
+}
+.aqua-app .unit em {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    font-style: normal;
+}
+
+/* tabel */
+.aqua-app table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+.aqua-app th {
+    text-align: left;
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 10px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+}
+.aqua-app td {
+    padding: 10px;
+    border-bottom: 1px solid var(--line);
+    font-weight: 600;
+}
+.aqua-app tbody tr:last-child td {
+    border-bottom: 0;
+}
+.aqua-app td.num,
+.aqua-app th.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.aqua-app .tbl {
+    overflow-x: auto;
+}
+.aqua-app tr.err td {
+    background: var(--bad-bg);
+}
+.aqua-app tr.warn td {
+    background: var(--warn-bg);
+}
+.aqua-app .inline-msg {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 700;
+    flex-wrap: wrap;
+}
+.aqua-app .inline-msg svg {
+    width: 15px;
+    height: 15px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    flex: 0 0 auto;
+}
+
+/* callout */
+.aqua-app .note {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    padding: 12px 14px;
+    border-radius: var(--r2);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+.aqua-app .note svg {
+    width: 17px;
+    height: 17px;
+    flex: 0 0 auto;
+    margin-top: 1px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.aqua-app .note.ok {
+    background: var(--ok-bg);
+    color: var(--ok);
+}
+.aqua-app .note.warn {
+    background: var(--warn-bg);
+    color: var(--warn);
+}
+.aqua-app .note.bad {
+    background: var(--bad-bg);
+    color: var(--bad);
+}
+.aqua-app .note.acc {
+    background: var(--green-l);
+    color: var(--green-d);
+}
+
+/* sensor */
+.aqua-app .sensor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.aqua-app .sensor .sh {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.aqua-app .sensor .sh b {
+    font-size: 13.5px;
+    font-weight: 800;
+    flex: 1;
+    min-width: 0;
+    line-height: 1.25;
+}
+.aqua-app .sensor .sh .badge {
+    flex: 0 0 auto;
+}
+.aqua-app .sensor .sic {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    background: var(--green-l);
+    color: var(--green-d);
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+}
+.aqua-app .sensor .sic svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.aqua-app .sensor .sh b {
+    font-size: 13.5px;
+    font-weight: 800;
+}
+.aqua-app .sensor .v {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+}
+.aqua-app .sensor .v small {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 0;
+}
+.aqua-app .sensor .say {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.4;
+}
+
+/* grafik */
+.aqua-app .chart {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+.aqua-app .chart text {
+    font-size: 11px;
+    font-weight: 700;
+    fill: var(--muted);
+    font-family: inherit;
+}
+.aqua-app .chart .gl {
+    stroke: var(--line);
+    stroke-width: 1;
+    stroke-dasharray: 3 4;
+}
+.aqua-app .chart .ln {
+    fill: none;
+    stroke: var(--green);
+    stroke-width: 2.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.aqua-app .chart .lnp {
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 2;
+    stroke-dasharray: 5 5;
+    stroke-linecap: round;
+}
+.aqua-app .chart .ar {
+    fill: var(--green-l);
+    opacity: 0.75;
+}
+.aqua-app .chart .pt {
+    fill: var(--card);
+    stroke: var(--green);
+    stroke-width: 2.4;
+}
+.aqua-app .legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+}
+.aqua-app .legend i {
+    display: inline-block;
+    width: 16px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--green);
+    margin-right: 6px;
+    vertical-align: middle;
+}
+.aqua-app .legend i.dash {
+    background: none;
+    border-top: 2px dashed var(--muted);
+    height: 0;
+}
+.aqua-app .bar-row {
+    margin-bottom: 14px;
+}
+.aqua-app .bar-row:last-child {
+    margin-bottom: 0;
+}
+.aqua-app .bar-row .bl {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12.5px;
+    font-weight: 700;
+    margin-bottom: 5px;
+    gap: 8px;
+}
+.aqua-app .bar {
+    height: 9px;
+    border-radius: 999px;
+    background: var(--soft);
+    overflow: hidden;
+}
+.aqua-app .bar i {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--green);
+}
+
+/* toggle */
+.aqua-app .toggle {
+    width: 46px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--line2);
+    position: relative;
+    transition: background 0.18s;
+    flex: 0 0 auto;
+}
+.aqua-app .toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.18s;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.aqua-app .toggle.on {
+    background: var(--green);
+}
+.aqua-app .toggle.on::after {
+    transform: translateX(20px);
+}
+.aqua-app .set {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+}
+.aqua-app .set:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+.aqua-app .set:first-child {
+    padding-top: 0;
+}
+.aqua-app .set .t {
+    flex: 1;
+    min-width: 0;
+}
+.aqua-app .set b {
+    display: block;
+    font-size: 13.5px;
+    font-weight: 700;
+}
+.aqua-app .set span {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.35;
+    display: block;
+}
+
+/* kolam */
+.aqua-app .pond {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    text-align: left;
+}
+.aqua-app .pond .top {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+}
+.aqua-app .pond .top .t {
+    flex: 1;
+    min-width: 0;
+}
+.aqua-app .pond .top .t b {
+    display: block;
+    font-size: 14.5px;
+    font-weight: 800;
+    color: var(--text);
+}
+.aqua-app .pond .top .t span {
+    font-size: 12px;
+    color: var(--muted);
+}
+.aqua-app .pond .mini3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+.aqua-app .pond .mini3 > * {
+    background: var(--soft);
+    border-radius: var(--r3);
+    padding: 9px;
+    display: block;
+}
+.aqua-app .pond .mini3 em {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-style: normal;
+}
+.aqua-app .pond .mini3 strong {
+    font-size: 13px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+/* tombol lengket di bawah */
+.aqua-app .stickybar {
+    position: sticky;
+    bottom: 0;
+    margin-top: 16px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 13px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: var(--sh);
+    flex-wrap: wrap;
+}
+.aqua-app .stickybar .t {
+    flex: 1;
+    min-width: 180px;
+}
+.aqua-app .stickybar b {
+    display: block;
+    font-size: 13.5px;
+}
+.aqua-app .stickybar span {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+/* modal bantuan */
+.aqua-app .modal {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(10, 25, 23, 0.45);
+}
+.aqua-app .modal.on {
+    display: flex;
+}
+.aqua-app .modal-box {
+    background: var(--card);
+    border-radius: var(--r);
+    width: 100%;
+    max-width: 560px;
+    max-height: 88vh;
+    overflow: auto;
+    padding: 22px;
+    box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.4);
+}
+.aqua-app .modal-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+.aqua-app .modal-head .grow {
+    flex: 1;
+}
+.aqua-app .modal-head h2 {
+    font-size: 19px;
+}
+.aqua-app .close {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--soft);
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+}
+.aqua-app .close svg {
+    width: 16px;
+    height: 16px;
+    stroke: var(--text2);
+    fill: none;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+}
+.aqua-app .how {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 16px 0;
+}
+.aqua-app .how-i {
+    display: flex;
+    gap: 12px;
+}
+.aqua-app .how-i .n {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--green);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+}
+.aqua-app .how-i b {
+    display: block;
+    font-size: 13.5px;
+    font-weight: 800;
+}
+.aqua-app .how-i p {
+    font-size: 12.5px;
+    color: var(--text2);
+    margin-top: 1px;
+    line-height: 1.4;
+}
+.aqua-app .gloss dt {
+    font-size: 13px;
+    font-weight: 800;
+    margin-top: 11px;
+}
+.aqua-app .gloss dd {
+    font-size: 12.5px;
+    color: var(--text2);
+    line-height: 1.45;
+}
+
+/* toast */
+.aqua-app .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 26px;
+    transform: translate(-50%, 16px);
+    z-index: 300;
+    background: var(--text);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 999px;
+    font-size: 13.5px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    opacity: 0;
+    pointer-events: none;
+    transition: 0.2s;
+    max-width: 92vw;
+}
+.aqua-app .toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+.aqua-app .toast svg {
+    width: 16px;
+    height: 16px;
+    stroke: #6ee7b7;
+    fill: none;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex: 0 0 auto;
+}
+
+/* ===== RESPONSIF ===== */
+@media (max-width: 1000px) {
+    .aqua-app .gsplit,
+    .aqua-app .g3 {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+@media (max-width: 860px) {
+    .aqua-app .app {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .aqua-app .side {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: auto;
+        height: auto;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        border-right: 0;
+        border-top: 1px solid var(--line);
+        padding: 7px 8px 9px;
+        z-index: 60;
+    }
+    .aqua-app .side .brand,
+    .aqua-app .side .nav-t,
+    .aqua-app .side .side-note,
+    .aqua-app .side .user,
+    .aqua-app .side .grow,
+    .aqua-app .side .hide-m {
+        display: none;
+    }
+    .aqua-app .nav {
+        flex-direction: column;
+        gap: 3px;
+        font-size: 10.5px;
+        font-weight: 700;
+        padding: 6px 3px;
+        flex: 1;
+        text-align: center;
+        justify-content: center;
+        border-radius: 10px;
+    }
+    .aqua-app .nav svg {
+        width: 21px;
+        height: 21px;
+    }
+    .aqua-app .nav .pill {
+        display: none;
+    }
+    .aqua-app .content {
+        padding: 16px 14px 100px;
+    }
+    .aqua-app .topbar {
+        padding: 11px 14px;
+    }
+    .aqua-app .top-sub {
+        display: none;
+    }
+    .aqua-app .g2 {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .aqua-app .status-card .big {
+        font-size: 24px;
+    }
+    .aqua-app h1 {
+        font-size: 20px;
+    }
+}
+@media (max-width: 520px) {
+    .aqua-app .form {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .aqua-app .kpi .v {
+        font-size: 22px;
+    }
+}
+
+/* ===== Penyesuaian untuk komponen Svelte/Inertia ===== */
+.aqua-app {
+    min-height: 100vh;
+}
+.aqua-app a.nav,
+.aqua-app a.action,
+.aqua-app a.pond,
+.aqua-app a.btn {
+    text-decoration: none;
+}
+.aqua-app a.card,
+.aqua-app a.action,
+.aqua-app a.pond,
+.aqua-app a.nav,
+.aqua-app .btn,
+.aqua-app .toggle,
+.aqua-app .user {
+    cursor: pointer;
+}
+.aqua-app :focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: 2px;
+}
+.modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    border: 0;
+    cursor: default;
+}
+.aqua-app .modal-box {
+    position: relative;
+    z-index: 1;
+}
+.aqua-app button.toggle {
+    padding: 0;
+}
+.aqua-app .icon-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}

@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartAqua Lele — Kapan ikan siap dipanen?</title>
+<style>
+/* ===== 1. ATURAN DASAR ===== */
+:root{
+  --bg:#f4f7f6; --card:#ffffff; --soft:#f2f6f5;
+  --text:#10201e; --text2:#3d514e; --muted:#6f8481;
+  --line:#e2eae8; --line2:#cfdad8;
+  --green:#0f7a68; --green-d:#0b5e50; --green-l:#e6f4f1;
+  --ok:#16794a; --ok-bg:#e7f6ed;
+  --warn:#a1620a; --warn-bg:#fdf2df;
+  --bad:#b3271f; --bad-bg:#fdecea;
+  --blue:#1d5f9e; --blue-bg:#eaf2fb;
+  --r:18px; --r2:13px; --r3:10px;
+  --sh:0 1px 2px rgba(16,32,30,.04), 0 10px 26px -18px rgba(16,32,30,.28);
+  --sb:240px;
+}
+body.wire{
+  --bg:#fff; --card:#fff; --soft:#f5f5f5;
+  --text:#000; --text2:#1f1f1f; --muted:#5b5b5b;
+  --line:#cfcfcf; --line2:#9d9d9d;
+  --green:#000; --green-d:#000; --green-l:#ededed;
+  --ok:#000; --ok-bg:#eee; --warn:#000; --warn-bg:#e3e3e3;
+  --bad:#000; --bad-bg:#d9d9d9; --blue:#000; --blue-bg:#f0f0f0;
+  --r:8px; --r2:6px; --r3:5px; --sh:none;
+}
+body.wire .card,body.wire .status-card,body.wire .action,body.wire .kpi,body.wire .task,body.wire .modal-box{border:1.5px solid #000 !important;box-shadow:none !important}
+body.wire .status-card{background:#fff !important;color:#000 !important}
+body.wire .status-card *{color:#000 !important}
+body.wire .status-card .btn{background:#fff !important;border:1px solid #000 !important;color:#000 !important}
+body.wire .status-card .btn.pri{background:#000 !important;color:#fff !important}
+body.wire .action .aic,body.wire .task .tic,body.wire .kpi .kic{background:#fff !important;border:1px solid #000;color:#000 !important}
+body.wire .action .aic svg,body.wire .task .tic svg,body.wire .kpi .kic svg{stroke:#000 !important}
+body.wire .btn.pri{background:#000 !important;color:#fff !important;border-color:#000 !important}
+body.wire .toggle.on{background:#000 !important}
+body.wire .brand-logo{background:#000}
+body.wire .progress i,body.wire .bar i{background:#000 !important}
+body.wire .chart .ln{stroke:#000}
+body.wire .chart .ar{fill:#ededed}
+body.wire .chart .bar-fill{fill:#000}
+body.wire .search,body.wire .icon-btn,body.wire .mode-btn{border:1.5px solid #000}
+
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--text); font-size:15px; line-height:1.5;
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer}
+a{color:inherit;text-decoration:none}
+svg{display:block}
+
+/* ===== 2. KERANGKA ===== */
+.app{display:grid;grid-template-columns:var(--sb) minmax(0,1fr);min-height:100vh}
+.side{position:sticky;top:0;height:100vh;background:var(--card);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;padding:18px 12px 14px;gap:3px;z-index:40}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 16px}
+.brand-logo{width:40px;height:40px;border-radius:13px;background:var(--green);display:grid;place-items:center;flex:0 0 auto}
+.brand-logo svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.brand b{display:block;font-size:16px;font-weight:800;letter-spacing:-.01em;line-height:1.15}
+.brand span{font-size:11.5px;color:var(--muted)}
+.nav-t{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:14px 10px 6px}
+.nav{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:var(--r2);
+  font-size:14px;font-weight:600;color:var(--text2);width:100%;text-align:left;transition:background .15s}
+.nav svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto;opacity:.8}
+.nav:hover{background:var(--soft)}
+.nav.on{background:var(--green-l);color:var(--green-d);font-weight:800}
+.nav.on svg{opacity:1}
+.nav .pill{margin-left:auto;font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;background:var(--bad);color:#fff}
+.side .grow{flex:1;min-height:14px}
+.side-note{background:var(--soft);border:1px solid var(--line);border-radius:var(--r2);padding:13px;margin:0 2px 10px}
+.side-note b{font-size:13px;display:block;margin-bottom:3px}
+.side-note p{font-size:12px;color:var(--muted);line-height:1.4}
+.user{display:flex;align-items:center;gap:10px;padding:9px;border-radius:var(--r2);border:1px solid var(--line);width:100%;text-align:left}
+.user:hover{background:var(--soft)}
+.user .t{min-width:0}
+.user .t b{display:block;font-size:13px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user .t span{font-size:11.5px;color:var(--muted)}
+.av{width:38px;height:38px;border-radius:50%;background:var(--green-l);color:var(--green-d);
+  display:grid;place-items:center;font-weight:800;font-size:13px;flex:0 0 auto}
+body.wire .av{background:#eee}
+
+/* main */
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:12px;
+  padding:12px 24px;background:var(--card);border-bottom:1px solid var(--line)}
+.top-title{font-size:16px;font-weight:800;letter-spacing:-.01em}
+.top-sub{font-size:12px;color:var(--muted)}
+.topbar .grow{flex:1}
+.help-btn{display:flex;align-items:center;gap:7px;height:38px;padding:0 14px;border-radius:999px;
+  border:1px solid var(--line2);background:var(--card);font-size:13px;font-weight:700;color:var(--text2)}
+.help-btn:hover{background:var(--soft)}
+.help-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+.icon-btn{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;background:var(--card);position:relative}
+.icon-btn:hover{background:var(--soft)}
+.icon-btn svg{width:18px;height:18px;stroke:var(--text2);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.icon-btn .dot{position:absolute;top:8px;right:9px;width:7px;height:7px;border-radius:50%;background:var(--bad);border:1.5px solid var(--card)}
+.content{padding:22px 24px 96px;width:100%;max-width:1080px;margin:0 auto;flex:1}
+.page{display:none}
+.page.on{display:block}
+.page.on.fade{animation:fade .18s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ===== 3. TIPOGRAFI & TOMBOL ===== */
+h1{font-size:24px;font-weight:800;letter-spacing:-.025em;line-height:1.2}
+h2{font-size:17px;font-weight:800;letter-spacing:-.01em}
+h3{font-size:15px;font-weight:800}
+.lead{font-size:14px;color:var(--text2);margin-top:6px;max-width:60ch}
+.muted{color:var(--muted)}
+.small{font-size:12.5px}
+.tiny{font-size:11.5px;line-height:1.4}
+.head{margin-bottom:18px}
+.head-row{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.head-row .grow{flex:1;min-width:200px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;
+  border-radius:999px;font-size:14px;font-weight:700;border:1px solid var(--line2);background:var(--card);
+  color:var(--text);transition:transform .08s,background .15s;white-space:nowrap}
+.btn:hover{background:var(--soft)}
+.btn:active{transform:scale(.985)}
+.btn svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.btn.pri{background:var(--green);border-color:var(--green);color:#fff}
+.btn.pri:hover{background:var(--green-d);border-color:var(--green-d)}
+.btn.soft{background:var(--green-l);border-color:transparent;color:var(--green-d)}
+.btn.sm{height:36px;padding:0 14px;font-size:13px}
+.btn.block{width:100%}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;
+  font-size:12px;font-weight:800;background:var(--soft);color:var(--text2);border:1px solid var(--line);white-space:nowrap}
+.badge .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+.badge.ok{background:var(--ok-bg);color:var(--ok);border-color:transparent}
+.badge.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.badge.bad{background:var(--bad-bg);color:var(--bad);border-color:transparent}
+.badge.acc{background:var(--green-l);color:var(--green-d);border-color:transparent}
+
+/* ===== 4. KARTU & BLOK ===== */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px;box-shadow:var(--sh)}
+.card-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.card-head .grow{flex:1;min-width:0}
+.card-head p{font-size:12.5px;color:var(--muted);margin-top:2px}
+.stack{display:flex;flex-direction:column;gap:14px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.gsplit{grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);align-items:start}
+.divider{height:1px;background:var(--line);margin:16px 0}
+
+/* kartu status besar (jawaban utama) */
+.status-card{background:linear-gradient(150deg,#0f7a68,#0a5648);color:#fff;border-radius:var(--r);
+  padding:24px;box-shadow:var(--sh);position:relative;overflow:hidden}
+.status-card::after{content:"";position:absolute;width:240px;height:240px;border-radius:50%;
+  background:rgba(255,255,255,.07);right:-80px;top:-100px}
+.status-card .label{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.72)}
+.status-card .big{font-size:29px;font-weight:800;letter-spacing:-.03em;line-height:1.15;margin:8px 0 6px;position:relative;z-index:1}
+.status-card .say{font-size:14px;color:rgba(255,255,255,.85);max-width:44ch;position:relative;z-index:1}
+.status-card .acts{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px;position:relative;z-index:1}
+.status-card .btn{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.3);color:#fff}
+.status-card .btn:hover{background:rgba(255,255,255,.26)}
+.status-card .btn.pri{background:#fff;border-color:#fff;color:var(--green-d)}
+.status-card .btn.pri:hover{background:#eaf6f3}
+.progress{height:8px;border-radius:999px;background:rgba(255,255,255,.25);overflow:hidden;margin-top:4px}
+.progress i{display:block;height:100%;border-radius:999px;background:#7ef0c6}
+.progress.flat{background:var(--soft)}
+.progress.flat i{background:var(--green)}
+.prog-row{display:flex;justify-content:space-between;font-size:12px;font-weight:700;
+  color:rgba(255,255,255,.85);margin:16px 0 6px;position:relative;z-index:1}
+
+/* kartu pilihan aksi ("mau ngapain?") */
+.action{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r);padding:16px;text-align:left;width:100%;box-shadow:var(--sh);transition:transform .12s,border-color .15s}
+.action:hover{transform:translateY(-2px);border-color:var(--line2)}
+.aic{width:46px;height:46px;border-radius:14px;background:var(--green-l);color:var(--green-d);
+  display:grid;place-items:center;flex:0 0 auto}
+.aic svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.action .t{flex:1;min-width:0}
+.action .t b{display:block;font-size:14.5px;font-weight:800;line-height:1.25;color:var(--text)}
+.action .t span{font-size:12.5px;color:var(--muted);display:block;margin-top:2px;line-height:1.35}
+.action .chev{width:16px;height:16px;stroke:var(--muted);fill:none;stroke-width:2.2;flex:0 0 auto}
+
+/* daftar tugas */
+.task{display:flex;align-items:center;gap:13px;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r2);padding:13px 14px;width:100%;text-align:left}
+.task .tic{width:34px;height:34px;border-radius:10px;background:var(--soft);display:grid;place-items:center;flex:0 0 auto}
+.task .tic svg{width:17px;height:17px;stroke:var(--text2);fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.task .t{flex:1;min-width:0}
+.task .t b{display:block;font-size:13.5px;font-weight:700;line-height:1.3;color:var(--text)}
+.task .t span{font-size:12px;color:var(--muted)}
+.task.done{background:var(--soft);border-style:dashed}
+.task.done b{text-decoration:line-through;color:var(--muted)}
+
+/* angka ringkas */
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--sh)}
+.kpi .kic{width:34px;height:34px;border-radius:11px;background:var(--green-l);color:var(--green-d);display:grid;place-items:center;margin-bottom:10px}
+.kpi .kic svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.9}
+.kpi .v{font-size:26px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
+.kpi .v small{font-size:13px;font-weight:700;color:var(--muted);letter-spacing:0}
+.kpi .n{font-size:13px;font-weight:700;margin-top:2px}
+.kpi .x{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.35}
+
+/* daftar baris info */
+.rows{display:flex;flex-direction:column}
+.row-i{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.row-i:last-child{border-bottom:0;padding-bottom:0}
+.row-i:first-child{padding-top:0}
+.row-i .t{flex:1;min-width:0}
+.row-i .t b{display:block;font-size:13.5px;font-weight:700}
+.row-i .t span{font-size:12px;color:var(--muted)}
+.row-i .lead2{font-size:12.5px;color:var(--text2);margin-top:2px}
+
+/* langkah (stepper) */
+.steps{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.step{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--muted)}
+.step .n{width:24px;height:24px;border-radius:50%;background:var(--soft);border:1px solid var(--line2);
+  display:grid;place-items:center;font-size:12px;font-weight:800}
+.step.on{color:var(--green-d)}
+.step.on .n{background:var(--green);border-color:var(--green);color:#fff}
+.step-line{flex:1;min-width:14px;height:2px;background:var(--line);border-radius:2px}
+
+/* form */
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field > label{font-size:13px;font-weight:700}
+.field .hint{font-size:12px;color:var(--muted)}
+input,select{height:46px;border:1.5px solid var(--line2);border-radius:var(--r3);padding:0 13px;
+  background:var(--card);font-size:15px;font-weight:600;width:100%;outline:0;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus{border-color:var(--green);box-shadow:0 0 0 3px var(--green-l)}
+input[readonly]{background:var(--soft);color:var(--text2)}
+input.big{font-size:18px;font-weight:800;height:52px}
+.unit{position:relative}
+.unit input{padding-right:56px}
+.unit em{position:absolute;right:14px;top:50%;transform:translateY(-50%);
+  font-size:13px;font-weight:700;color:var(--muted);font-style:normal}
+
+/* tabel */
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--muted);padding:10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px;border-bottom:1px solid var(--line);font-weight:600}
+tbody tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.tbl{overflow-x:auto}
+tr.err td{background:var(--bad-bg)}
+tr.warn td{background:var(--warn-bg)}
+.inline-msg{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;flex-wrap:wrap}
+.inline-msg svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;flex:0 0 auto}
+
+/* callout */
+.note{display:flex;align-items:flex-start;gap:11px;padding:12px 14px;border-radius:var(--r2);font-size:13px;font-weight:600;line-height:1.4}
+.note svg{width:17px;height:17px;flex:0 0 auto;margin-top:1px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.note.ok{background:var(--ok-bg);color:var(--ok)}
+.note.warn{background:var(--warn-bg);color:var(--warn)}
+.note.bad{background:var(--bad-bg);color:var(--bad)}
+.note.acc{background:var(--green-l);color:var(--green-d)}
+
+/* sensor */
+.sensor{display:flex;flex-direction:column;gap:8px}
+.sensor .sh{display:flex;align-items:center;gap:10px}
+.sensor .sh b{font-size:13.5px;font-weight:800;flex:1;min-width:0;line-height:1.25}
+.sensor .sh .badge{flex:0 0 auto}
+.sensor .sic{width:36px;height:36px;border-radius:11px;background:var(--green-l);color:var(--green-d);display:grid;place-items:center;flex:0 0 auto}
+.sensor .sic svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.sensor .sh b{font-size:13.5px;font-weight:800}
+.sensor .v{font-size:32px;font-weight:800;letter-spacing:-.035em;line-height:1.05}
+.sensor .v small{font-size:14px;font-weight:700;color:var(--muted);letter-spacing:0}
+.sensor .say{font-size:13px;color:var(--text2);line-height:1.4}
+
+/* grafik */
+.chart{width:100%;height:auto;overflow:visible}
+.chart text{font-size:11px;font-weight:700;fill:var(--muted);font-family:inherit}
+.chart .gl{stroke:var(--line);stroke-width:1;stroke-dasharray:3 4}
+.chart .ln{fill:none;stroke:var(--green);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.chart .lnp{fill:none;stroke:var(--muted);stroke-width:2;stroke-dasharray:5 5;stroke-linecap:round}
+.chart .ar{fill:var(--green-l);opacity:.75}
+.chart .pt{fill:var(--card);stroke:var(--green);stroke-width:2.4}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:12px;font-weight:600;color:var(--muted)}
+.legend i{display:inline-block;width:16px;height:3px;border-radius:2px;background:var(--green);margin-right:6px;vertical-align:middle}
+.legend i.dash{background:none;border-top:2px dashed var(--muted);height:0}
+.bar-row{margin-bottom:14px}
+.bar-row:last-child{margin-bottom:0}
+.bar-row .bl{display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;margin-bottom:5px;gap:8px}
+.bar{height:9px;border-radius:999px;background:var(--soft);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:999px;background:var(--green)}
+
+/* toggle */
+.toggle{width:46px;height:26px;border-radius:999px;background:var(--line2);position:relative;transition:background .18s;flex:0 0 auto}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;
+  background:#fff;transition:transform .18s;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.toggle.on{background:var(--green)}
+.toggle.on::after{transform:translateX(20px)}
+.set{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+.set:last-child{border-bottom:0;padding-bottom:0}
+.set:first-child{padding-top:0}
+.set .t{flex:1;min-width:0}
+.set b{display:block;font-size:13.5px;font-weight:700}
+.set span{font-size:12px;color:var(--muted);line-height:1.35;display:block}
+
+/* kolam */
+.pond{display:flex;flex-direction:column;gap:12px;text-align:left}
+.pond .top{display:flex;align-items:center;gap:11px}
+.pond .top .t{flex:1;min-width:0}
+.pond .top .t b{display:block;font-size:14.5px;font-weight:800;color:var(--text)}
+.pond .top .t span{font-size:12px;color:var(--muted)}
+.pond .mini3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.pond .mini3 > *{background:var(--soft);border-radius:var(--r3);padding:9px;display:block}
+.pond .mini3 em{display:block;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-style:normal}
+.pond .mini3 strong{font-size:13px;font-weight:800;white-space:nowrap}
+
+/* tombol lengket di bawah */
+.stickybar{position:sticky;bottom:0;margin-top:16px;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r);padding:13px 16px;display:flex;align-items:center;gap:12px;box-shadow:var(--sh);flex-wrap:wrap}
+.stickybar .t{flex:1;min-width:180px}
+.stickybar b{display:block;font-size:13.5px}
+.stickybar span{font-size:12px;color:var(--muted)}
+
+/* modal bantuan */
+.modal{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;padding:18px;
+  background:rgba(10,25,23,.45)}
+.modal.on{display:flex}
+.modal-box{background:var(--card);border-radius:var(--r);width:100%;max-width:560px;max-height:88vh;overflow:auto;
+  padding:22px;box-shadow:0 24px 60px -24px rgba(0,0,0,.4)}
+.modal-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:6px}
+.modal-head .grow{flex:1}
+.modal-head h2{font-size:19px}
+.close{width:34px;height:34px;border-radius:50%;background:var(--soft);display:grid;place-items:center;flex:0 0 auto}
+.close svg{width:16px;height:16px;stroke:var(--text2);fill:none;stroke-width:2.2;stroke-linecap:round}
+.how{display:flex;flex-direction:column;gap:14px;margin:16px 0}
+.how-i{display:flex;gap:12px}
+.how-i .n{width:28px;height:28px;border-radius:50%;background:var(--green);color:#fff;font-size:13px;
+  font-weight:800;display:grid;place-items:center;flex:0 0 auto}
+.how-i b{display:block;font-size:13.5px;font-weight:800}
+.how-i p{font-size:12.5px;color:var(--text2);margin-top:1px;line-height:1.4}
+.gloss dt{font-size:13px;font-weight:800;margin-top:11px}
+.gloss dd{font-size:12.5px;color:var(--text2);line-height:1.45}
+
+/* toast */
+.toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,16px);z-index:300;background:var(--text);
+  color:#fff;padding:12px 20px;border-radius:999px;font-size:13.5px;font-weight:700;display:flex;align-items:center;
+  gap:9px;opacity:0;pointer-events:none;transition:.2s;max-width:92vw}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast svg{width:16px;height:16px;stroke:#6ee7b7;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+
+/* ===== RESPONSIF ===== */
+@media (max-width:1000px){
+  .gsplit,.g3{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:860px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{position:fixed;left:0;right:0;bottom:0;top:auto;height:auto;flex-direction:row;align-items:center;
+    justify-content:space-between;border-right:0;border-top:1px solid var(--line);padding:7px 8px 9px;z-index:60}
+  .side .brand,.side .nav-t,.side .side-note,.side .user,.side .grow,.side .hide-m{display:none}
+  .nav{flex-direction:column;gap:3px;font-size:10.5px;font-weight:700;padding:6px 3px;flex:1;
+    text-align:center;justify-content:center;border-radius:10px}
+  .nav svg{width:21px;height:21px}
+  .nav .pill{display:none}
+  .content{padding:16px 14px 100px}
+  .topbar{padding:11px 14px}
+  .top-sub{display:none}
+  .g2{grid-template-columns:minmax(0,1fr)}
+  .status-card .big{font-size:24px}
+  h1{font-size:20px}
+}
+@media (max-width:520px){
+  .form{grid-template-columns:minmax(0,1fr)}
+  .kpi .v{font-size:22px}
+}
+
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="side">
+    <div class="brand">
+      <div class="brand-logo">
+        <svg viewBox="0 0 24 24"><path d="M12 3.2c3.1 3.6 5.6 6.5 5.6 9.6A5.6 5.6 0 0 1 12 18.4a5.6 5.6 0 0 1-5.6-5.6C6.4 9.7 8.9 6.8 12 3.2Z"/><path d="M9.6 13.2c0 1.5 1.1 2.6 2.6 2.6"/></svg>
+      </div>
+      <div>
+        <b>SmartAqua</b>
+        <span>Bantuan panen lele</span>
+      </div>
+    </div>
+
+    <button class="nav on" data-page="beranda">
+      <svg viewBox="0 0 24 24"><path d="M3.5 10.5 12 4l8.5 6.5V20a1 1 0 0 1-1 1h-4.6v-5.6H9.1V21H4.5a1 1 0 0 1-1-1v-9.5Z"/></svg>
+      Beranda
+    </button>
+    <button class="nav" data-page="catat">
+      <svg viewBox="0 0 24 24"><path d="M4.5 19.5V6a1.5 1.5 0 0 1 1.5-1.5h4.6l2 2.5h5A1.5 1.5 0 0 1 19.5 8.5v11"/><path d="M8.5 13.5h7M12 10v7"/></svg>
+      Catat timbang
+    </button>
+    <button class="nav" data-page="air">
+      <svg viewBox="0 0 24 24"><path d="M12 3.5s5.5 5.9 5.5 9.8a5.5 5.5 0 0 1-11 0C6.5 9.4 12 3.5 12 3.5Z"/></svg>
+      Kondisi air
+      <span class="pill">1</span>
+    </button>
+    <button class="nav" data-page="hasil">
+      <svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="m7.5 15 4-4 3 2.6L19 8"/></svg>
+      Hasil panen
+    </button>
+    <button class="nav" data-page="panen">
+      <svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="14" rx="2.5"/><path d="M3.5 10h17M8 3.5v4M16 3.5v4"/><path d="m9 14.5 2 2 3.8-3.8"/></svg>
+      Jadwal panen
+    </button>
+
+    <div class="nav-t hide-m">Lainnya</div>
+    <button class="nav hide-m" data-page="kolam">
+      <svg viewBox="0 0 24 24"><path d="M2.5 8.2c1.7 0 1.7 1.4 3.4 1.4s1.7-1.4 3.4-1.4 1.7 1.4 3.4 1.4 1.7-1.4 3.4-1.4 1.7 1.4 3.4 1.4"/><path d="M2.5 13.2c1.7 0 1.7 1.4 3.4 1.4s1.7-1.4 3.4-1.4 1.7 1.4 3.4 1.4 1.7-1.4 3.4-1.4 1.7 1.4 3.4 1.4"/></svg>
+      Daftar kolam
+    </button>
+    <button class="nav hide-m" data-page="pengaturan">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 14.5a7.6 7.6 0 0 0 .1-2.5 7.6 7.6 0 0 0-.1-1l1.6-1.3-1.9-3.2-2 .7a7.4 7.4 0 0 0-2.1-1.2L14.6 4h-3.8l-.4 2a7.4 7.4 0 0 0-2.1 1.2l-2-.7L4.4 9.7 6 11a7.6 7.6 0 0 0 0 2L4.4 14.3l1.9 3.2 2-.7a7.4 7.4 0 0 0 2.1 1.2l.4 2h3.8l.4-2a7.4 7.4 0 0 0 2.1-1.2l2 .7 1.9-3.2-1.6-1.3Z"/></svg>
+      Pengaturan
+    </button>
+
+    <div class="grow"></div>
+
+    <div class="side-note">
+      <b>Kolam C07</b>
+      <p>Panen sekitar 5 hari lagi. Tetap beri pakan seperti biasa.</p>
+    </div>
+
+    <button class="user" data-page="pengaturan">
+      <span class="av">BS</span>
+      <span class="t"><b>Budi Santoso</b><span>Pengelola kolam</span></span>
+    </button>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <header class="topbar">
+      <div class="grow">
+        <div class="top-title" id="topTitle">Beranda</div>
+        <div class="top-sub" id="topSub">Semua kolam kamu hari ini</div>
+      </div>
+      <button class="help-btn" data-help>
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.6 2.3c-.8.4-1.2 1-1.2 1.9"/><path d="M12 17h.01"/></svg>
+        Bantuan
+      </button>
+      <button class="icon-btn" aria-label="Notifikasi" data-toast="Tidak ada pesan baru">
+        <svg viewBox="0 0 24 24"><path d="M18 15.5V11a6 6 0 1 0-12 0v4.5L4.5 18h15L18 15.5Z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>
+        <span class="dot"></span>
+      </button>
+      <button class="av" data-page="pengaturan" aria-label="Buka pengaturan" style="cursor:pointer">BS</button>
+    </header>
+
+    <main class="content">
+      <!-- ================= BERANDA ================= -->
+      <section class="page on" id="p-beranda">
+
+        <div class="status-card">
+          <div class="label">Kolam C07 · hari ini, 8 November</div>
+          <div class="big">Panen sekitar 5 hari lagi</div>
+          <div class="say">Ikan sudah 88% dari target. Belum perlu panen — tetap beri pakan seperti biasa.</div>
+          <div class="prog-row"><span>Berat sekarang 88,4 gram</span><span>Target 100 gram</span></div>
+          <div class="progress"><i style="width:88%"></i></div>
+          <div class="acts">
+            <button class="btn pri" data-go="panen">
+              <svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="14" rx="2.5"/><path d="M3.5 10h17M8 3.5v4M16 3.5v4"/></svg>
+              Lihat jadwal panen
+            </button>
+            <button class="btn" data-go="catat">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              Catat hasil timbang
+            </button>
+          </div>
+        </div>
+
+        <div class="head" style="margin-top:24px">
+          <h2>Mau ngapain sekarang?</h2>
+          <p class="lead">Pilih salah satu. Tiga hal ini yang paling sering dipakai.</p>
+        </div>
+
+        <div class="grid g3">
+          <button class="action" data-go="catat">
+            <span class="aic"><svg viewBox="0 0 24 24"><path d="M4.5 7.5h15l-1.6 12a1.5 1.5 0 0 1-1.5 1.3H7.6a1.5 1.5 0 0 1-1.5-1.3l-1.6-12Z"/><path d="M9 7.5V6a3 3 0 0 1 6 0v1.5"/><path d="M12 11v6"/></svg></span>
+            <span class="t">
+              <b>Timbang &amp; catat ikan</b>
+              <span>Catat berat ikan hari ini</span>
+            </span>
+            <svg class="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+          </button>
+
+          <button class="action" data-go="air">
+            <span class="aic"><svg viewBox="0 0 24 24"><path d="M12 3.5s5.5 5.9 5.5 9.8a5.5 5.5 0 0 1-11 0C6.5 9.4 12 3.5 12 3.5Z"/></svg></span>
+            <span class="t">
+              <b>Cek kondisi air</b>
+              <span>Suhu &amp; oksigen kolam</span>
+            </span>
+            <svg class="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+          </button>
+
+          <button class="action" data-go="panen">
+            <span class="aic"><svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="14" rx="2.5"/><path d="M3.5 10h17M8 3.5v4M16 3.5v4"/><path d="m9 14.5 2 2 3.8-3.8"/></svg></span>
+            <span class="t">
+              <b>Lihat kapan panen</b>
+              <span>Tanggal perkiraan panen</span>
+            </span>
+            <svg class="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+          </button>
+        </div>
+        <div class="grid gsplit" style="margin-top:24px">
+          <div class="card">
+            <div class="card-head">
+              <div class="grow">
+                <h3>Tugas hari ini</h3>
+                <p>Tekan "Selesai" kalau sudah dikerjakan.</p>
+              </div>
+              <span class="badge" id="taskCount">1 dari 3 selesai</span>
+            </div>
+            <div class="stack" style="gap:10px">
+              <div class="task" data-task>
+                <span class="tic"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1.4 11.2a1.5 1.5 0 0 1-1.5 1.3H7.9a1.5 1.5 0 0 1-1.5-1.3L5 8Z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg></span>
+                <span class="t"><b>Beri pakan sore</b><span>3,4 kg · biasanya jam 16:00</span></span>
+                <button class="btn sm" data-done>Selesai</button>
+              </div>
+              <div class="task" data-task>
+                <span class="tic"><svg viewBox="0 0 24 24"><path d="M4.5 7.5h15l-1.6 12a1.5 1.5 0 0 1-1.5 1.3H7.6a1.5 1.5 0 0 1-1.5-1.3l-1.6-12Z"/><path d="M9 7.5V6a3 3 0 0 1 6 0v1.5"/></svg></span>
+                <span class="t"><b>Timbang 25 ekor ikan</b><span>Terakhir ditimbang 2 hari lalu</span></span>
+                <button class="btn sm" data-done>Timbang</button>
+              </div>
+              <div class="task done" data-task>
+                <span class="tic"><svg viewBox="0 0 24 24"><path d="M4.5 12.5 9 17l10.5-10.5"/></svg></span>
+                <span class="t"><b>Beri pakan pagi</b><span>1,8 kg · tercatat 06:30</span></span>
+                <button class="btn sm soft" data-done>Selesai</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="card">
+              <div class="card-head">
+                <div class="grow">
+                  <h3>Air kolam sekarang</h3>
+                  <p>Diperbarui 2 menit lalu</p>
+                </div>
+              </div>
+              <div class="rows">
+                <div class="row-i">
+                  <div class="t"><b>Suhu 28,4 °C</b><span>Nyaman untuk ikan</span></div>
+                  <span class="badge ok"><span class="d"></span>Normal</span>
+                </div>
+                <div class="row-i">
+                  <div class="t"><b>Oksigen 2,6 mg/L</b><span>Terlalu rendah, ikan bisa lemas</span></div>
+                  <span class="badge warn"><span class="d"></span>Rendah</span>
+                </div>
+                <div class="row-i">
+                  <div class="t"><b>Keasaman (pH)</b><span>Alat belum kirim angka jam 14:00</span></div>
+                  <span class="badge bad"><span class="d"></span>Belum ada</span>
+                </div>
+              </div>
+              <button class="btn block" style="margin-top:16px" data-go="air">Buka kondisi air</button>
+            </div>
+
+            <button class="card pond" data-go="kolam">
+              <span class="top">
+                <span class="av">06</span>
+                <span class="t"><b>Kolam C06</b><span>Umur 42 hari · belum waktunya panen</span></span>
+                <svg style="width:16px;height:16px;stroke:var(--muted);fill:none;stroke-width:2.2" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+              </span>
+              <span class="mini3">
+                <span><em>Berat</em><strong>41,2 g</strong></span>
+                <span><em>Total</em><strong>55,6 kg</strong></span>
+                <span><em>Target</em><strong>41%</strong></span>
+              </span>
+            </button>
+          </div>
+        </div>
+      </section>
+      <!-- ================= CATAT ================= -->
+      <section class="page" id="p-catat">
+        <div class="head">
+          <h1>Catat hasil timbang</h1>
+          <p class="lead">Cukup isi 3 kolom. Sistem menghitung sendiri rata-rata, total berat ikan, dan sisa hari menuju panen.</p>
+        </div>
+
+        <div class="steps">
+          <span class="step on"><span class="n">1</span> Isi data</span>
+          <span class="step-line"></span>
+          <span class="step"><span class="n">2</span> Periksa</span>
+          <span class="step-line"></span>
+          <span class="step"><span class="n">3</span> Simpan</span>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="grow">
+              <h3>Data timbangan hari ini</h3>
+              <p>Kolom umur dan total ikan terisi otomatis.</p>
+            </div>
+          </div>
+
+          <div class="form">
+            <div class="field">
+              <label for="f-kolam">Ikan dari kolam</label>
+              <select id="f-kolam">
+                <option>C07 — umur 70 hari</option>
+                <option>C06 — umur 42 hari</option>
+                <option>C05 — umur 21 hari</option>
+              </select>
+              <span class="hint">Pilih kolam yang ikan-nya kamu timbang.</span>
+            </div>
+
+            <div class="field">
+              <label for="f-tgl">Tanggal timbang</label>
+              <input id="f-tgl" value="08/11/2026">
+              <span class="hint">Biasanya hari ini.</span>
+            </div>
+
+            <div class="field">
+              <label for="f-jml">Jumlah ikan ditimbang</label>
+              <div class="unit">
+                <input id="f-jml" class="big" value="25" inputmode="numeric">
+                <em>ekor</em>
+              </div>
+              <span class="hint">Makin banyak, makin akurat. Minimal 10 ekor.</span>
+            </div>
+
+            <div class="field">
+              <label for="f-berat">Berat rata-rata seekor</label>
+              <div class="unit">
+                <input id="f-berat" class="big" value="88,4" inputmode="decimal">
+                <em>gram</em>
+              </div>
+              <span class="hint">Contoh: 88,4 — pakai koma untuk desimal.</span>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="stack">
+            <div class="note acc">
+              <svg viewBox="0 0 24 24"><path d="M4.5 12.5 9 17l10.5-10.5"/></svg>
+              <div><b>23 dari 25 angka sudah oke.</b> Ada 2 yang perlu kamu lihat dulu.</div>
+            </div>
+
+            <div class="tbl">
+              <table>
+                <thead><tr><th>Ikan ke-</th><th class="num">Berat</th><th>Apa yang salah</th></tr></thead>
+                <tbody>
+                  <tr><td>1</td><td class="num">86,5 g</td><td><span class="inline-msg muted">Aman</span></td></tr>
+                  <tr><td>2</td><td class="num">91,2 g</td><td><span class="inline-msg muted">Aman</span></td></tr>
+                  <tr class="err">
+                    <td>3</td><td class="num">-3,0 g</td>
+                    <td>
+                      <span class="inline-msg" style="color:var(--bad)">
+                        Berat tidak boleh minus.
+                        <button class="btn sm" data-toast="Baris 3 dibuang">Hapus baris</button>
+                      </span>
+                    </td>
+                  </tr>
+                  <tr class="warn">
+                    <td>4</td><td class="num">880 g</td>
+                    <td>
+                      <span class="inline-msg" style="color:var(--warn)">
+                        Kelebihan satu nol. Mungkin 88,0?
+                        <button class="btn sm" data-toast="Baris 4 diubah jadi 88,0 g">Ya, betulkan</button>
+                      </span>
+                    </td>
+                  </tr>
+                  <tr><td>5</td><td class="num">89,7 g</td><td><span class="inline-msg muted">Aman</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="tiny muted">5 baris pertama ditampilkan. 20 baris lainnya sudah aman semua.</p>
+          </div>
+        </div>
+
+        <div class="stickybar">
+          <div class="t">
+            <b>Sudah selesai? Tekan simpan.</b>
+            <span>Data ini akan dipakai untuk memperbarui perkiraan tanggal panen.</span>
+          </div>
+          <button class="btn" data-toast="Disimpan sebagai draft, bisa dilanjutkan nanti">Simpan nanti</button>
+          <button class="btn pri" data-toast="25 data timbangan tersimpan. Perkiraan panen diperbarui.">
+            <svg viewBox="0 0 24 24"><path d="M4.5 12.5 9 17l10.5-10.5"/></svg>
+            Simpan 25 data
+          </button>
+        </div>
+      </section>
+      <!-- ================= AIR ================= -->
+      <section class="page" id="p-air">
+        <div class="head">
+          <h1>Kondisi air kolam C07</h1>
+          <p class="lead">Dibaca otomatis oleh alat di kolam. Terakhir diperbarui 2 menit lalu.</p>
+        </div>
+
+        <div class="note warn" style="margin-bottom:16px">
+          <svg viewBox="0 0 24 24"><path d="M12 4.5 21 20H3L12 4.5Z"/><path d="M12 10v4M12 17h.01"/></svg>
+          <div><b>Ada 1 hal yang perlu tindakan:</b> oksigen air terlalu rendah. Nyalakan aerator tambahan atau minta petugas mengecek.</div>
+        </div>
+
+        <div class="grid g3">
+          <div class="card sensor">
+            <div class="sh">
+              <span class="sic"><svg viewBox="0 0 24 24"><path d="M14 14.8V5.5a2 2 0 1 0-4 0v9.3a4 4 0 1 0 4 0Z"/><path d="M12 9v6"/></svg></span>
+              <b>Suhu air</b>
+              <span style="flex:1"></span>
+              <span class="badge ok"><span class="d"></span>Aman</span>
+            </div>
+            <div class="v">28,4 <small>°C</small></div>
+            <div class="say">Masih nyaman untuk ikan. Batas wajar 26–30 °C.</div>
+            <button class="btn sm" style="margin-top:4px" data-toast="Riwayat suhu 7 hari dibuka">Lihat riwayat suhu</button>
+          </div>
+
+          <div class="card sensor">
+            <div class="sh">
+              <span class="sic" style="background:var(--warn-bg);color:var(--warn)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 16h.01"/></svg></span>
+              <b>Oksigen</b>
+              <span style="flex:1"></span>
+              <span class="badge warn"><span class="d"></span>Rendah</span>
+            </div>
+            <div class="v">2,6 <small>mg/L</small></div>
+            <div class="say">Terlalu rendah. Ikan bisa lemas dan berhenti makan.</div>
+            <button class="btn sm soft" style="margin-top:4px" data-toast="Permintaan cek aerator dikirim ke petugas">Minta cek aerator</button>
+          </div>
+
+          <div class="card sensor">
+            <div class="sh">
+              <span class="sic" style="background:var(--bad-bg);color:var(--bad)"><svg viewBox="0 0 24 24"><path d="M9 3.5h6M12 3.5v11"/><rect x="7" y="8" width="10" height="12.5" rx="2"/></svg></span>
+              <b>Keasaman</b>
+              <span style="flex:1"></span>
+              <span class="badge bad"><span class="d"></span>Belum ada</span>
+            </div>
+            <div class="v">—</div>
+            <div class="say">Angka pH air tidak dikirim jam 14:00. Terakhir 7,3 kemarin.</div>
+            <button class="btn sm" style="margin-top:4px" data-toast="Permintaan ukur ulang pH dikirim">Minta ukur ulang</button>
+          </div>
+        </div>
+
+        <div class="grid gsplit" style="margin-top:16px">
+          <div class="card">
+            <div class="card-head">
+              <div class="grow">
+                <h3>Oksigen turun sejak pagi</h3>
+                <p>24 jam terakhir · garis putus-putus = batas aman 3 mg/L</p>
+              </div>
+            </div>
+            <svg class="chart" viewBox="0 0 560 170" role="img" aria-label="Grafik oksigen air 24 jam">
+              <line class="gl" x1="46" y1="36" x2="540" y2="36"/>
+              <line class="gl" x1="46" y1="96" x2="540" y2="96"/>
+              <line class="gl" x1="46" y1="140" x2="540" y2="140"/>
+              <text x="8" y="39">6</text>
+              <text x="8" y="99">3</text>
+              <text x="30" y="143">0</text>
+              <path class="ar" d="M60 36 L102 42 L144 50 L186 56 L228 60 L270 68 L312 74 L354 80 L396 84 L438 90 L480 94 L522 104 L522 140 L60 140 Z"/>
+              <path class="ln" d="M60 36 L102 42 L144 50 L186 56 L228 60 L270 68 L312 74 L354 80 L396 84 L438 90 L480 94 L522 104"/>
+              <circle class="pt" cx="522" cy="104" r="4.4"/>
+              <text x="60" y="158" text-anchor="middle">pagi</text>
+              <text x="228" y="158" text-anchor="middle">siang</text>
+              <text x="396" y="158" text-anchor="middle">sore</text>
+              <text x="522" y="158" text-anchor="middle">sekarang</text>
+            </svg>
+            <div class="legend">
+              <span><i></i>Oksigen terukur</span>
+              <span><i class="dash"></i>Batas aman 3 mg/L</span>
+            </div>
+            <p class="tiny muted" style="margin-top:10px">Semakin sore oksigen makin turun karena tanaman air berhenti menghasilkan oksigen. Aerator membantu menaikkannya.</p>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="grow">
+                <h3>Alat di kolam</h3>
+                <p>Sensor-01</p>
+              </div>
+            </div>
+            <div class="rows">
+              <div class="row-i">
+                <div class="t"><b>Status alat</b><span>Baterai 82% · sinyal kuat</span></div>
+                <span class="badge ok"><span class="d"></span>Nyala</span>
+              </div>
+              <div class="row-i">
+                <div class="t"><b>Kirim otomatis</b><span>Setiap 60 menit</span></div>
+                <span class="toggle on" role="switch" aria-checked="true" tabindex="0"></span>
+              </div>
+              <div class="row-i">
+                <div class="t"><b>Data terakhir</b><span>14:00 · suhu 28,4 · oksigen 2,6</span></div>
+              </div>
+            </div>
+            <button class="btn block" style="margin-top:16px" data-toast="Data baru dikirim, hasilnya muncul di atas">Kirim data sekarang</button>
+            <p class="tiny muted" style="margin-top:10px">Alat ini masih simulasi untuk pengujian, belum dipasang di kolam sungguhan.</p>
+          </div>
+        </div>
+      </section>
+      <!-- ================= HASIL ================= -->
+      <section class="page" id="p-hasil">
+        <div class="head">
+          <h1>Perkembangan ikan C07</h1>
+          <p class="lead">Dihitung dari 10 kali penimbangan. Kamu tidak perlu menghitung apa pun.</p>
+        </div>
+
+        <div class="grid g3" style="margin-bottom:16px">
+          <div class="card kpi">
+            <div class="kic"><svg viewBox="0 0 24 24"><path d="M4.5 7.5h15l-1.6 12a1.5 1.5 0 0 1-1.5 1.3H7.6a1.5 1.5 0 0 1-1.5-1.3l-1.6-12Z"/><path d="M9 7.5V6a3 3 0 0 1 6 0v1.5"/></svg></div>
+            <div class="v">88,4 <small>gram</small></div>
+            <div class="n">Berat 1 ekor</div>
+            <div class="x">Rata-rata dari 25 ekor yang kamu timbang kemarin.</div>
+          </div>
+          <div class="card kpi">
+            <div class="kic"><svg viewBox="0 0 24 24"><path d="M3 16.5 9 10l4 3.6 7-7"/><path d="M3 20.5h18"/></svg></div>
+            <div class="v">104 <small>kg</small></div>
+            <div class="n">Total berat semua ikan</div>
+            <div class="x">Dari 1.180 ekor yang masih hidup.</div>
+          </div>
+          <div class="card kpi">
+            <div class="kic"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1.4 11.2a1.5 1.5 0 0 1-1.5 1.3H7.9a1.5 1.5 0 0 1-1.5-1.3L5 8Z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg></div>
+            <div class="v">1,21 <small>: 1</small></div>
+            <div class="n">Pakan jadi daging</div>
+            <div class="x">1,21 kg pakan menghasilkan 1 kg ikan. Makin kecil makin untung.</div>
+          </div>
+        </div>
+
+        <div class="grid gsplit">
+          <div class="card">
+            <div class="card-head">
+              <div class="grow">
+                <h3>Berat ikan naik terus</h3>
+                <p>Umur ikan (hari) → berat 1 ekor (gram)</p>
+              </div>
+              <span class="badge acc">Naik 2% per hari</span>
+            </div>
+            <svg class="chart" viewBox="0 0 560 210" role="img" aria-label="Grafik berat ikan per umur">
+              <line class="gl" x1="46" y1="24" x2="540" y2="24"/>
+              <line class="gl" x1="46" y1="88" x2="540" y2="88"/>
+              <line class="gl" x1="46" y1="152" x2="540" y2="152"/>
+              <text x="4" y="27">100</text>
+              <text x="10" y="91">50</text>
+              <text x="28" y="155">0</text>
+              <path class="ar" d="M60 134 L125 120 L189 106 L254 90 L318 72 L383 58 L447 47 L512 32 L512 152 L60 152 Z"/>
+              <path class="ln" d="M60 134 L125 120 L189 106 L254 90 L318 72 L383 58 L447 47 L512 32"/>
+              <path class="lnp" d="M512 32 L548 18"/>
+              <circle class="pt" cx="512" cy="32" r="4.6"/>
+              <text x="60" y="170" text-anchor="middle">47</text>
+              <text x="189" y="170" text-anchor="middle">54</text>
+              <text x="318" y="170" text-anchor="middle">61</text>
+              <text x="447" y="170" text-anchor="middle">66</text>
+              <text x="512" y="170" text-anchor="middle">70</text>
+              <text x="544" y="170" text-anchor="middle">75</text>
+              <text x="46" y="196">hari ke-</text>
+            </svg>
+            <div class="legend">
+              <span><i></i>Hasil timbangan kamu</span>
+              <span><i class="dash"></i>Perkiraan sistem</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="grow">
+                <h3>Kenapa 5 hari lagi?</h3>
+                <p>Alasan sistem menyarankan tanggal itu.</p>
+              </div>
+            </div>
+            <div class="rows">
+              <div class="row-i">
+                <div class="t"><b>Berat hampir sampai target</b><span class="lead2">88,4 g dari 100 g — tinggal 12 gram lagi.</span></div>
+                <span class="badge warn">Hampir</span>
+              </div>
+              <div class="row-i">
+                <div class="t"><b>Data masih baru</b><span class="lead2">Ditimbang 2 hari lalu, jadi masih bisa dipercaya.</span></div>
+                <span class="badge ok">Baru</span>
+              </div>
+              <div class="row-i">
+                <div class="t"><b>Timbangan sudah 10 kali</b><span class="lead2">Cukup untuk melihat pola pertumbuhan.</span></div>
+                <span class="badge ok">Cukup</span>
+              </div>
+              <div class="row-i">
+                <div class="t"><b>Air perlu dipantau</b><span class="lead2">Oksigen rendah bisa memperlambat pertumbuhan.</span></div>
+                <span class="badge warn">Pantau</span>
+              </div>
+            </div>
+            <button class="btn block" style="margin-top:16px" data-go="panen">Lihat jadwal panennya</button>
+          </div>
+        </div>
+      </section>
+      <!-- ================= PANEN ================= -->
+      <section class="page" id="p-panen">
+        <div class="head">
+          <h1>Jadwal panen kolam C07</h1>
+          <p class="lead">Perkiraan dari sistem, masih bisa kamu ubah sesuai kondisi di kolam.</p>
+        </div>
+
+        <div class="status-card">
+          <div class="label">Perkiraan tanggal panen</div>
+          <div class="big">Kamis, 13 November 2026</div>
+          <div class="say">Boleh juga panen antara 11–16 November. Umur ikan nanti 75 hari.</div>
+          <div class="prog-row" style="margin-bottom:0">
+            <span>Perkiraan berat 100 gram/ekor</span>
+            <span>Total ± 118 kg</span>
+          </div>
+          <div class="acts">
+            <button class="btn pri" data-toast="Jadwal panen 13 November tersimpan">
+              <svg viewBox="0 0 24 24"><path d="M4.5 12.5 9 17l10.5-10.5"/></svg>
+              Konfirmasi tanggal ini
+            </button>
+            <button class="btn" data-toast="Pengingat dikirim H-1 sebelum panen">Ingatkan saya H-1</button>
+          </div>
+        </div>
+
+        <div class="grid gsplit" style="margin-top:16px">
+          <div class="card">
+            <div class="card-head">
+              <div class="grow">
+                <h3>Yang perlu disiapkan</h3>
+                <p>Tekan tombolnya kalau sudah dikerjakan.</p>
+              </div>
+              <span class="badge acc" id="prepCount">2 dari 4</span>
+            </div>
+            <div class="stack" style="gap:10px">
+              <div class="task done" data-task>
+                <span class="tic"><svg viewBox="0 0 24 24"><path d="M4.5 12.5 9 17l10.5-10.5"/></svg></span>
+                <span class="t"><b>Tentukan target berat</b><span>100 gram per ekor</span></span>
+                <button class="btn sm soft" data-done>Selesai</button>
+              </div>
+              <div class="task done" data-task>
+                <span class="tic"><svg viewBox="0 0 24 24"><path d="M4.5 12.5 9 17l10.5-10.5"/></svg></span>
+                <span class="t"><b>Pengecekan sistem</b><span>6 November 2026</span></span>
+                <button class="btn sm soft" data-done>Selesai</button>
+              </div>
+              <div class="task" data-task>
+                <span class="tic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+                <span class="t"><b>Puasa ikan 1 hari</b><span>12 November · supaya ikan tidak stres</span></span>
+                <button class="btn sm" data-done>Catat</button>
+              </div>
+              <div class="task" data-task>
+                <span class="tic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+                <span class="t"><b>Siapkan jaring &amp; keranjang</b><span>12 November</span></span>
+                <button class="btn sm" data-done>Catat</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="grow">
+                <h3>Ubah target</h3>
+                <p>Kalau mau ikan lebih besar dulu.</p>
+              </div>
+            </div>
+            <div class="field" style="margin-bottom:14px">
+              <label for="f-target">Target berat per ekor</label>
+              <div class="unit">
+                <input id="f-target" class="big" value="100">
+                <em>gram</em>
+              </div>
+            </div>
+            <button class="btn block" data-toast="Target diubah. Perkiraan tanggal dihitung ulang.">Hitung ulang tanggal</button>
+            <div class="divider"></div>
+            <div class="rows">
+              <div class="row-i">
+                <div class="t"><b>Perkiraan nilai jual</b><span>Kalau harga Rp 20.000/kg</span></div>
+                <span class="badge acc">± Rp 2,36 juta</span>
+              </div>
+            </div>
+            <p class="tiny muted" style="margin-top:12px">Keputusan panen tetap milik kamu. Sistem hanya membantu menghitung.</p>
+          </div>
+        </div>
+      </section>
+      <!-- ================= KOLAM ================= -->
+      <section class="page" id="p-kolam">
+        <div class="head-row head">
+          <div class="grow">
+            <h1>Kolam saya</h1>
+            <p class="lead">3 kolam aktif. Ketuk salah satu untuk melihat detailnya.</p>
+          </div>
+          <button class="btn" data-toast="Form tambah kolam dibuka">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Tambah kolam
+          </button>
+        </div>
+
+        <div class="grid g3">
+          <div class="card pond">
+            <span class="top">
+              <span class="av" style="background:var(--green);color:#fff">07</span>
+              <span class="t"><b>Kolam C07</b><span>1.300 ekor · umur 70 hari</span></span>
+            </span>
+            <span class="badge ok"><span class="d"></span>Siap panen 5 hari lagi</span>
+            <span class="mini3">
+              <span><em>Berat</em><strong>88,4 g</strong></span>
+              <span><em>Total</em><strong>104 kg</strong></span>
+              <span><em>Target</em><strong>88%</strong></span>
+            </span>
+            <div class="progress flat"><i style="width:88%"></i></div>
+            <button class="btn block" data-go="panen">Buka kolam ini</button>
+          </div>
+
+          <div class="card pond">
+            <span class="top">
+              <span class="av">06</span>
+              <span class="t"><b>Kolam C06</b><span>1.500 ekor · umur 42 hari</span></span>
+            </span>
+            <span class="badge"><span class="d"></span>Belum waktunya panen</span>
+            <span class="mini3">
+              <span><em>Berat</em><strong>41,2 g</strong></span>
+              <span><em>Total</em><strong>55,6 kg</strong></span>
+              <span><em>Target</em><strong>41%</strong></span>
+            </span>
+            <div class="progress flat"><i style="width:41%"></i></div>
+            <button class="btn block" data-toast="Detail kolam C06 dibuka">Buka kolam ini</button>
+          </div>
+
+          <div class="card pond">
+            <span class="top">
+              <span class="av">05</span>
+              <span class="t"><b>Kolam C05</b><span>1.600 ekor · umur 21 hari</span></span>
+            </span>
+            <span class="badge"><span class="d"></span>Baru ditebar</span>
+            <span class="mini3">
+              <span><em>Berat</em><strong>12,8 g</strong></span>
+              <span><em>Total</em><strong>19,8 kg</strong></span>
+              <span><em>Target</em><strong>13%</strong></span>
+            </span>
+            <div class="progress flat"><i style="width:13%"></i></div>
+            <button class="btn block" data-toast="Detail kolam C05 dibuka">Buka kolam ini</button>
+          </div>
+        </div>
+      </section>
+      <!-- ================= PENGATURAN ================= -->
+      <section class="page" id="p-pengaturan">
+        <div class="head">
+          <h1>Pengaturan</h1>
+          <p class="lead">Sesuaikan sesuai kebiasaanmu di kolam.</p>
+        </div>
+
+        <div class="grid g2">
+          <div class="card">
+            <div class="card-head"><div class="grow"><h3>Target panen</h3></div></div>
+            <div class="field" style="margin-bottom:16px">
+              <label for="s-target">Berat ikan yang kamu mau</label>
+              <div class="unit">
+                <input id="s-target" class="big" value="100">
+                <em>gram</em>
+              </div>
+              <span class="hint">Dipakai untuk menghitung tanggal panen. Umumnya 100–150 gram.</span>
+            </div>
+            <div class="set">
+              <div class="t"><b>Ingatkan saya</b><span>Notifikasi 1 hari sebelum tanggal panen.</span></div>
+              <span class="toggle on" role="switch" aria-checked="true" tabindex="0"></span>
+            </div>
+            <div class="set">
+              <div class="t"><b>Pesan lewat WhatsApp</b><span>Pengingat dikirim ke nomor 0812-xxxx-xxxx.</span></div>
+              <span class="toggle on" role="switch" aria-checked="true" tabindex="0"></span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div class="grow"><h3>Batas aman air</h3></div></div>
+            <div class="form">
+              <div class="field">
+                <label for="s-do">Oksigen minimal</label>
+                <div class="unit"><input id="s-do" value="3"><em>mg/L</em></div>
+                <span class="hint">Di bawah ini sistem akan memperingatkan.</span>
+              </div>
+              <div class="field">
+                <label for="s-ph">Keasaman (pH) ideal</label>
+                <input id="s-ph" value="6,5 – 8,5">
+                <span class="hint">Umumnya 6,5 sampai 8,5.</span>
+              </div>
+            </div>
+            <div class="note acc" style="margin-top:16px">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 8h.01"/></svg>
+              <div>Kalau ragu, biarkan saja. Nilai ini sudah sesuai standar budidaya lele.</div>
+            </div>
+            <div class="divider"></div>
+            <h3 style="margin-bottom:6px">Tampilan untuk laporan</h3>
+            <div class="set">
+              <div class="t"><b>Mode hitam-putih</b><span>Untuk dicetak di laporan atau skripsi.</span></div>
+              <span class="toggle" id="wireToggle" role="switch" aria-checked="false" tabindex="0"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="stickybar">
+          <div class="t"><b>Sudah pas?</b><span>Perubahan langsung dipakai di semua halaman.</span></div>
+          <button class="btn pri" data-toast="Pengaturan tersimpan">Simpan pengaturan</button>
+        </div>
+      </section>
+      <!-- ================= BANTUAN (MODAL) ================= -->
+      <div class="modal" id="helpModal">
+        <div class="modal-box">
+          <div class="modal-head">
+            <div class="grow">
+              <h2>Cara pakai SmartAqua</h2>
+              <p class="small muted">Cukup ingat 3 langkah ini.</p>
+            </div>
+            <button class="close" data-close-help aria-label="Tutup">
+              <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
+          </div>
+
+          <div class="how">
+            <div class="how-i">
+              <span class="n">1</span>
+              <div>
+                <b>Timbang ikan, lalu catat</b>
+                <p>Buka menu "Catat timbang". Isi jumlah ikan dan berat rata-ratanya, lalu simpan.</p>
+              </div>
+            </div>
+            <div class="how-i">
+              <span class="n">2</span>
+              <div>
+                <b>Lihat hasilnya</b>
+                <p>Menu "Hasil panen" menunjukkan berat ikan dan perkembangannya. Kamu tidak perlu menghitung.</p>
+              </div>
+            </div>
+            <div class="how-i">
+              <span class="n">3</span>
+              <div>
+                <b>Ikuti tanggal panen</b>
+                <p>Menu "Jadwal panen" memberi tanggal perkiraan. Kamu yang memutuskan, sistem hanya membantu.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+          <h3>Arti istilah yang muncul</h3>
+          <dl class="gloss">
+            <dt>Berat rata-rata</dt>
+            <dd>Rata-rata berat satu ekor dari ikan yang kamu timbang. Ini patokan utama menuju panen.</dd>
+            <dt>Pakan jadi daging (FCR)</dt>
+            <dd>Berapa kilo pakan yang habis untuk menghasilkan 1 kilo ikan. Makin kecil, makin untung.</dd>
+            <dt>Oksigen (DO)</dt>
+            <dd>Jumlah oksigen di dalam air. Kalau di bawah 3 mg/L, ikan bisa lemas dan berhenti makan.</dd>
+            <dt>Keasaman (pH)</dt>
+            <dd>Tingkat asam-basa air. Untuk lele, angka 6,5 sampai 8,5 masih aman.</dd>
+          </dl>
+
+          <div class="note acc" style="margin-top:16px">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 8h.01"/></svg>
+            <div>Semua angka di aplikasi ini masih data contoh untuk pengujian.</div>
+          </div>
+
+          <button class="btn pri block" style="margin-top:16px" data-close-help>Mengerti</button>
+        </div>
+      </div>
+
+      <div class="toast" id="toast">
+        <svg viewBox="0 0 24 24"><path d="M4.5 12.5 9 17l10.5-10.5"/></svg>
+        <span id="toastMsg">Tersimpan</span>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var PAGES = {
+    beranda: ["Beranda", "Semua kolam kamu hari ini"],
+    catat: ["Catat timbang", "Isi 3 kolom, sisanya otomatis"],
+    air: ["Kondisi air", "Kolam C07 · diperbarui 2 menit lalu"],
+    hasil: ["Hasil panen", "Perkembangan ikan kolam C07"],
+    panen: ["Jadwal panen", "Kolam C07 · perkiraan sistem"],
+    kolam: ["Daftar kolam", "3 kolam aktif"],
+    pengaturan: ["Pengaturan", "Target panen dan batas aman air"]
+  };
+
+  var topTitle = document.getElementById("topTitle");
+  var topSub = document.getElementById("topSub");
+  var toast = document.getElementById("toast");
+  var toastMsg = document.getElementById("toastMsg");
+  var helpModal = document.getElementById("helpModal");
+  var timer = null;
+
+  function go(name) {
+    var target = document.getElementById("p-" + name);
+    if (!target) return;
+
+    var pages = document.querySelectorAll(".page");
+    for (var i = 0; i < pages.length; i++) {
+      pages[i].classList.remove("fade");
+      pages[i].classList.toggle("on", pages[i] === target);
+    }
+    target.classList.add("fade");
+
+    var navs = document.querySelectorAll(".nav");
+    for (var j = 0; j < navs.length; j++) {
+      navs[j].classList.toggle("on", navs[j].getAttribute("data-page") === name);
+    }
+
+    var info = PAGES[name] || ["SmartAqua", ""];
+    if (topTitle) topTitle.textContent = info[0];
+    if (topSub) topSub.textContent = info[1];
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function say(text) {
+    if (!toast || !toastMsg) return;
+    toastMsg.textContent = text;
+    toast.classList.add("show");
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(function () { toast.classList.remove("show"); }, 2800);
+  }
+
+  function countTasks() {
+    var beranda = document.querySelectorAll("#p-beranda .task");
+    var doneB = document.querySelectorAll("#p-beranda .task.done").length;
+    var c1 = document.getElementById("taskCount");
+    if (c1) c1.textContent = doneB + " dari " + beranda.length + " selesai";
+
+    var panen = document.querySelectorAll("#p-panen .task");
+    var doneP = document.querySelectorAll("#p-panen .task.done").length;
+    var c2 = document.getElementById("prepCount");
+    if (c2) c2.textContent = doneP + " dari " + panen.length;
+  }
+
+  document.addEventListener("click", function (e) {
+
+    var navBtn = e.target.closest("[data-page]");
+    if (navBtn) { go(navBtn.getAttribute("data-page")); return; }
+
+    var jump = e.target.closest("[data-go]");
+    if (jump) { go(jump.getAttribute("data-go")); return; }
+
+    var note = e.target.closest("[data-toast]");
+    if (note) { say(note.getAttribute("data-toast")); return; }
+
+    if (e.target.closest("[data-help]")) {
+      if (helpModal) helpModal.classList.add("on");
+      return;
+    }
+    if (e.target.closest("[data-close-help]") || e.target === helpModal) {
+      if (helpModal) helpModal.classList.remove("on");
+      return;
+    }
+
+    var doneBtn = e.target.closest("[data-done]");
+    if (doneBtn) {
+      var task = doneBtn.closest("[data-task]");
+      if (!task) return;
+      var nowDone = task.classList.toggle("done");
+      doneBtn.textContent = nowDone ? "Selesai" : (task.closest("#p-panen") ? "Catat" : "Selesai");
+      doneBtn.classList.toggle("soft", nowDone);
+      say(nowDone ? "Ditandai selesai. Bagus!" : "Ditandai belum selesai.");
+      countTasks();
+      return;
+    }
+
+    var tgl = e.target.closest(".toggle");
+    if (tgl) {
+      var on = !tgl.classList.contains("on");
+      tgl.classList.toggle("on", on);
+      tgl.setAttribute("aria-checked", on ? "true" : "false");
+      if (tgl.id === "wireToggle") {
+        document.body.classList.toggle("wire", on);
+        say(on ? "Mode hitam-putih aktif" : "Mode berwarna aktif");
+      } else {
+        say(on ? "Diaktifkan" : "Dimatikan");
+      }
+      return;
+    }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && helpModal) helpModal.classList.remove("on");
+    if (e.key !== "Enter" && e.key !== " ") return;
+    var tgl = e.target.closest ? e.target.closest(".toggle") : null;
+    if (tgl) { e.preventDefault(); tgl.click(); }
+  });
+
+  countTasks();
+})();
+
+</script>
+</body>
+</html>
