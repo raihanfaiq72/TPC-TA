@@ -29,6 +29,11 @@ class KolamController extends Controller
         return sqrt(-2 * log($random_1)) * cos(2 * M_PI * $random_2);
     }
 
+    private function acak(): float
+    {
+        return mt_rand() / (mt_getrandmax() + 1);
+    }
+
     public function index(): JsonResponse
     {
         $kolam = Kolam::query()->withCount(['ikans as jumlah_ikan_hidup' => fn (Builder $query) => $query->where('status', 'hidup'), 'zonas as jumlah_zona'])->orderByDesc('id')->get();
@@ -187,15 +192,17 @@ class KolamController extends Controller
             // 6. Populasi ikan - bulk insert per 500 baris
 
             $total = (int) $data['jumlah_ikan_awal'];
-            $min_bobot = 0.3 * $data['bobot_awal_rata_g'];
+            $bobotAwal = (float) $data['bobot_awal_rata_g'];
             $baris = [];
 
             for ($i = 1; $i <= $total; $i++) {
-                $bobot = max($min_bobot, $data['bobot_awal_rata_g'] + $this->gauss() * $data['bobot_awal_sd_g']);
+                // Saat tebar pertama semua ikan seragam. Variasi ukuran
+                // muncul setelah pertumbuhan harian berjalan.
+                $bobot = $bobotAwal;
 
                 $panjang = pow($bobot / $koefisien_a, 1 / 3);
                 $genetik = max(0.7, min(1.3, 1 + 0.1 * $this->gauss()));
-                $preferensi = max(0.0, min(1.0, 0.6 + 0.2 * $this->gauss()));
+                $preferensi = 0.5 + ($this->acak() - 0.5) * 0.4;
                 $zon = mt_rand(0, 1) === 1 ? $zona['atas'] : $zona['bawah'];
 
                 $baris[] = [
@@ -332,11 +339,12 @@ class KolamController extends Controller
             $jenis = JenisPerangkat::query()->get()->keyBy('kode');
             $zona = $kolam->zonas()->get()->keyBy('nama');
             $total = (int) $kolam->jumlah_ikan_awal;
-            $minBobot = 0.3 * (float) $kolam->bobot_awal_rata_g;
+            $bobotAwal = (float) $kolam->bobot_awal_rata_g;
             $baris = [];
 
             for ($i = 1; $i <= $total; $i++) {
-                $bobot = max($minBobot, (float) $kolam->bobot_awal_rata_g + $this->gauss() * (float) $kolam->bobot_awal_sd_g);
+                // Reset mengembalikan ukuran ikan ke kondisi tebar seragam.
+                $bobot = $bobotAwal;
                 $panjang = pow($bobot / max(0.000001, (float) $kolam->koef_a), 1 / 3);
                 $zonaIkan = mt_rand(0, 1) === 1 ? $zona['atas'] : $zona['bawah'];
 
@@ -344,7 +352,7 @@ class KolamController extends Controller
                     'kolam_id' => $kolam->id,
                     'kode' => sprintf('%s-F%04d', $kolam->kode, $i),
                     'faktor_genetik' => round(max(0.7, min(1.3, 1 + 0.1 * $this->gauss())), 3),
-                    'preferensi_zona' => round(max(0.0, min(1.0, 0.6 + 0.2 * $this->gauss())), 3),
+                    'preferensi_zona' => round(0.5 + ($this->acak() - 0.5) * 0.4, 3),
                     'bobot_awal_g' => round($bobot, 3),
                     'panjang_awal_cm' => round($panjang, 3),
                     'bobot_g' => round($bobot, 3),

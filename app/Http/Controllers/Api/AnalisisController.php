@@ -212,17 +212,21 @@ class AnalisisController extends Controller
             );
         }
 
-        RekomendasiPanen::query()->create([
-            'kolam_id' => $kolamId,
-            'tanggal_evaluasi' => $waktuCarbon,
-            'bobot_rata_g' => round($bobot, 3),
-            'skor_bobot' => round($skorBobot, 2),
-            'skor_air' => round($skorAir, 2),
-            'skor_kesiapan' => round($skor, 2),
-            'estimasi_hari_ke_target' => $hari,
-            'status' => $status,
-            'alasan' => $alasan,
-        ]);
+        RekomendasiPanen::query()->updateOrCreate(
+            [
+                'kolam_id' => $kolamId,
+                'tanggal_evaluasi' => $waktuCarbon,
+            ],
+            [
+                'bobot_rata_g' => round($bobot, 3),
+                'skor_bobot' => round($skorBobot, 2),
+                'skor_air' => round($skorAir, 2),
+                'skor_kesiapan' => round($skor, 2),
+                'estimasi_hari_ke_target' => $hari,
+                'status' => $status,
+                'alasan' => $alasan,
+            ],
+        );
 
         return [
             'status' => $status,

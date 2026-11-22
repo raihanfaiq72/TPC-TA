@@ -5,6 +5,8 @@ return [
     // 1 tick = 10 menit waktu virtual
     'tick_menit' => 10,
     'maks_tick_per_eksekusi' => 720,
+    // Batas waktu per request; frontend melanjutkan batch berikutnya.
+    'maks_detik_per_eksekusi' => 15,
 
     'lingkungan' => [
         'puncak_suhu_jam' => 15,    // suhu tertinggi ±15:00, terendah ±03:00 (P2: pagi 29, sore 32)

@@ -29,7 +29,9 @@ class SimulasiController extends Controller
      * Body opsional:
      *   { "menit": 600 } // 10 jam / 60 tick pada tick_menit=10
      *
-     * Jumlah tick dibatasi config sandbox.maks_tick_per_eksekusi.
+     * Jumlah tick dibatasi config sandbox.maks_tick_per_eksekusi dan
+     * waktu eksekusi dibatasi sandbox.maks_detik_per_eksekusi. Frontend
+     * mengirim batch berikutnya sampai target menit tercapai.
      */
     public function tick(Request $request, int $id): JsonResponse
     {
@@ -61,12 +63,19 @@ class SimulasiController extends Controller
             $tickDiminta = (int) ceil($menitDiminta / $tickMenit);
             $maksTick = max(1, (int) config('sandbox.maks_tick_per_eksekusi', 720));
             $jumlahTick = min($tickDiminta, $maksTick);
+            $batasDetik = max(1.0, (float) config('sandbox.maks_detik_per_eksekusi', 15));
 
             $waktuSekarang = $waktuAwal->copy();
             $prosesHarian = false;
             $jumlahAlert = 0;
+            $tickDijalankan = 0;
+            $batasWaktu = microtime(true) + $batasDetik;
 
             for ($i = 0; $i < $jumlahTick; $i++) {
+                if ($tickDijalankan > 0 && microtime(true) >= $batasWaktu) {
+                    break;
+                }
+
                 $waktuTick = $waktuSekarang->format('Y-m-d H:i:s');
                 $waktuBerikutnya = $waktuSekarang->copy()->addMinutes($tickMenit);
 
@@ -103,6 +112,7 @@ class SimulasiController extends Controller
                 }
 
                 $waktuSekarang = $waktuBerikutnya;
+                $tickDijalankan++;
             }
 
             // 6. Simpan waktu virtual paling akhir sekali saja.
@@ -114,19 +124,23 @@ class SimulasiController extends Controller
                 ->where('kolam_id', $id)
                 ->where('waktu', '>=', $waktuAwal)
                 ->where('waktu', '<', $waktuSekarang)
-                ->get(['jumlah_g']);
+                ->get(['waktu', 'jumlah_g']);
 
             return response()->json([
                 'message' => 'Tick simulasi berhasil dijalankan',
                 'waktu_sebelum' => $waktuAwal->format('Y-m-d H:i:s'),
                 'waktu_sekarang' => $waktuSekarang->format('Y-m-d H:i:s'),
-                'menit_dijalankan' => $jumlahTick * $tickMenit,
-                'tick_dijalankan' => $jumlahTick,
+                'menit_dijalankan' => $tickDijalankan * $tickMenit,
+                'tick_dijalankan' => $tickDijalankan,
                 'tick_menit' => $tickMenit,
-                'selesai' => $jumlahTick >= $tickDiminta,
+                'selesai' => $tickDijalankan >= $tickDiminta,
                 'proses_harian' => $prosesHarian,
                 'pakan_kejadian' => $pakan->count(),
                 'pakan_g' => round((float) $pakan->sum('jumlah_g'), 2),
+                'pakan_events' => $pakan->map(fn (LogPakan $item): array => [
+                    'waktu' => $item->waktu->format('Y-m-d H:i:s'),
+                    'gram' => round((float) $item->jumlah_g, 2),
+                ])->values(),
                 'alert_baru' => $jumlahAlert,
             ]);
         });

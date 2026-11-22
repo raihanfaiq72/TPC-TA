@@ -25,7 +25,30 @@ class PakanController extends Controller
         }
 
         $waktuTick = Carbon::parse($waktu);
-        $jamTick = $waktuTick->format('H:i');
+
+        $tickMenit = max(1, (int) config('sandbox.tick_menit', 10));
+        $menitTick = $waktuTick->hour * 60 + $waktuTick->minute;
+
+        $jadwal = JadwalPakan::query()
+            ->where('kolam_id', $kolamId)
+            ->where('aktif', true)
+            ->get();
+
+        $jadwal = $jadwal
+            ->filter(function (JadwalPakan $item) use ($menitTick, $tickMenit): bool {
+                $jam = Carbon::parse((string) $item->jam);
+                $menitJadwal = $jam->hour * 60 + $jam->minute;
+                $selisih = ($menitTick - $menitJadwal + 1440) % 1440;
+
+                return $selisih < $tickMenit;
+            })
+            ->values();
+
+        // Jangan membaca seluruh populasi pada tick yang tidak ada jadwal pakan.
+        if ($jadwal->isEmpty()) {
+            return;
+        }
+
         $biomassa = (float) Ikan::query()
             ->where('kolam_id', $kolamId)
             ->where('status', 'hidup')
@@ -41,18 +64,6 @@ class PakanController extends Controller
             ->get(['id', 'bobot_g', 'isi_lambung_persen', 'hari_pakan_g']);
 
         $kapasitasLambung = (float) config('sandbox.ikan.kapasitas_lambung_bobot', 0.035);
-
-        $jadwal = JadwalPakan::query()
-            ->where('kolam_id', $kolamId)
-            ->where('aktif', true)
-            ->get();
-        $jadwal = $jadwal
-            ->filter(fn (JadwalPakan $item): bool => substr((string) $item->jam, 0, 5) === $jamTick)
-            ->values();
-
-        if ($jadwal->isEmpty()) {
-            return;
-        }
 
         $zonaAtas = ZonaKolam::query()
             ->where('kolam_id', $kolamId)
@@ -74,10 +85,17 @@ class PakanController extends Controller
                 continue;
             }
 
+            $jadwalWaktu = $waktuTick->copy()->setTimeFromTimeString((string) $item->jam);
+
+            if ($jadwalWaktu->greaterThan($waktuTick)) {
+                $jadwalWaktu->subDay();
+            }
+
             $sudahDicatat = LogPakan::query()
                 ->where('kolam_id', $kolamId)
                 ->where('jadwal_id', $item->id)
-                ->where('waktu', $waktuTick)
+                ->where('waktu', '>=', $jadwalWaktu)
+                ->where('waktu', '<=', $waktuTick)
                 ->exists();
 
             if ($sudahDicatat) {

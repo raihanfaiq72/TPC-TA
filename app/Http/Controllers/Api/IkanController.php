@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class IkanController extends Controller
@@ -161,22 +162,18 @@ class IkanController extends Controller
                 'zona_id',
                 'preferensi_zona',
                 'isi_lambung_persen',
-                'hari_tick_atas',
-                'hari_tick_bawah',
-                'hari_sum_suhu',
-                'hari_sum_ph',
-                'hari_sum_do',
-                'hari_sum_amonia',
             ]);
 
         if ($daftarIkan->isEmpty()) {
             return;
         }
 
-        $baris = [];
+        $pindahAtas = [];
+        $pindahBawah = [];
 
         foreach ($daftarIkan as $ikan) {
-            $zonaId = (int) $ikan->zona_id;
+            $zonaAwal = (int) $ikan->zona_id;
+            $zonaId = $zonaAwal;
 
             // 1) pindah zona
             if ($this->acak() < $peluangPindah) {
@@ -193,56 +190,74 @@ class IkanController extends Controller
                     : (int) $bawah->id;
             }
 
-            // 2) mengosong bertahap
-            $isiLambung = max(
-                0.0,
-                (float) $ikan->isi_lambung_persen - $lajuLambung,
-            );
-
-            // 3) catat paparan pada zona yang sedang ditempati
-            $tickAtas = (int) $ikan->hari_tick_atas;
-            $tickBawah = (int) $ikan->hari_tick_bawah;
-            $sumSuhu = (float) $ikan->hari_sum_suhu;
-            $sumPh = (float) $ikan->hari_sum_ph;
-            $sumDo = (float) $ikan->hari_sum_do;
-            $sumAmonia = (float) $ikan->hari_sum_amonia;
-
-            $keadaanZona = $keadaan->get($zonaId);
-
-            if ($keadaanZona instanceof KeadaanZona) {
+            if ($zonaId !== $zonaAwal) {
                 if ($zonaId === (int) $atas->id) {
-                    $tickAtas++;
+                    $pindahAtas[] = (int) $ikan->id;
                 } else {
-                    $tickBawah++;
+                    $pindahBawah[] = (int) $ikan->id;
                 }
-
-                $sumSuhu += (float) $keadaanZona->suhu_asli;
-                $sumPh += (float) $keadaanZona->ph_asli;
-                $sumDo += (float) $keadaanZona->do_asli;
-                $sumAmonia += (float) $keadaanZona->amonia_asli;
             }
-
-            $baris[] = [
-                'id' => $ikan->id,
-                'zona_id' => $zonaId,
-                'isi_lambung_persen' => $isiLambung,
-                'hari_tick_atas' => $tickAtas,
-                'hari_tick_bawah' => $tickBawah,
-                'hari_sum_suhu' => $sumSuhu,
-                'hari_sum_ph' => $sumPh,
-                'hari_sum_do' => $sumDo,
-                'hari_sum_amonia' => $sumAmonia,
-            ];
         }
 
-        foreach ($baris as $row) {
-            $ikanId = (int) $row['id'];
-            unset($row['id']);
-
-            Ikan::query()
-                ->whereKey($ikanId)
-                ->update($row);
+        // Perbarui zona ikan yang benar-benar berpindah. Ini hanya menyentuh
+        // sebagian ikan, bukan satu UPDATE untuk setiap ikan setiap tick.
+        if ($pindahAtas !== []) {
+            Ikan::query()->whereIn('id', $pindahAtas)->update(['zona_id' => (int) $atas->id]);
         }
+
+        if ($pindahBawah !== []) {
+            Ikan::query()->whereIn('id', $pindahBawah)->update(['zona_id' => (int) $bawah->id]);
+        }
+
+        // 2-3) update massal lambung, jumlah tick, dan akumulasi paparan.
+        // Nilai zona dibaca setelah perpindahan di atas, sehingga ikan yang
+        // pindah langsung memakai kondisi zona barunya.
+        $suhuAtas = $this->nilaiSql((float) $keadaanAtas->suhu_asli);
+        $phAtas = $this->nilaiSql((float) $keadaanAtas->ph_asli);
+        $doAtas = $this->nilaiSql((float) $keadaanAtas->do_asli);
+        $amoniaAtas = $this->nilaiSql((float) $keadaanAtas->amonia_asli);
+        $suhuBawah = $this->nilaiSql((float) $keadaanBawah->suhu_asli);
+        $phBawah = $this->nilaiSql((float) $keadaanBawah->ph_asli);
+        $doBawah = $this->nilaiSql((float) $keadaanBawah->do_asli);
+        $amoniaBawah = $this->nilaiSql((float) $keadaanBawah->amonia_asli);
+        $laju = $this->nilaiSql($lajuLambung);
+        $idAtas = (int) $atas->id;
+
+        Ikan::query()
+            ->where('kolam_id', $kolamId)
+            ->where('status', 'hidup')
+            ->update([
+                'isi_lambung_persen' => DB::raw(
+                    "CASE WHEN isi_lambung_persen > {$laju} THEN isi_lambung_persen - {$laju} ELSE 0 END",
+                ),
+                'hari_tick_atas' => DB::raw("hari_tick_atas + (zona_id = {$idAtas})"),
+                'hari_tick_bawah' => DB::raw("hari_tick_bawah + (zona_id <> {$idAtas})"),
+                'hari_sum_suhu' => DB::raw(
+                    "hari_sum_suhu + CASE WHEN zona_id = {$idAtas} THEN {$suhuAtas} ELSE {$suhuBawah} END",
+                ),
+                'hari_sum_ph' => DB::raw(
+                    "hari_sum_ph + CASE WHEN zona_id = {$idAtas} THEN {$phAtas} ELSE {$phBawah} END",
+                ),
+                'hari_sum_do' => DB::raw(
+                    "hari_sum_do + CASE WHEN zona_id = {$idAtas} THEN {$doAtas} ELSE {$doBawah} END",
+                ),
+                'hari_sum_amonia' => DB::raw(
+                    "hari_sum_amonia + CASE WHEN zona_id = {$idAtas} THEN {$amoniaAtas} ELSE {$amoniaBawah} END",
+                ),
+            ]);
+    }
+
+    private function nilaiSql(float|int $nilai): string
+    {
+        if (is_int($nilai)) {
+            return (string) $nilai;
+        }
+
+        if (! is_finite($nilai)) {
+            return '0';
+        }
+
+        return rtrim(rtrim(number_format($nilai, 8, '.', ''), '0'), '.') ?: '0';
     }
 
     // ------------------------------------------------------------------------------------

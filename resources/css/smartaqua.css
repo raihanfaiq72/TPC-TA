@@ -3037,6 +3037,40 @@
     font-size: 8px;
     font-weight: 700;
 }
+.aqua-app .sim-player .sim-step-progress {
+    margin-top: 7px;
+    padding: 7px 9px;
+    border: 1px solid #c9d9f4;
+    border-radius: 9px;
+    background: #f7faff;
+}
+.aqua-app .sim-player .sim-step-progress-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: #52647e;
+    font-size: 9px;
+    font-weight: 800;
+}
+.aqua-app .sim-player .sim-step-progress-head b {
+    color: #263c92;
+    font-size: 10px;
+}
+.aqua-app .sim-player .sim-step-progress-rail {
+    height: 4px;
+    margin-top: 5px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #dbe6f8;
+}
+.aqua-app .sim-player .sim-step-progress-rail i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #263c92, #35a7c7);
+    transition: width 0.25s ease;
+}
 .aqua-app .sim-player .player-progress-rail i {
     display: block;
     width: 58%;
@@ -3283,4 +3317,46 @@
     .aqua-app .virtual-clock span {
         padding-right: 10px;
     }
+}
+/* Animasi status proses simulasi: scan sensor dan feeder. */
+.aqua-app .sensor-scan {
+    position: absolute;
+    z-index: 6;
+    left: 15%;
+    top: 23%;
+    width: 70%;
+    height: 54%;
+    overflow: hidden;
+    border-radius: 46% 46% 42% 42%;
+    pointer-events: none;
+}
+.aqua-app .sensor-scan::before {
+    content: '';
+    position: absolute;
+    inset: -20% -45%;
+    background: linear-gradient(
+        105deg,
+        transparent 38%,
+        rgba(255, 255, 255, 0.45) 48%,
+        rgba(89, 197, 223, 0.22) 52%,
+        transparent 62%
+    );
+    animation: sensor-sweep 1.65s linear infinite;
+}
+.aqua-app .pond-stage.simulating .device-node {
+    animation: sensor-node-pulse 1.35s ease-in-out infinite;
+}
+.aqua-app .pond-stage.simulating .device-node i {
+    animation-duration: 0.7s;
+}
+.aqua-app .pond-stage.feed-active .device-node.feeder {
+    box-shadow: 0 0 0 6px rgba(229, 178, 60, 0.22), 0 7px 18px rgba(5, 37, 59, 0.3);
+}
+@keyframes sensor-sweep {
+    from { transform: translateX(-42%); }
+    to { transform: translateX(42%); }
+}
+@keyframes sensor-node-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
 }

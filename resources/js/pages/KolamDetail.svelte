@@ -67,10 +67,13 @@
         proses_harian?: boolean;
         pakan_kejadian?: number;
         pakan_g?: number;
+        pakan_events?: FeedEvent[];
         alert_baru?: number;
         selesai?: boolean;
         menit_dijalankan?: number;
+        waktu_sekarang?: string;
     };
+    type FeedEvent = { waktu: string; gram: number };
     type DetailResponse = { kolam: Pond; zona: Zone[]; perangkat: Device[] };
     type FishRecord = {
         id: number;
@@ -103,8 +106,12 @@
     let stepAmount = $state(10);
     let stepUnit = $state<'menit' | 'jam' | 'hari' | 'bulan'>('menit');
     let feedActive = $state(false);
+    let feedLabel = $state('PAKAN DIBERIKAN');
+    let feedQueue = $state<FeedEvent[]>([]);
     let feedTimer: ReturnType<typeof setTimeout> | undefined;
     let simBusy = $state(false);
+    let simStepTarget = $state(0);
+    let simStepDone = $state(0);
     let deviceToggleBusy = $state<number | null>(null);
     let editOpen = $state(false);
     let resetOpen = $state(false);
@@ -258,6 +265,18 @@
         return `${Math.max(1, Math.round(stepAmount))} ${stepUnit}`;
     }
 
+    function formatMinuteSpan(total: number): string {
+        const days = Math.floor(total / 1440);
+        const hours = Math.floor((total % 1440) / 60);
+        const minutes = Math.round(total % 60);
+
+        return [
+            days > 0 ? `${days} hari` : '',
+            hours > 0 ? `${hours} jam` : '',
+            minutes > 0 ? `${minutes} menit` : '',
+        ].filter(Boolean).join(' ') || '0 menit';
+    }
+
     async function seekVirtualDay(event: MouseEvent): Promise<void> {
         const now = parseVirtualDate(virtualTimeValue);
 
@@ -277,8 +296,29 @@
         await advanceSimulation(delta);
     }
 
-    function triggerFeed(grams: number): void {
+    function enqueueFeedEvents(events: FeedEvent[]): void {
+        if (events.length === 0) return;
+
+        feedQueue.push(...events);
+
+        if (!feedActive) {
+            drainFeedQueue();
+        }
+    }
+
+    function drainFeedQueue(): void {
+        if (feedActive) return;
+
+        const next = feedQueue.shift();
+
+        if (!next) {
+            feedActive = false;
+            return;
+        }
+
         feedActive = true;
+        const jamPakan = next.waktu ? next.waktu.slice(11, 16) : '';
+        feedLabel = `PAKAN ${jamPakan}${jamPakan ? ' · ' : ''}${next.gram.toLocaleString('id-ID')} g`;
 
         if (feedTimer) {
             clearTimeout(feedTimer);
@@ -286,7 +326,8 @@
 
         feedTimer = setTimeout(() => {
             feedActive = false;
-        }, Math.max(1800, Math.min(4200, grams > 2000 ? 4200 : 2600)));
+            feedTimer = setTimeout(drainFeedQueue, 180);
+        }, 1000);
     }
 
     async function loadHistory(): Promise<void> {
@@ -304,25 +345,36 @@
         fishRecords = payload.ikan.filter((fish) => fish.status === 'hidup');
     }
 
+    const SIM_CHUNK_MENIT = 600;
+    const MAX_SIM_PASSES = 1000;
+
     async function advanceSimulation(minutes?: number): Promise<void> {
         if (simBusy) return;
         simBusy = true;
         error = '';
+        const target = minutes ?? stepToMinutes();
+        let remaining = target;
+        simStepTarget = target;
+        simStepDone = 0;
+
         try {
-            let remaining = minutes ?? stepToMinutes();
-            let pakanEvents = 0;
-            let pakanGrams = 0;
             let alertCount = 0;
             let dailyProcess = false;
             let passes = 0;
 
-            // Backend membatasi tick per request. Untuk langkah besar seperti
-            // satu bulan, lanjutkan request berikutnya sampai target terpenuhi.
-            while (remaining > 0 && passes < 12) {
+            // Kirim per batch supaya satu request tidak menabrak timeout server.
+            // Backend juga membatasi tick dan waktu eksekusi per request.
+            while (remaining > 0 && passes < MAX_SIM_PASSES) {
+                // Percepatan memperkecil batch agar jam virtual bergerak
+                // lebih sering dan terasa mengikuti kecepatan yang dipilih.
+                const batchMenit = Math.min(
+                    remaining,
+                    Math.max(120, Math.round(SIM_CHUNK_MENIT / Math.max(1, simulationSpeed))),
+                );
                 const response = await fetch(`/api/kolam/${id}/simulasi/tick`, {
                     method: 'POST',
                     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ menit: remaining }),
+                    body: JSON.stringify({ menit: batchMenit }),
                 });
                 if (!response.ok) throw new Error('Simulasi tidak dapat dilanjutkan.');
 
@@ -331,18 +383,38 @@
 
                 if (advanced <= 0) break;
 
-                remaining -= advanced;
-                pakanEvents += payload.pakan_kejadian ?? 0;
-                pakanGrams += payload.pakan_g ?? 0;
+                remaining = Math.max(0, remaining - advanced);
+                simStepDone = Math.min(target, target - remaining);
                 alertCount += payload.alert_baru ?? 0;
                 dailyProcess = dailyProcess || Boolean(payload.proses_harian);
                 passes++;
 
-                if (payload.selesai !== false) break;
-            }
+                if (payload.pakan_events?.length) {
+                    enqueueFeedEvents(payload.pakan_events);
+                } else if ((payload.pakan_kejadian ?? 0) > 0) {
+                    enqueueFeedEvents([{
+                        waktu: payload.waktu_sekarang ?? virtualTimeValue ?? '',
+                        gram: payload.pakan_g ?? 0,
+                    }]);
+                }
 
-            if (pakanEvents > 0) {
-                triggerFeed(pakanGrams);
+                // Perbarui jam virtual langsung dari response batch supaya UI
+                // bergerak selama simulasi panjang, tanpa menunggu semua batch.
+                if (payload.waktu_sekarang && simulation) {
+                    simulation = {
+                        ...simulation,
+                        kolam: {
+                            ...simulation.kolam,
+                            waktu_sandbox_sekarang: payload.waktu_sekarang,
+                        },
+                    };
+                }
+
+                // Sensor ikut diperbarui di tengah langkah besar agar kartu
+                // pembacaan dan animasi sensor tidak terlihat beku.
+                void loadReadings().catch(() => undefined);
+
+                if (payload.selesai !== false && remaining <= 0) break;
             }
 
             await Promise.all([loadSimulation(), loadReadings(), loadFish()]);
@@ -356,13 +428,15 @@
             }
 
             if (remaining > 0) {
-                say(`Simulasi berhenti pada batas langkah; sisa ${remaining} menit virtual`);
+                say(`Simulasi berhenti pada batas langkah; sisa ${formatMinuteSpan(remaining)} virtual`);
             }
         } catch (reason) {
             error = reason instanceof Error ? reason.message : 'Simulasi tidak dapat dilanjutkan.';
             playing = false;
         } finally {
             simBusy = false;
+            simStepTarget = 0;
+            simStepDone = 0;
         }
     }
 
@@ -572,28 +646,35 @@
             context.clip();
 
             fishPositions = [];
+
             for (let index = 0; index < fishRecords.length; index += 1) {
                 const fish = fishRecords[index];
-                const zoneName = fish.zona?.nama ?? (index % 2 === 0 ? 'atas' : 'bawah');
-                const zoneY = zoneName === 'atas' ? cy - ry * 0.46 : cy + ry * 0.42;
                 const phase = random(fish.id, 1) * Math.PI * 2;
-                const spread = random(fish.id, 2);
-                const baseX = cx + (spread - 0.5) * rx * 1.45;
-                const baseY = zoneY + (random(fish.id, 6) - 0.5) * ry * 0.3;
                 const swimSpeed = playing
                     ? 0.0011 + simulationSpeed * 0.00035
                     : 0.00035;
+
+                // Sebar setiap ikan secara acak di seluruh area air.
+                // Jangan memakai zona_id sebagai posisi Y karena itu membuat
+                // ikan terlihat terpisah menjadi dua gerombolan atas/bawah.
+                const angle = random(fish.id, 2) * Math.PI * 2;
+                const radial = Math.sqrt(random(fish.id, 6)) * 0.9;
+                const baseX = cx + Math.cos(angle) * rx * radial;
+                const baseY = cy + Math.sin(angle) * ry * radial;
+
                 const swimX = Math.sin(time * swimSpeed + phase);
-                const swimY = Math.cos(time * swimSpeed * 0.75 + phase * 1.3);
-                const x = baseX + swimX * rx * 0.18;
-                const y = baseY + swimY * ry * 0.08;
-                const targetWeight = Math.max(1, detail?.kolam.bobot_target_panen_g ?? 100);
-                const growthRatio = Math.min(1.65, Math.max(0.55, fish.bobot_g / targetWeight));
+                const swimY = Math.cos(time * swimSpeed * 0.73 + phase * 1.7);
+                const driftX = rx * (0.07 + random(fish.id, 7) * 0.08);
+                const driftY = ry * (0.05 + random(fish.id, 8) * 0.08);
+                const x = baseX + swimX * driftX;
+                const y = baseY + swimY * driftY;
+                const initialWeight = Math.max(0.0001, detail?.kolam.bobot_awal_rata_g ?? 1);
+                const growthRatio = Math.min(2.4, Math.max(0.55, Math.sqrt(fish.bobot_g / initialWeight)));
                 const baseSize = fishRecords.length > 300
-                    ? 1.7 + random(fish.id, 3) * 1.2
-                    : 3.4 + random(fish.id, 3) * 2.6;
-                const size = baseSize * (0.75 + growthRatio * 0.75);
-                const direction = swimX >= 0 ? 1 : -1;
+                    ? 2.2
+                    : 4.2;
+                const size = baseSize * growthRatio;
+                const direction = Math.cos(time * swimSpeed + phase) >= 0 ? 1 : -1;
                 const tail = Math.sin(time * 0.012 + phase) * size * 0.2;
                 const fill = '#9bc9f5';
                 const outline = '#0b1b2d';
@@ -713,6 +794,8 @@
             if (playTimer) clearInterval(playTimer);
             if (feedTimer) clearTimeout(feedTimer);
             if (fishAnimationFrame) cancelAnimationFrame(fishAnimationFrame);
+            feedQueue = [];
+            feedActive = false;
         };
     });
 
@@ -745,14 +828,20 @@
             second: String(parsed.getSeconds()).padStart(2, '0'),
         };
     });
+    const simStepVisible = $derived(simBusy && simStepTarget >= 1440);
+    const simStepPercent = $derived(
+        simStepTarget > 0 ? Math.min(100, Math.round((simStepDone / simStepTarget) * 100)) : 0,
+    );
     const virtualDayProgress = $derived.by(() => {
         const now = parseVirtualDate(virtualTimeValue);
 
         if (!now) return 0;
 
-        const minutes = now.getHours() * 60 + now.getMinutes();
+        const seconds = now.getHours() * 3600
+            + now.getMinutes() * 60
+            + now.getSeconds();
 
-        return Math.min(100, Math.max(0, (minutes / 1440) * 100));
+        return Math.min(100, Math.max(0, (seconds / 86400) * 100));
     });
 </script>
 
@@ -837,6 +926,17 @@
                 <span>12:00</span>
                 <span>24:00</span>
             </div>
+            {#if simStepVisible}
+                <div class="sim-step-progress" role="status" aria-live="polite">
+                    <div class="sim-step-progress-head">
+                        <span>Memproses {formatMinuteSpan(simStepDone)} / {formatMinuteSpan(simStepTarget)}</span>
+                        <b>{simStepPercent}%</b>
+                    </div>
+                    <div class="sim-step-progress-rail">
+                        <i style={`width:${simStepPercent}%`}></i>
+                    </div>
+                </div>
+            {/if}
         </div>
 
         <div class="player-controls">
@@ -887,6 +987,7 @@
             <div
                 class="pond-stage"
                 class:playing
+                class:simulating={simBusy || playing}
                 class:oxygen-rich={doValue !== null && doValue > 6}
                 class:temperature-high={suhuValue !== null && suhuValue > 31}
                 class:ph-unstable={phValue !== null && (phValue < 6.5 || phValue > 8.5)}
@@ -949,6 +1050,9 @@
                     <span class="effect-ripple er1"></span>
                     <span class="effect-ripple er2"></span>
                 </div>
+                {#if simBusy || playing}
+                    <div class="sensor-scan" aria-hidden="true"></div>
+                {/if}
                 {#if feedActive}
                     <div class="feed-animation" aria-live="polite">
                         <span class="feed-pellet fp1"></span>
@@ -956,12 +1060,12 @@
                         <span class="feed-pellet fp3"></span>
                         <span class="feed-pellet fp4"></span>
                         <span class="feed-pellet fp5"></span>
-                        <b>PAKAN DIBERIKAN</b>
+                        <b>{feedLabel}</b>
                     </div>
                 {/if}
                 <div class="pond-water">
-                    <canvas bind:this={fishCanvas} class="pond-fish-canvas" aria-label="Visual ikan bergerak menurut zona" onclick={selectFishFromCanvas}></canvas>
-                    <div class="zone-divider" aria-hidden="true"><span>PEMISAH ZONA ATAS / BAWAH</span></div>
+                    <canvas bind:this={fishCanvas} class="pond-fish-canvas" aria-label="Visual ikan bergerak acak di seluruh area kolam" onclick={selectFishFromCanvas}></canvas>
+                    <div class="zone-divider" aria-hidden="true"><span>ZONA SENSOR: ATAS / BAWAH</span></div>
                     <button
                         class="pond-population"
                         aria-label="Buka detail populasi ikan"

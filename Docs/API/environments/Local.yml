@@ -3,6 +3,6 @@ variables:
   - name: baseUrl
     value: http://localhost:8000
   - name: kolamId
-    value: "9"
+    value: "15"
   - secret: true
     name: token
