@@ -1,0 +1,21 @@
+info:
+  name: Kolam
+  type: folder
+  seq: 1
+  tags:
+    - sandbox
+    - kolam
+request:
+  headers:
+    - name: Accept
+      value: application/json
+docs:
+  content: |
+    # Kolam
+
+    Endpoint untuk melihat dan membuat kolam sandbox.
+
+    - `GET /api/kolam` — daftar kolam
+    - `GET /api/kolam/{id}` — detail kolam
+    - `POST /api/kolam` — provisioning kolam baru
+  type: text/markdown

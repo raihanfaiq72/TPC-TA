@@ -8,6 +8,7 @@ use App\Models\JenisPakan;
 use App\Models\JenisPerangkat;
 use App\Models\KeadaanZona;
 use App\Models\Kolam;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -21,6 +22,13 @@ class KolamController extends Controller
         $random_2 = mt_rand() / mt_getrandmax();
 
         return sqrt(-2 * log($random_1)) * cos(2 * M_PI * $random_2);
+    }
+
+    public function index(): JsonResponse
+    {
+        $kolam = Kolam::query()->withCount(['ikans as jumlah_ikan_hidup' => fn (Builder $query) => $query->where('status', 'hidup'), 'zonas as jumlah_zona'])->orderByDesc('id')->get();
+
+        return response()->json($kolam);
     }
 
     public function store(Request $request): JsonResponse
@@ -223,5 +231,46 @@ class KolamController extends Controller
             'biomassa_awal_g',
             'padat_tebar_per_m3',
         ]), 201);
+    }
+
+    public function show(int $id): JsonResponse
+    {
+        $kolam = Kolam::query()->find($id);
+
+        if (! $kolam) {
+            return response()->json(['message' => 'Kolam tidak ditemukan'], 404);
+        }
+
+        $zona = $kolam->zonas()->orderBy('id')->get();
+
+        $perangkat = $kolam->perangkats()->join('jenis_perangkats', 'jenis_perangkats.id', '=', 'perangkats.jenis_perangkat_id')->select(['perangkats.*', 'jenis_perangkats.nama as jenis_perangkat', 'jenis_perangkats.kode as kode_jenis'])->orderBy('perangkats.id')->get();
+
+        $jadwalPakan = $kolam->jadwalPakans()->leftJoin('jenis_pakans', 'jenis_pakans.id', '=', 'jadwal_pakans.jenis_pakan_id')->select(['jadwal_pakans.*', 'jenis_pakans.merek as nama_pakan'])->orderBy('jadwal_pakans.jam')->get();
+
+        return response()->json([
+            'kolam' => $kolam,
+            'zona' => $zona,
+            'perangkat' => $perangkat,
+            'jadwal_pakan' => $jadwalPakan,
+        ]);
+    }
+
+    public function destroy(int $id):JsonResponse
+    {
+        $kolam = Kolam::query()->find($id);
+
+        if (! $kolam) {
+            return response()->json(['message' => 'Kolam tidak ditemukan'], 404);
+        }
+
+        try {
+            DB::transaction(fn () => $kolam->delete());
+        } catch (QueryException $e) {
+            return response()->json([
+                'message' => 'Kolam belum dapat dihapus. Periksa foreign key dan relasi data turunannya.',
+            ], 409);
+        }
+
+        return response()->json(['message' => 'Kolam berhasil dihapus']);
     }
 }

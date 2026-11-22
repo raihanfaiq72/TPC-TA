@@ -17,7 +17,9 @@ docs:
     | Method | Path | Keterangan |
     |---|---|---|
     | GET | `/ping` | Cek status API |
-    | POST | `/sandbox/kolam` | Membuat kolam sandbox lengkap |
+    | GET | `/kolam` | Daftar kolam |
+    | POST | `/kolam` | Membuat kolam sandbox lengkap |
+    | GET | `/kolam/{id}` | Detail kolam + zona + perangkat + jadwal pakan |
 
     ## Autentikasi
 

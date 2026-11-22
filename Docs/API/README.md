@@ -13,12 +13,14 @@ Collection ini memakai format **OpenCollection YAML** (Bruno 3+).
 Docs/API/
 ├── opencollection.yml          # metadata collection
 ├── environments/
-│   └── Local.yml               # baseUrl + token
+│   └── Local.yml               # baseUrl + kolamId + token
 ├── Ping.yml                    # GET /api/ping
-└── Sandbox/
+└── Kolam/
     ├── folder.yml              # metadata folder
-    ├── create-kolam.yml        # POST /api/sandbox/kolam (valid)
-    └── create-kolam-invalid.yml# POST /api/sandbox/kolam (422)
+    ├── Index kolam.yml         # GET /api/kolam
+    ├── Show Kolam.yml          # GET /api/kolam/{id}
+    ├── create-kolam.yml        # POST /api/kolam (valid)
+    └── create-kolam-invalid.yml# POST /api/kolam (422)
 ```
 
 ## Cara membuka
@@ -27,7 +29,8 @@ Docs/API/
 2. Pilih **Open Collection**.
 3. Arahkan ke folder `Docs/API` (bukan ke file `opencollection.yml`).
 4. Pilih environment **Local** di pojok kanan atas.
-5. Jalankan `Ping` terlebih dahulu, lalu `Sandbox → Buat Kolam`.
+5. Jalankan `Ping` → `Kolam → Daftar Kolam` → `Detail Kolam`.
+6. Jalankan `Buat Kolam`; variable `kolamId` otomatis terisi dari response.
 
 Kalau `baseUrl` berbeda, ubah di:
 
@@ -36,7 +39,9 @@ Kalau `baseUrl` berbeda, ubah di:
 name: Local
 variables:
   - name: baseUrl
-    value: http://127.0.0.1:8000
+    value: http://localhost:8000
+  - name: kolamId
+    value: "1"
 ```
 
 ## Endpoint
@@ -44,16 +49,22 @@ variables:
 | Method | Path | Nama request | Keterangan |
 |---|---|---|---|
 | GET | `/api/ping` | Ping | Cek status API |
-| POST | `/api/sandbox/kolam` | Buat Kolam | Provisioning kolam + zona + perangkat + ikan |
-| POST | `/api/sandbox/kolam` | Buat Kolam (validasi gagal) | Contoh response 422 |
+| GET | `/api/kolam` | Daftar Kolam | Semua kolam + jumlah ikan hidup & zona |
+| GET | `/api/kolam/{id}` | Detail Kolam | Kolam + zona + perangkat + jadwal pakan |
+| POST | `/api/kolam` | Buat Kolam | Provisioning kolam + zona + perangkat + ikan |
+| POST | `/api/kolam` | Buat Kolam (validasi gagal) | Contoh response 422 |
 
-API otomatis memakai prefix `/api` dari `bootstrap/app.php`.
+API otomatis memakai prefix `/api` dari `bootstrap/app.php`. Alias lama
+`/api/sandbox/kolam` masih tersedia agar koleksi sebelumnya tetap jalan.
 
 ## Fitur request
 
+- **Daftar Kolam** memastikan response berupa array.
+- **Detail Kolam** memakai path parameter `{{kolamId}}` dan memeriksa
+  `kolam`, `zona`, `perangkat`, serta `jadwal_pakan`.
 - **Buat Kolam** membuat kode unik otomatis (`C` + 6 digit timestamp)
   lewat pre-request script, jadi bisa dijalankan berulang.
-- Assertion bawaan:
+- Assertion Buat Kolam:
   - status `201`
   - `kode` berupa string
   - `id` dan `volume_air_m3` berupa number
@@ -67,8 +78,9 @@ API otomatis memakai prefix `/api` dari `bootstrap/app.php`.
 1. Buka collection **SmartAqua API**.
 2. Buka tab/menu **Docs** pada collection.
 3. Bruno akan merangkum deskripsi dari blok `docs:` pada tiap request
-   (Ping, Buat Kolam, dan contoh validasi sudah terisi).
+   (Ping, Daftar Kolam, Detail Kolam, Buat Kolam, dan contoh validasi).
 4. Gunakan **Publish / Export Docs** di Bruno untuk membagikan dokumentasi.
+
 
 ## Sebelum mencoba endpoint kolam
 

@@ -1,0 +1,50 @@
+info:
+  name: Daftar Kolam
+  type: http
+  seq: 1
+  tags:
+    - sandbox
+    - kolam
+http:
+  method: GET
+  url: "{{baseUrl}}/api/kolam"
+  headers:
+    - name: Accept
+      value: application/json
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: isArray
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Daftar Kolam
+
+  Mengembalikan semua kolam sandbox beserta jumlah ikan hidup dan jumlah zona.
+
+  ## Request
+
+  ```http
+  GET {{baseUrl}}/api/kolam
+  Accept: application/json
+  ```
+
+  ## Response 200
+
+  ```json
+  [
+    {
+      "id": 1,
+      "kode": "C07",
+      "nama": "Kolam C07 — Lele Sangkuriang",
+      "jumlah_ikan_hidup": 11,
+      "jumlah_zona": 2
+    }
+  ]
+  ```

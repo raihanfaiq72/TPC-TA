@@ -8,15 +8,25 @@ Route::get('/ping', fn () => response()->json([
     'app' => config('app.name'),
 ]));
 
-/*
-| Endpoint sandbox.
-| Saat ini publik dengan throttle. Setelah Sanctum terpasang, bungkus
-| group ini dengan middleware('auth:sanctum') sesuai kebutuhan.
-*/
-Route::prefix('sandbox')
-    ->middleware('throttle:30,1')
-    ->name('api.sandbox.')
-    ->group(function () {
-        Route::post('/kolam', [KolamController::class, 'store'])
-            ->name('kolam.store');
-    });
+Route::middleware('throttle:30,1')->group(function () {
+    
+    Route::prefix('kolam')
+        ->name('api.kolam.')
+        ->controller(KolamController::class)
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/', 'store')->name('store');
+            Route::get('/{id}', 'show')->whereNumber('id')->name('show');
+            Route::delete('/{id}','destroy')->whereNumber('id')->name('destroy');
+        });
+
+    // Alias 
+    Route::prefix('sandbox/kolam')
+        ->name('api.sandbox.kolam.')
+        ->controller(KolamController::class)
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/', 'store')->name('store');
+            Route::get('/{id}', 'show')->whereNumber('id')->name('show');
+        });
+});

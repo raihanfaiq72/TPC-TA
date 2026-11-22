@@ -1,0 +1,74 @@
+info:
+  name: Detail Kolam
+  type: http
+  seq: 2
+  tags:
+    - sandbox
+    - kolam
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/kolam/5"
+  headers:
+    - name: Accept
+      value: application/json
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.kolam.id
+      operator: isNumber
+    - expression: res.body.zona
+      operator: isArray
+    - expression: res.body.perangkat
+      operator: isArray
+    - expression: res.body.jadwal_pakan
+      operator: isArray
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |
+  # Detail Kolam
+
+  Mengambil satu kolam beserta zona, perangkat, dan jadwal pakannya.
+
+  Ganti `kolamId` di environment atau jalankan request **Buat Kolam**
+  terlebih dahulu; ID hasilnya otomatis disimpan ke variable `kolamId`.
+
+  ## Request
+
+  ```http
+  GET {{baseUrl}}/api/kolam/{{kolamId}}
+  Accept: application/json
+  ```
+
+  ## Response 200
+
+  ```json
+  {
+    "kolam": { "id": 1, "kode": "C07" },
+    "zona": [{ "id": 1, "nama": "atas" }],
+    "perangkat": [
+      {
+        "kode": "C07-ATAS-SUHU",
+        "jenis_perangkat": "Sensor Suhu",
+        "kode_jenis": "suhu"
+      }
+    ],
+    "jadwal_pakan": [
+      { "jam": "07:00:00", "nama_pakan": "Provit 781-3" }
+    ]
+  }
+  ```
+
+  ## Response 404
+
+  ```json
+  { "message": "Kolam tidak ditemukan" }
+  ```
