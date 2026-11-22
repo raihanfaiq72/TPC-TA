@@ -9,6 +9,7 @@ use App\Models\JenisPerangkat;
 use App\Models\KeadaanZona;
 use App\Models\Kolam;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -255,7 +256,7 @@ class KolamController extends Controller
         ]);
     }
 
-    public function destroy(int $id):JsonResponse
+    public function destroy(int $id): JsonResponse
     {
         $kolam = Kolam::query()->find($id);
 

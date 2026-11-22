@@ -1,0 +1,161 @@
+info:
+  name: Tick Lingkungan
+  type: http
+  seq: 2
+  tags:
+    - sandbox
+    - lingkungan
+http:
+  method: POST
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/lingkungan/tick"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Accept
+      value: application/json
+  body:
+    type: json
+    data: |
+      {
+        "waktu": "2026-11-08 14:00:00"
+      }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.kolam.id
+      operator: isNumber
+    - expression: res.body.zona
+      operator: isArray
+    - expression: res.body.zona[0].keadaan.diperbarui_pada
+      operator: isString
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Tick Lingkungan
+
+  Menjalankan **satu langkah simulasi** lingkungan pada waktu virtual
+  tertentu, lalu mengembalikan keadaan terbaru seluruh zona.
+
+  Tick memperbarui:
+
+  - suhu menuju target harian dengan relaksasi,
+  - DO berdasarkan reaerasi, respirasi biomassa, dan pembusukan sisa pakan,
+  - amonia dari sisa pakan yang membusuk, skenario lonjakan, dan pengenceran,
+  - perpindahan sisa pakan dari zona `atas` ke `bawah`,
+  - pencampuran DO dan amonia antar zona,
+  - pH menuju nilai dasar yang diturunkan oleh amonia,
+  - penerapan skenario `ganti_air` satu kali.
+
+  ## Prasyarat config
+
+  Endpoint ini memerlukan `config/sandbox.php`:
+
+  ```php
+  return [
+      'tick_menit' => 60,
+
+      'lingkungan' => [
+          'puncak_suhu_jam' => 14,
+          'suhu_relaksasi_per_tick' => 0.25,
+          'do_jenuh_ref' => 8.5,
+          'do_jenuh_per_derajat' => 0.2,
+          'rea_atas_per_hari' => 2.0,
+          'rea_bawah_per_hari' => 1.0,
+          'resp_koef_suhu' => 0.05,
+          'resp_per_kg_m3_jam' => 0.01,
+          'busuk_do_per_g_m3_jam' => 0.001,
+          'sisa_pakan_peluruhan_tick' => 0.1,
+          'amonia_hilang_per_hari' => 0.2,
+          'amonia_dari_sisa_busuk' => 0.01,
+          'sisa_pakan_mengendap_tick' => 0.05,
+          'campur_antar_zona' => 0.1,
+          'ph_turun_per_ppm_amonia' => 0.33,
+          'ph_relaksasi_per_tick' => 0.25,
+      ],
+  ];
+  ```
+
+  Nilai di atas hanya contoh struktur agar request dapat dijalankan;
+  wajib diganti dengan hasil kalibrasi penelitian. Tanpa config API
+  mengembalikan `503`.
+
+  ## Request
+
+  ```http
+  POST {{baseUrl}}/api/kolam/{{kolamId}}/lingkungan/tick
+  Content-Type: application/json
+  Accept: application/json
+
+  {
+    "waktu": "2026-11-08 14:00:00"
+  }
+  ```
+
+  | Field | Tipe | Wajib | Keterangan |
+  |---|---|---|---|
+  | waktu | date | ya | Waktu virtual simulasi, format `YYYY-MM-DD HH:mm:ss` |
+
+  Waktu contoh berada di dalam skenario `aerator_mati` C07
+  (`2026-11-08 12:00`–`15:00`). Ganti nilainya untuk menguji skenario lain.
+
+  ## Response 200
+
+  ```json
+  {
+    "kolam": {
+      "id": 4,
+      "kode": "C07",
+      "volume_air_m3": 9,
+      "waktu_sandbox_sekarang": "2026-11-08T14:00:00.000000Z"
+    },
+    "zona": [
+      {
+        "id": 7,
+        "nama": "atas",
+        "keadaan": {
+          "suhu_asli": 28.61,
+          "ph_asli": 7.22,
+          "do_asli": 2.41,
+          "amonia_asli": 0.47,
+          "sisa_pakan_g": 11.25,
+          "diperbarui_pada": "2026-11-08T14:00:00.000000Z"
+        }
+      },
+      {
+        "id": 8,
+        "nama": "bawah",
+        "keadaan": {
+          "suhu_asli": 28.21,
+          "ph_asli": 7.27,
+          "do_asli": 2.22,
+          "amonia_asli": 0.6,
+          "sisa_pakan_g": 19.45,
+          "diperbarui_pada": "2026-11-08T14:00:00.000000Z"
+        }
+      }
+    ],
+    "skenario": []
+  }
+  ```
+
+  Angka di atas hanya ilustrasi; hasil aktual bergantung pada config,
+  keadaan awal, biomassa ikan, dan skenario aktif.
+
+  ## Response 503
+
+  ```json
+  {
+    "message": "Konfigurasi sandbox.lingkungan belum tersedia."
+  }
+  ```
+
+  ## Response 404
+
+  ```json
+  { "message": "Kolam tidak ditemukan." }
+  ```

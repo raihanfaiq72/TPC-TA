@@ -1,0 +1,122 @@
+info:
+  name: Tambah Amonia
+  type: http
+  seq: 3
+  tags:
+    - sandbox
+    - lingkungan
+http:
+  method: POST
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/lingkungan/amonia"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Accept
+      value: application/json
+  body:
+    type: json
+    data: |
+      {
+        "gram_tan": 9
+      }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.zona
+      operator: isArray
+    - expression: res.body.zona[0].keadaan.amonia_asli
+      operator: isNumber
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Tambah Amonia
+
+  Menambahkan beban amonia ke **semua zona** kolam. Nilai amonia awal
+  masing-masing zona tetap dipertahankan; hanya ditambah delta yang sama.
+
+  Endpoint ini berguna untuk menguji respon pH dan kualitas air tanpa
+  menjalankan tick penuh.
+
+  ## Rumus
+
+  ```text
+  delta_ppm = gram_tan / volume_air_m3
+  amonia_baru = amonia_lama + delta_ppm
+  ```
+
+  Contoh C07: volume 9 m³, `gram_tan` 9 → delta 1.0 ppm.
+
+  ## Request
+
+  ```http
+  POST {{baseUrl}}/api/kolam/{{kolamId}}/lingkungan/amonia
+  Content-Type: application/json
+  Accept: application/json
+
+  {
+    "gram_tan": 9
+  }
+  ```
+
+  | Field | Tipe | Wajib | Keterangan |
+  |---|---|---|---|
+  | gram_tan | number > 0 | ya | Jumlah amonia yang ditambahkan (gram) |
+
+  ## Response 200
+
+  ```json
+  {
+    "kolam": {
+      "id": 4,
+      "kode": "C07",
+      "volume_air_m3": 9
+    },
+    "zona": [
+      {
+        "id": 7,
+        "nama": "atas",
+        "keadaan": {
+          "amonia_asli": 1.42,
+          "ph_asli": 7.25,
+          "diperbarui_pada": "2026-11-08T14:00:00.000000Z"
+        }
+      },
+      {
+        "id": 8,
+        "nama": "bawah",
+        "keadaan": {
+          "amonia_asli": 1.55,
+          "ph_asli": 7.3,
+          "diperbarui_pada": "2026-11-08T14:00:00.000000Z"
+        }
+      }
+    ],
+    "skenario": []
+  }
+  ```
+
+  Response mengikuti bentuk **Lihat Lingkungan**; contoh di atas
+  dipersingkat. pH **tidak** berubah pada request ini karena pH baru
+  dihitung saat **Tick Lingkungan**.
+
+  ## Response 422
+
+  ```json
+  {
+    "message": "The gram tan field must be greater than 0.",
+    "errors": {
+      "gram_tan": ["The gram tan field must be greater than 0."]
+    }
+  }
+  ```
+
+  ## Response 404
+
+  ```json
+  { "message": "Kolam tidak ditemukan." }
+  ```

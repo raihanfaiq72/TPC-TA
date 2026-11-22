@@ -20,6 +20,10 @@ docs:
     | GET | `/kolam` | Daftar kolam |
     | POST | `/kolam` | Membuat kolam sandbox lengkap |
     | GET | `/kolam/{id}` | Detail kolam + zona + perangkat + jadwal pakan |
+    | GET | `/kolam/{id}/lingkungan` | Keadaan lingkungan per zona |
+    | POST | `/kolam/{id}/lingkungan/tick` | Jalankan satu tick simulasi lingkungan |
+    | POST | `/kolam/{id}/lingkungan/amonia` | Tambahkan beban amonia |
+    | POST | `/kolam/{id}/lingkungan/sisa-pakan` | Tambahkan sisa pakan |
 
     ## Autentikasi
 

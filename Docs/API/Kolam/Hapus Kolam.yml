@@ -1,14 +1,57 @@
 info:
   name: Hapus Kolam
   type: http
-
+  seq: 4
+  tags:
+    - sandbox
+    - kolam
 http:
   method: DELETE
-  url: "{{baseUrl}}/api/kolam/5"
-  auth: inherit
-
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}"
+  headers:
+    - name: Accept
+      value: application/json
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.message
+      operator: isString
 settings:
   encodeUrl: true
   timeout: 0
   followRedirects: true
   maxRedirects: 5
+docs: |
+  # Hapus Kolam
+
+  Menghapus satu kolam sandbox beserta data turunannya. Gunakan
+  `kolamId` hasil **Buat Kolam** atau ID C07 dari seeder.
+
+  ## Request
+
+  ```http
+  DELETE {{baseUrl}}/api/kolam/{{kolamId}}
+  Accept: application/json
+  ```
+
+  ## Response 200
+
+  ```json
+  { "message": "Kolam berhasil dihapus" }
+  ```
+
+  ## Response 404
+
+  ```json
+  { "message": "Kolam tidak ditemukan" }
+  ```
+
+  ## Response 409
+
+  ```json
+  {
+    "message": "Kolam belum dapat dihapus. Periksa foreign key dan relasi data turunannya."
+  }
+  ```

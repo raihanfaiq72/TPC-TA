@@ -8,7 +8,7 @@ info:
 
 http:
   method: GET
-  url: "{{baseUrl}}/api/kolam/5"
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}"
   headers:
     - name: Accept
       value: application/json

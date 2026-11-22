@@ -1,0 +1,113 @@
+info:
+  name: Tambah Sisa Pakan
+  type: http
+  seq: 4
+  tags:
+    - sandbox
+    - lingkungan
+http:
+  method: POST
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/lingkungan/sisa-pakan"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Accept
+      value: application/json
+  body:
+    type: json
+    data: |
+      {
+        "gram": 100
+      }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.zona
+      operator: isArray
+    - expression: res.body.zona[0].keadaan.sisa_pakan_g
+      operator: isNumber
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Tambah Sisa Pakan
+
+  Menambahkan sisa pakan ke zona **atas**. Endpoint ini mensimulasikan
+  pakan yang tidak termakan atau jatuh ke dasar sebelum membusuk.
+
+  Saat **Tick Lingkungan** dijalankan, sebagian sisa pakan membusuk
+  menjadi amonia dan sebagian mengendap dari zona atas ke zona bawah.
+
+  ## Request
+
+  ```http
+  POST {{baseUrl}}/api/kolam/{{kolamId}}/lingkungan/sisa-pakan
+  Content-Type: application/json
+  Accept: application/json
+
+  {
+    "gram": 100
+  }
+  ```
+
+  | Field | Tipe | Wajib | Keterangan |
+  |---|---|---|---|
+  | gram | number > 0 | ya | Sisa pakan yang ditambahkan (gram) |
+
+  ## Response 200
+
+  ```json
+  {
+    "kolam": {
+      "id": 4,
+      "kode": "C07",
+      "volume_air_m3": 9
+    },
+    "zona": [
+      {
+        "id": 7,
+        "nama": "atas",
+        "keadaan": {
+          "sisa_pakan_g": 112.5,
+          "amonia_asli": 0.42,
+          "diperbarui_pada": "2026-11-08T14:00:00.000000Z"
+        }
+      },
+      {
+        "id": 8,
+        "nama": "bawah",
+        "keadaan": {
+          "sisa_pakan_g": 18.2,
+          "amonia_asli": 0.55,
+          "diperbarui_pada": "2026-11-08T14:00:00.000000Z"
+        }
+      }
+    ],
+    "skenario": []
+  }
+  ```
+
+  Response mengikuti bentuk **Lihat Lingkungan**; contoh di atas
+  dipersingkat. Zona bawah tidak berubah sampai tick berikutnya
+  memindahkan sebagian sisa pakan.
+
+  ## Response 422
+
+  ```json
+  {
+    "message": "The gram field must be greater than 0.",
+    "errors": {
+      "gram": ["The gram field must be greater than 0."]
+    }
+  }
+  ```
+
+  ## Response 404
+
+  ```json
+  { "message": "Kolam tidak ditemukan." }
+  ```

@@ -1,0 +1,31 @@
+info:
+  name: Lingkungan
+  type: folder
+  seq: 2
+  tags:
+    - sandbox
+    - lingkungan
+request:
+  headers:
+    - name: Accept
+      value: application/json
+docs:
+  content: |
+    # Lingkungan
+
+    Endpoint simulasi lingkungan per kolam. Semua request memakai
+    `kolamId` dari environment atau hasil request **Buat Kolam**.
+
+    - `GET /api/kolam/{kolamId}/lingkungan` — keadaan lingkungan saat ini
+    - `POST /api/kolam/{kolamId}/lingkungan/tick` — jalankan satu langkah simulasi
+    - `POST /api/kolam/{kolamId}/lingkungan/amonia` — tambahkan beban amonia
+    - `POST /api/kolam/{kolamId}/lingkungan/sisa-pakan` — tambahkan sisa pakan
+
+    > Endpoint `tick` membutuhkan `config/sandbox.php` dengan key
+    > `tick_menit` dan `lingkungan`. Tanpa config tersebut API mengembalikan
+    > `503` dengan pesan yang jelas.
+
+    Response semua endpoint memakai bentuk yang sama: data kolam, dua zona
+    (`atas` dan `bawah`) beserta keadaan dan profil lingkungannya, serta
+    daftar skenario simulasi.
+  type: text/markdown
