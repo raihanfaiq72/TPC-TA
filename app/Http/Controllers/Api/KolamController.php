@@ -1,0 +1,227 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Ikan;
+use App\Models\JenisPakan;
+use App\Models\JenisPerangkat;
+use App\Models\KeadaanZona;
+use App\Models\Kolam;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+
+class KolamController extends Controller
+{
+    private function gauss(): float
+    {
+        $random_1 = (mt_rand() + 1) / (mt_getrandmax() + 1);
+        $random_2 = mt_rand() / mt_getrandmax();
+
+        return sqrt(-2 * log($random_1)) * cos(2 * M_PI * $random_2);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'kode' => 'required|string|max:20|unique:kolams,kode',
+            'nama' => 'required|string|max:100',
+            'panjang_m' => 'required|numeric|gt:0',
+            'lebar_m' => 'required|numeric|gt:0',
+            'tinggi_air_m' => 'required|numeric|gt:0',
+            'jumlah_ikan_awal' => 'required|integer|min:1|max:20000',
+            'bobot_awal_rata_g' => 'required|numeric|gt:0',
+            'bobot_awal_sd_g' => 'required|numeric|min:0',
+            'panjang_awal_rata_cm' => 'required|numeric|gt:0',
+            'kecepatan_waktu' => 'nullable|numeric|gt:0',
+            'waktu_mulai' => 'nullable|date',
+            'dosis_harian_persen' => 'nullable|numeric|gt:0',
+            'bobot_target_panen_g' => 'nullable|numeric|gt:0',
+        ]);
+
+        $mulai = isset($data['waktu_mulai']) ? Carbon::parse($data['waktu_mulai']) : Carbon::today()->setTime(6, 0);
+
+        $koefisien_a = $data['bobot_awal_rata_g'] / ($data['panjang_awal_rata_cm'] ** 3);
+
+        $kolam = DB::transaction(function () use ($data, $mulai, $koefisien_a): Kolam {
+            // 1. kolam e
+            $kolam = Kolam::create([
+                'kode' => $data['kode'],
+                'nama' => $data['nama'],
+                'jenis' => 'terpal',
+                'panjang_m' => $data['panjang_m'],
+                'lebar_m' => $data['lebar_m'],
+                'tinggi_air_m' => $data['tinggi_air_m'],
+                'jumlah_ikan_awal' => $data['jumlah_ikan_awal'],
+                'bobot_awal_rata_g' => $data['bobot_awal_rata_g'],
+                'bobot_awal_sd_g' => $data['bobot_awal_sd_g'],
+                'panjang_awal_rata_cm' => $data['panjang_awal_rata_cm'],
+                'koef_a' => round($koefisien_a, 8),
+                'dosis_harian_persen' => $data['dosis_harian_persen'] ?? 5.0,
+                'bobot_target_panen_g' => $data['bobot_target_panen_g'] ?? 100.0,
+                'waktu_mulai_sandbox' => $mulai,
+                'waktu_sandbox_sekarang' => $mulai,
+                'kecepatan_waktu' => $data['kecepatan_waktu'] ?? 60,
+            ]);
+
+            // Zona, atas 10 cm bawah 40 cm
+
+            $zona = $kolam->zonas()->createMany([
+                [
+                    'nama' => 'atas',
+                    'kedalaman_cm' => 10,
+                    'porsi_volume' => 0.40,
+                ],
+                [
+                    'nama' => 'bawah',
+                    'kedalaman_cm' => 40,
+                    'porsi_volume' => 0.60,
+                ],
+            ])->keyBy('nama');
+
+            // 3. perangkat: jenis zona dipasang 2x , jenis kolam 1x
+
+            foreach (JenisPerangkat::query()->orderBy('id')->get() as $jenis) {
+                if ($jenis->tingkat === 'zona') {
+                    foreach ($zona as $nama => $zon) {
+                        $kolam->perangkats()->create([
+                            'kode' => strtoupper("{$data['kode']}-{$nama}-{$jenis->kode}"),
+                            'zona_id' => $zon->id,
+                            'jenis_perangkat_id' => $jenis->id,
+                            'interval_menit' => $jenis->interval_default_menit,
+                            'tanggal_kalibrasi' => $mulai->toDateString(),
+                        ]);
+                    }
+
+                    continue;
+                }
+
+                $kolam->perangkats()->create([
+                    'kode' => strtoupper("{$data['kode']}-{$jenis->kode}"),
+                    'zona_id' => null,
+                    'jenis_perangkat_id' => $jenis->id,
+                    'interval_menit' => $jenis->interval_default_menit,
+                    'tanggal_kalibrasi' => $mulai->toDateString(),
+                ]);
+            }
+
+            // 4. profil lingkungan dan keadaan awal per zona; parameter : dasar, amplitudp, offset atas dan offset bawah
+
+            $profil = [
+                'suhu' => [29.0, 2.0, 0.0, -1.0],
+                'ph' => [7.2,  0.0, 0.0, -0.1],
+                'do' => [6.5,  0.0, 0.0, -0.3],
+                'amonia' => [0.05, 0.0, 0.0,  0.02],
+            ];
+
+            /** @var array<string, array<string, float>> $awal */
+            $awal = [];
+
+            foreach ($profil as $parameter => [$dasar,$amplitudo, $offsetAtas, $offsetBawah]) {
+                foreach (['atas' => $offsetAtas, 'bawah' => $offsetBawah] as $nama => $offset) {
+                    $kolam->profilLingkungans()->create([
+                        'zona_id' => $zona[$nama]->id,
+                        'parameter' => $parameter,
+                        'nilai_dasar' => $dasar,
+                        'amplitudo_harian' => $amplitudo,
+                        'offset_zona' => $offset,
+                    ]);
+
+                    $awal[$nama][$parameter] = $dasar + $offset;
+                }
+            }
+
+            foreach ($zona as $nama => $zon) {
+                KeadaanZona::create([
+                    'zona_id' => $zon->id,
+                    'kolam_id' => $kolam->id,
+                    'suhu_asli' => $awal[$nama]['suhu'],
+                    'ph_asli' => $awal[$nama]['ph'],
+                    'do_asli' => $awal[$nama]['do'],
+                    'amonia_asli' => $awal[$nama]['amonia'],
+                    'sisa_pakan_g' => 0,
+                    'diperbarui_pada' => $mulai,
+                ]);
+            }
+
+            // 5. pakan 3 kali sehari
+
+            $pakan = JenisPakan::query()->orderBy('id')->firstOrFail();
+
+            $kolam->jadwalPakans()->createMany([
+                [
+                    'jenis_pakan_id' => $pakan->id,
+                    'jam' => '07:00:00',
+                    'porsi_dosis_persen' => 33.33,
+                    'aktif' => true,
+                ],
+                [
+                    'jenis_pakan_id' => $pakan->id,
+                    'jam' => '12:00:00',
+                    'porsi_dosis_persen' => 33.33,
+                    'aktif' => true,
+                ],
+                [
+                    'jenis_pakan_id' => $pakan->id,
+                    'jam' => '19:00:00',
+                    'porsi_dosis_persen' => 33.34,
+                    'aktif' => true,
+                ],
+            ]);
+
+            // 6. Populasi ikan - bulk insert per 500 baris
+
+            $total = (int) $data['jumlah_ikan_awal'];
+            $min_bobot = 0.3 * $data['bobot_awal_rata_g'];
+            $baris = [];
+
+            for ($i = 1; $i <= $total; $i++) {
+                $bobot = max($min_bobot, $data['bobot_awal_rata_g'] + $this->gauss() * $data['bobot_awal_sd_g']);
+
+                $panjang = pow($bobot / $koefisien_a, 1 / 3);
+                $genetik = max(0.7, min(1.3, 1 + 0.1 * $this->gauss()));
+                $preferensi = max(0.0, min(1.0, 0.6 + 0.2 * $this->gauss()));
+                $zon = mt_rand(0, 1) === 1 ? $zona['atas'] : $zona['bawah'];
+
+                $baris[] = [
+                    'kolam_id' => $kolam->id,
+                    'kode' => sprintf('%s-F%04d', $data['kode'], $i),
+                    'faktor_genetik' => round($genetik, 3),
+                    'preferensi_zona' => round($preferensi, 3),
+                    'bobot_awal_g' => round($bobot, 3),
+                    'panjang_awal_cm' => round($panjang, 3),
+                    'bobot_g' => round($bobot, 3),
+                    'panjang_cm' => round($panjang, 3),
+                    'zona_id' => $zon->id,
+                ];
+
+                if (count($baris) === 500 || $i === $total) {
+                    Ikan::insert($baris);
+                    $baris = [];
+                }
+            }
+
+            // 7. Nilai turunan
+
+            $kolam->refresh(); // krn vol air m3 adl generated column
+
+            $kolam->update([
+                'biomassa_awal_g' => $kolam->ikans()->sum('bobot_awal_g'),
+                'padat_tebar_per_m3' => $kolam->jumlah_ikan_awal / $kolam->volume_air_m3,
+            ]);
+
+            return $kolam;
+        });
+
+        return response()->json($kolam->only([
+            'id',
+            'kode',
+            'jumlah_ikan_awal',
+            'volume_air_m3',
+            'biomassa_awal_g',
+            'padat_tebar_per_m3',
+        ]), 201);
+    }
+}
