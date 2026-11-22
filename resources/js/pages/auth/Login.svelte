@@ -1,7 +1,7 @@
 <script module lang="ts">
     export const layout = {
-        title: 'Log in to your account',
-        description: 'Enter your email and password below to log in',
+        title: 'Masuk ke SmartAqua',
+        description: 'Gunakan akun IPB kamu untuk melanjutkan.',
     };
 </script>
 
@@ -29,7 +29,7 @@
     } = $props();
 </script>
 
-<AppHead title="Log in" />
+<AppHead title="Masuk" />
 
 {#if status}
     <div class="mb-4 text-center text-sm font-medium text-green-600">
@@ -46,24 +46,27 @@
     {#snippet children({ errors, processing })}
         <div class="grid gap-6">
             <div class="grid gap-2">
-                <Label for="email">Email address</Label>
+                <Label for="email">Email</Label>
                 <Input
                     id="email"
                     type="email"
                     name="email"
                     required
                     autocomplete="email"
-                    placeholder="email@example.com"
+                    placeholder="nama@apps.ipb.ac.id"
                 />
                 <InputError message={errors.email} />
             </div>
 
             <div class="grid gap-2">
                 <div class="flex items-center justify-between">
-                    <Label for="password">Password</Label>
+                    <Label for="password">Kata sandi</Label>
                     {#if canResetPassword}
-                        <TextLink href={request()} class="text-sm">
-                            Forgot your password?
+                        <TextLink
+                            href={request()}
+                            class="text-sm font-semibold text-[#263c92]"
+                        >
+                            Lupa kata sandi?
                         </TextLink>
                     {/if}
                 </div>
@@ -72,7 +75,7 @@
                     name="password"
                     required
                     autocomplete="current-password"
-                    placeholder="Password"
+                    placeholder="Kata sandi"
                 />
                 <InputError message={errors.password} />
             </div>
@@ -80,24 +83,26 @@
             <div class="flex items-center justify-between">
                 <Label for="remember" class="flex items-center space-x-3">
                     <Checkbox id="remember" name="remember" />
-                    <span>Remember me</span>
+                    <span>Ingat saya</span>
                 </Label>
             </div>
 
             <Button
                 type="submit"
-                class="mt-4 w-full"
+                class="mt-4 h-11 w-full rounded-xl bg-[#263c92] text-sm font-bold text-white hover:bg-[#1b2c6f]"
                 disabled={processing}
                 data-test="login-button"
             >
                 {#if processing}<Spinner />{/if}
-                Log in
+                Masuk
             </Button>
         </div>
 
-        <div class="text-center text-sm text-muted-foreground">
-            Don't have an account?
-            <TextLink href={register()}>Sign up</TextLink>
+        <div class="text-center text-sm text-slate-600">
+            Belum punya akun?
+            <TextLink href={register()} class="font-semibold text-[#263c92]">
+                Daftar
+            </TextLink>
         </div>
     {/snippet}
 </Form>

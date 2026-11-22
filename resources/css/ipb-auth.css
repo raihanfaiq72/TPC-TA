@@ -1,0 +1,82 @@
+/* =========================================================
+   Halaman autentikasi SmartAqua — tema IPB University.
+   Warna field dipaksa terang agar tetap terbaca walau
+   preferensi tampilan perangkat sedang mode gelap.
+   ========================================================= */
+
+.ipb-auth,
+.ipb-auth-card {
+    color-scheme: light;
+}
+
+.ipb-auth-card {
+    color: #334155;
+}
+
+.ipb-auth-card label {
+    color: #334155;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.ipb-auth-card input:not([type='checkbox']):not([type='hidden']) {
+    height: 44px;
+    border-radius: 12px;
+    border: 1.5px solid #dbe3f6;
+    background-color: #ffffff;
+    color: #14235c;
+    font-size: 14px;
+    box-shadow: none;
+}
+
+.ipb-auth-card input:not([type='checkbox']):not([type='hidden'])::placeholder {
+    color: #94a3b8;
+}
+
+.ipb-auth-card input:not([type='checkbox']):not([type='hidden']):focus-visible {
+    border-color: #263c92;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(38, 60, 146, 0.16);
+}
+
+.ipb-auth-card input:-webkit-autofill,
+.ipb-auth-card input:-webkit-autofill:hover,
+.ipb-auth-card input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #14235c;
+    -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+    transition: background-color 9999s ease-in-out 0s;
+}
+
+.ipb-auth-card [data-slot='checkbox'] {
+    border: 1.5px solid #c7d2e8;
+    background-color: #ffffff;
+    color: #ffffff;
+    border-radius: 6px;
+}
+
+.ipb-auth-card [data-slot='checkbox'][data-state='checked'] {
+    border-color: #263c92 !important;
+    background-color: #263c92 !important;
+    color: #ffffff !important;
+}
+
+.ipb-auth-card [data-slot='checkbox']:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(38, 60, 146, 0.16);
+}
+
+.ipb-auth-card button[tabindex='-1'] {
+    color: #64748b;
+}
+
+.ipb-auth-card button[tabindex='-1']:hover {
+    color: #14235c;
+}
+
+.ipb-auth-card .text-muted-foreground {
+    color: #64748b !important;
+}
+
+.ipb-auth-card a {
+    text-decoration: none;
+}

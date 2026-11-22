@@ -1,7 +1,7 @@
 <script module lang="ts">
     export const layout = {
-        title: 'Create an account',
-        description: 'Enter your details below to create your account',
+        title: 'Buat akun SmartAqua',
+        description: 'Isi data berikut untuk mulai memantau kolam lele.',
     };
 </script>
 
@@ -21,7 +21,7 @@
     let { passwordRules }: { passwordRules: string } = $props();
 </script>
 
-<AppHead title="Register" />
+<AppHead title="Daftar" />
 
 <Form
     {...store.form()}
@@ -31,52 +31,52 @@
     {#snippet children({ errors, processing })}
         <div class="grid gap-6">
             <div class="grid gap-2">
-                <Label for="name">Name</Label>
+                <Label for="name">Nama lengkap</Label>
                 <Input
                     id="name"
                     type="text"
                     required
                     autocomplete="name"
                     name="name"
-                    placeholder="Full name"
+                    placeholder="Nama lengkap"
                 />
                 <InputError message={errors.name} />
             </div>
 
             <div class="grid gap-2">
-                <Label for="email">Email address</Label>
+                <Label for="email">Email</Label>
                 <Input
                     id="email"
                     type="email"
                     required
                     autocomplete="email"
                     name="email"
-                    placeholder="email@example.com"
+                    placeholder="nama@apps.ipb.ac.id"
                 />
                 <InputError message={errors.email} />
             </div>
 
             <div class="grid gap-2">
-                <Label for="password">Password</Label>
+                <Label for="password">Kata sandi</Label>
                 <PasswordInput
                     id="password"
                     required
                     autocomplete="new-password"
                     name="password"
-                    placeholder="Password"
+                    placeholder="Kata sandi"
                     passwordrules={passwordRules}
                 />
                 <InputError message={errors.password} />
             </div>
 
             <div class="grid gap-2">
-                <Label for="password_confirmation">Confirm password</Label>
+                <Label for="password_confirmation">Konfirmasi kata sandi</Label>
                 <PasswordInput
                     id="password_confirmation"
                     required
                     autocomplete="new-password"
                     name="password_confirmation"
-                    placeholder="Confirm password"
+                    placeholder="Ulangi kata sandi"
                     passwordrules={passwordRules}
                 />
                 <InputError message={errors.password_confirmation} />
@@ -84,19 +84,22 @@
 
             <Button
                 type="submit"
-                class="mt-2 w-full"
+                class="mt-2 h-11 w-full rounded-xl bg-[#263c92] text-sm font-bold text-white hover:bg-[#1b2c6f]"
                 disabled={processing}
                 data-test="register-user-button"
             >
                 {#if processing}<Spinner />{/if}
-                Create account
+                Buat akun
             </Button>
         </div>
 
-        <div class="text-center text-sm text-muted-foreground">
-            Already have an account?
-            <TextLink href={login()} class="underline underline-offset-4">
-                Log in
+        <div class="text-center text-sm text-slate-600">
+            Sudah punya akun?
+            <TextLink
+                href={login()}
+                class="font-semibold text-[#263c92] underline underline-offset-4"
+            >
+                Masuk
             </TextLink>
         </div>
     {/snippet}
