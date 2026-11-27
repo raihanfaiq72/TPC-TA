@@ -17,7 +17,8 @@ http:
     type: json
     data: |
       {
-        "waktu": "2026-11-08 14:10:00"
+        "waktu": "2026-11-08 14:10:00",
+        "paksa": false
       }
 runtime:
   assertions:
@@ -50,13 +51,15 @@ docs: |
   Accept: application/json
 
   {
-    "waktu": "2026-11-08 14:10:00"
+    "waktu": "2026-11-08 14:10:00",
+    "paksa": false
   }
   ```
 
   | Field | Tipe | Wajib | Keterangan |
   |---|---|---|---|
   | waktu | date | ya | Waktu virtual pembacaan |
+  | paksa | boolean | tidak | `true` untuk membaca semua perangkat aktif tanpa menunggu interval; dipakai heartbeat chart live |
 
   ## Response 200
 
@@ -64,11 +67,13 @@ docs: |
   {
     "kolam_id": 9,
     "waktu": "2026-11-08 14:10:00",
+    "paksa": false,
     "jumlah_dibaca": 2
   }
   ```
 
-  `jumlah_dibaca` hanya menghitung perangkat yang lolos aturan interval.
+  `jumlah_dibaca` menghitung perangkat yang membaca. Dengan `paksa: true`,
+  semua perangkat aktif dibaca tanpa menunggu `interval_menit`.
   Pembacaan baru bisa dilihat melalui **Pembacaan Terbaru** atau
   **Riwayat Pembacaan**.
 

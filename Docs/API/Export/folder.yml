@@ -1,0 +1,31 @@
+info:
+  name: Export
+  type: folder
+  seq: 7
+  tags:
+    - sandbox
+    - export
+    - dataset
+request:
+  headers:
+    - name: Accept
+      value: application/json
+docs:
+  content: |
+    # Export Dataset
+
+    Endpoint untuk mengunduh riwayat kolam sebagai dataset training.
+
+    - `GET /api/kolam/{kolamId}/export/ringkas` — ringkasan harian (CSV/JSON)
+    - `GET /api/kolam/{kolamId}/export/lengkap` — data mentah (CSV sensor/JSON lengkap)
+
+    Parameter `format`:
+
+    | Nilai | Keterangan |
+    |---|---|
+    | `csv` | File CSV untuk spreadsheet/pipeline tabular |
+    | `json` | JSON untuk pipeline yang membutuhkan struktur lengkap |
+
+    Export selalu memakai **seluruh riwayat kolam**, bukan filter range chart.
+    Waktu dan tanggal dikirim dalam **UTC**.
+  type: text/markdown

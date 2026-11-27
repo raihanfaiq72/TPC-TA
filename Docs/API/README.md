@@ -46,6 +46,10 @@ Docs/API/
 │   ├── Daftar Alert.yml        # GET /api/kolam/{id}/alert
 │   ├── Rekomendasi Terbaru.yml # GET /api/kolam/{id}/rekomendasi
 │   └── Ringkasan Validasi.yml  # GET /api/kolam/{id}/validasi
+├── Export/
+│   ├── folder.yml              # metadata export dataset
+│   ├── Export Ringkas.yml      # GET /api/kolam/{id}/export/ringkas
+│   └── Export Lengkap.yml      # GET /api/kolam/{id}/export/lengkap
 └── Sensor/
     ├── folder.yml              # metadata + aturan pembacaan
     ├── Baca Sensor.yml         # POST /api/kolam/{id}/sensor/baca
@@ -76,6 +80,8 @@ Docs/API/
     `Ringkasan Validasi`.
 11. Buka folder `Sensor` → `Baca Sensor` → `Pembacaan Terbaru` →
     `Riwayat Pembacaan` → `Grafik Sensor`.
+12. Buka folder `Export` → `Export Ringkas` atau `Export Lengkap` untuk
+    mengunduh dataset training.
 
 Kalau `baseUrl` berbeda, ubah di:
 
@@ -120,6 +126,8 @@ variables:
 | GET | `/api/kolam/{id}/sensor/riwayat` | Riwayat Pembacaan | Riwayat sensor terfilter |
 | GET | `/api/kolam/{id}/sensor/grafik` | Grafik Sensor | Agregasi sensor per range chart |
 | PATCH | `/api/kolam/{id}/sensor/{perangkatId}` | Atur Status Sensor | Aktifkan/matikan perangkat |
+| GET | `/api/kolam/{id}/export/ringkas` | Export Ringkas | Dataset harian CSV/JSON |
+| GET | `/api/kolam/{id}/export/lengkap` | Export Lengkap | Sensor mentah CSV atau dataset lengkap JSON |
 
 > **Route Sampling sudah aktif** dan `AnalisisController` sudah tersedia,
 > sehingga `Simpan Sampling` dapat mengembalikan rekomendasi panen.
@@ -169,12 +177,16 @@ API otomatis memakai prefix `/api` dari `bootstrap/app.php`. Alias lama
 - **Detail/Ubah/Hapus Sampling** memakai `{{samplingId}}`; update
   mendukung `PUT` maupun `PATCH`.
 - **Baca Sensor** memicu perangkat yang jatuh tempo dan memeriksa
-  `jumlah_dibaca`.
+  `jumlah_dibaca`. Field opsional `paksa: true` membaca semua perangkat aktif
+  tanpa menunggu interval, dipakai heartbeat chart live.
 - **Pembacaan Terbaru** memeriksa response berupa array.
 - **Riwayat Pembacaan** memakai query `parameter`, `zona`, `dari`, dan
   `sampai`, lalu memeriksa array hasil.
 - **Grafik Sensor** memakai query `range` (`1m`, `1h`, `1d`, `1w`, `1mo`,
   `1y`) dan memeriksa array `waktu`, `zona`, `parameter`, serta `nilai`.
+- **Export Ringkas** mengunduh ringkasan satu baris per hari dalam CSV atau
+  JSON. **Export Lengkap** mengunduh sensor mentah CSV atau JSON berisi
+  `sensor`, `populasi`, dan `sampling`.
 - **Atur Status Sensor** mengirim `status` `aktif`/`mati` dan memeriksa
   pesan response.
 - **Daftar Alert**, **Rekomendasi Terbaru**, dan **Ringkasan Validasi**

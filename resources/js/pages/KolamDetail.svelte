@@ -159,6 +159,7 @@
     let fishModalOpen = $state(false);
     let history = $state<HistoryRow[]>([]);
     let sensorHistory = $state<SensorHistoryRow[]>([]);
+    let chartTime = $state<string | undefined>();
     let samplingRows = $state<SamplingRow[]>([]);
     let historyRequest = 0;
     let deathCauses = $state<DeathCause[]>([]);
@@ -179,8 +180,6 @@
     let feedQueue = $state<FeedEvent[]>([]);
     let feedTimer: ReturnType<typeof setTimeout> | undefined;
     let simBusy = $state(false);
-    let simStepTarget = $state(0);
-    let simStepDone = $state(0);
     let deviceToggleBusy = $state<number | null>(null);
     let editOpen = $state(false);
     let resetOpen = $state(false);
@@ -325,12 +324,6 @@
         }
     }
 
-    function runPreset(days: number): void {
-        if (simBusy) return;
-
-        void advanceSimulation(days * 1440);
-    }
-
     function formatMinuteSpan(total: number): string {
         const days = Math.floor(total / 1440);
         const hours = Math.floor((total % 1440) / 60);
@@ -341,25 +334,6 @@
             hours > 0 ? `${hours} jam` : '',
             minutes > 0 ? `${minutes} menit` : '',
         ].filter(Boolean).join(' ') || '0 menit';
-    }
-
-    async function seekVirtualDay(event: MouseEvent): Promise<void> {
-        const now = parseVirtualDate(virtualTimeValue);
-
-        if (!now) return;
-
-        const target = event.currentTarget as HTMLElement;
-        const rect = target.getBoundingClientRect();
-        const targetMinutes = Math.round((((event.clientX - rect.left) / rect.width) * 1440) / 10) * 10;
-        const currentMinutes = now.getHours() * 60 + now.getMinutes();
-        const delta = targetMinutes - currentMinutes;
-
-        if (delta <= 0) {
-            say('Pilih waktu setelah waktu virtual saat ini');
-            return;
-        }
-
-        await advanceSimulation(delta);
     }
 
     function enqueueFeedEvents(events: FeedEvent[]): void {
@@ -418,6 +392,17 @@
         history = payload.riwayat;
         deathCauses = payload.kematian;
         sensorHistory = sensorRows;
+        const latestSensorTime = sensorRows.reduce<string | undefined>(
+            (latest, row) => latest === undefined || row.waktu > latest ? row.waktu : latest,
+            undefined,
+        );
+        const latestReading = readings.reduce<string | undefined>(
+            (latest, row) => latest === undefined || row.waktu_ukur > latest ? row.waktu_ukur : latest,
+            undefined,
+        );
+        // Akhiri jendela chart pada sampel sensor terakhir, bukan jam yang
+        // bergerak tiap detik. Chart baru bergeser saat ada data baru.
+        chartTime = latestSensorTime ?? latestReading ?? virtualTimeValue;
     }
 
     async function loadSampling(): Promise<void> {
@@ -439,6 +424,7 @@
         if (chartRange === range) return;
 
         chartRange = range;
+        chartTime = virtualTimeValue;
         clearChartHover();
         void loadHistory().catch((reason) => {
             error = reason instanceof Error ? reason.message : 'Riwayat grafik belum bisa dibaca.';
@@ -452,17 +438,54 @@
         fishRecords = payload.ikan.filter((fish) => fish.status === 'hidup');
     }
 
-    const SIM_CHUNK_MENIT = 600;
+    const SIM_CHUNK_MENIT = 10;
+    const SIM_INTERVAL_MS = 3000;
     const MAX_SIM_PASSES = 1000;
+    let sensorHeartbeatBusy = false;
+    let chartRefreshBusy = false;
+
+    async function refreshChartLive(): Promise<void> {
+        if (chartRefreshBusy) return;
+
+        chartRefreshBusy = true;
+
+        try {
+            await Promise.all([loadReadings(), loadHistory()]);
+        } catch {
+            // Chart tetap memakai data terakhir jika refresh sementara gagal.
+        } finally {
+            chartRefreshBusy = false;
+        }
+    }
+
+    async function recordSensorsLive(): Promise<void> {
+        if (sensorHeartbeatBusy || !virtualTimeValue) return;
+
+        sensorHeartbeatBusy = true;
+
+        try {
+            const response = await fetch(`/api/kolam/${id}/sensor/baca`, {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ waktu: virtualTimeValue, paksa: true }),
+            });
+
+            if (response.ok) {
+                await loadReadings();
+            }
+        } catch {
+            // Heartbeat tidak boleh menghentikan simulasi utama.
+        } finally {
+            sensorHeartbeatBusy = false;
+        }
+    }
 
     async function advanceSimulation(minutes?: number): Promise<void> {
         if (simBusy) return;
         simBusy = true;
         error = '';
-        const target = minutes ?? 10;
+        const target = minutes ?? SIM_CHUNK_MENIT;
         let remaining = target;
-        simStepTarget = target;
-        simStepDone = 0;
 
         try {
             let alertCount = 0;
@@ -472,12 +495,7 @@
             // Kirim per batch supaya satu request tidak menabrak timeout server.
             // Backend juga membatasi tick dan waktu eksekusi per request.
             while (remaining > 0 && passes < MAX_SIM_PASSES) {
-                // Percepatan memperkecil batch agar jam virtual bergerak
-                // lebih sering dan terasa mengikuti kecepatan yang dipilih.
-                const batchMenit = Math.min(
-                    remaining,
-                    Math.max(120, Math.round(SIM_CHUNK_MENIT / Math.max(1, simulationSpeed))),
-                );
+                const batchMenit = Math.min(remaining, 720);
                 const response = await fetch(`/api/kolam/${id}/simulasi/tick`, {
                     method: 'POST',
                     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -491,7 +509,6 @@
                 if (advanced <= 0) break;
 
                 remaining = Math.max(0, remaining - advanced);
-                simStepDone = Math.min(target, target - remaining);
                 alertCount += payload.alert_baru ?? 0;
                 dailyProcess = dailyProcess || Boolean(payload.proses_harian);
                 passes++;
@@ -545,16 +562,27 @@
             playing = false;
         } finally {
             simBusy = false;
-            simStepTarget = 0;
-            simStepDone = 0;
         }
     }
 
+    function startPlayback(): void {
+        if (playTimer) clearInterval(playTimer);
+
+        playTimer = setInterval(() => {
+            if (!simBusy) {
+                void advanceSimulation(SIM_CHUNK_MENIT * simulationSpeed);
+            }
+        }, SIM_INTERVAL_MS);
+    }
+
     function togglePlayback(): void {
+        if (simBusy) return;
+
         playing = !playing;
+
         if (playing) {
-            void advanceSimulation();
-            playTimer = setInterval(() => void advanceSimulation(), Math.max(700, 3200 / simulationSpeed));
+            void advanceSimulation(SIM_CHUNK_MENIT * simulationSpeed);
+            startPlayback();
         } else if (playTimer) {
             clearInterval(playTimer);
             playTimer = undefined;
@@ -562,11 +590,9 @@
     }
 
     function changeSpeed(speed: number): void {
+        if (simBusy) return;
+
         simulationSpeed = speed;
-        if (playing) {
-            if (playTimer) clearInterval(playTimer);
-            playTimer = setInterval(() => void advanceSimulation(), Math.max(700, 3200 / simulationSpeed));
-        }
     }
 
     function openEdit(): void {
@@ -956,6 +982,7 @@
 
     onMount(() => {
         let timer: ReturnType<typeof setInterval> | undefined;
+        let chartTimer: ReturnType<typeof setInterval> | undefined;
         clockTimer = setInterval(() => {
             clockNow = Date.now();
         }, 1000);
@@ -969,6 +996,7 @@
                 }
 
                 await Promise.all([loadReadings(), loadSimulation(), loadHistory(), loadRecommendation(), loadFish(), loadSampling()]);
+                void recordSensorsLive();
             } catch (reason) {
                 error = reason instanceof Error ? reason.message : 'Data realtime belum tersedia.';
             } finally {
@@ -983,11 +1011,26 @@
                 void loadSimulation().catch(() => undefined);
                 void loadHistory().catch(() => undefined);
                 void loadSampling().catch(() => undefined);
+
+                // Saat dijeda, heartbeat ini yang menjaga sensor tetap membaca
+                // sesuai waktu virtual. Saat playing, pembacaan dilakukan tick.
+                if (!playing) {
+                    void recordSensorsLive();
+                }
             }
         }, 15000);
 
+        // Chart range 1m/1h butuh refresh lebih rapat daripada data sensor
+        // perangkat; live point tetap bergerak setiap detik.
+        chartTimer = setInterval(() => {
+            if (autoRefresh && !simBusy) {
+                void refreshChartLive();
+            }
+        }, 5000);
+
         return () => {
             if (timer) clearInterval(timer);
+            if (chartTimer) clearInterval(chartTimer);
             if (clockTimer) clearInterval(clockTimer);
             if (playTimer) clearInterval(playTimer);
             if (feedTimer) clearTimeout(feedTimer);
@@ -1053,10 +1096,6 @@
             second: String(parsed.getSeconds()).padStart(2, '0'),
         };
     });
-    const simStepVisible = $derived(simBusy && simStepTarget >= 1440);
-    const simStepPercent = $derived(
-        simStepTarget > 0 ? Math.min(100, Math.round((simStepDone / simStepTarget) * 100)) : 0,
-    );
     const virtualDayProgress = $derived.by(() => {
         const now = parseVirtualDate(virtualTimeValue);
 
@@ -1074,7 +1113,7 @@
     const CHART_PAD = { left: 34, right: 18, top: 16, bottom: 32 };
 
     const chartModel = $derived.by((): ChartModel => {
-        const liveTimestamp = virtualTimeValue;
+        const liveTimestamp = chartTime ?? virtualTimeValue;
         const rangeSeconds: Record<ChartRange, number> = {
             '1m': 60,
             '1h': 3600,
@@ -1133,10 +1172,18 @@
         const chartBottom = CHART_HEIGHT - CHART_PAD.bottom;
         const chartWidth = chartRight - chartLeft;
         const chartHeight = chartBottom - chartTop;
+        const rangeStartMs = now.getTime() - rangeSeconds[chartRange] * 1000;
+        const rangeSpanMs = Math.max(1, now.getTime() - rangeStartMs);
 
-        const xFor = (index: number): number => dates.length === 1
-            ? chartLeft + chartWidth / 2
-            : chartLeft + (index / (dates.length - 1)) * chartWidth;
+        // Posisi X mengikuti waktu, bukan indeks sampel. Sampel baru tidak
+        // lagi menggeser seluruh grafik sehingga chart tidak terlihat berkedip.
+        const xFor = (date: string): number => {
+            const parsed = parseVirtualDate(date);
+            const timestamp = parsed?.getTime() ?? rangeStartMs;
+            const ratio = Math.min(1, Math.max(0, (timestamp - rangeStartMs) / rangeSpanMs));
+
+            return chartLeft + ratio * chartWidth;
+        };
 
         const sensorValues = (
             parameter: string,
@@ -1235,7 +1282,7 @@
 
             const points: ChartPoint[] = rawPoints.map((point) => ({
                 date: point.date,
-                x: xFor(point.index),
+                x: xFor(point.date),
                 y: max === min
                     ? chartTop + chartHeight / 2
                     : chartBottom - ((point.value - min) / (max - min)) * chartHeight,
@@ -1263,10 +1310,10 @@
             dates,
             series,
             xLabels: labelIndexes.map((index) => ({
-                x: xFor(index),
+                x: xFor(dates[index]),
                 label: chartDateLabel(dates[index], chartRange),
             })),
-            xPositions: dates.map((_, index) => xFor(index)),
+            xPositions: dates.map((date) => xFor(date)),
             sampleCount: new Set(sensorTimes).size,
         };
     });
@@ -1546,7 +1593,7 @@
                 {refreshing ? 'Menyinkronkan...' : 'Sinkronkan perangkat'}
             </button>
             <button class="btn hero-secondary-action" onclick={openEdit}>Pengaturan kolam</button>
-            <span class="live-note"><i class="status-pulse"></i> Sinkronisasi terakhir {lastUpdated || '—'} · otomatis 15 detik</span>
+            <span class="live-note"><i class="status-pulse"></i> Sinkronisasi terakhir {lastUpdated || '—'} · chart 5 detik · data sensor 15 detik</span>
         </aside>
     </section>
 
@@ -1565,7 +1612,7 @@
                         {simBusy ? 'Memproses' : playing ? 'Berjalan' : 'Dijeda'}
                     </span>
                 </div>
-                <p>Atur mode simulasi dan kecepatan waktu untuk menguji respons kualitas air, sensor, pakan, dan pertumbuhan ikan.</p>
+                <p>Percepatan waktu untuk menguji respons kualitas air, sensor, pakan, dan pertumbuhan ikan. Sensor tetap membaca otomatis sesuai interval, baik saat dipercepat maupun saat simulasi dijeda.</p>
             </div>
             <span class="sim-harvest {harvestTone}">
                 <FishIcon size={14} />
@@ -1588,38 +1635,28 @@
                     <span>Progres hari</span>
                     <b>{formatVirtualTime(virtualTimeValue)}</b>
                 </div>
-                <button
-                    type="button"
+                <div
                     class="player-progress-rail"
                     class:active={playing}
-                    aria-label={`Progres hari virtual ${Math.round(virtualDayProgress)} persen, klik untuk memajukan simulasi`}
-                    title={`${Math.round(virtualDayProgress)}% hari virtual · klik untuk seek`}
-                    disabled={simBusy}
-                    onclick={(event) => void seekVirtualDay(event)}
+                    role="progressbar"
+                    aria-label="Progres hari virtual"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    aria-valuenow={Math.round(virtualDayProgress)}
+                    title={`${Math.round(virtualDayProgress)}% hari virtual`}
                 >
                     <i style={`width:${virtualDayProgress}%`}></i>
                     <span class="player-progress-marker" style={`left:clamp(5px, ${virtualDayProgress}%, calc(100% - 5px))`}></span>
-                </button>
+                </div>
                 <div class="player-progress-scale">
                     <span>00:00</span>
                     <span>12:00</span>
                     <span>24:00</span>
                 </div>
-                {#if simStepVisible}
-                    <div class="sim-step-progress" role="status" aria-live="polite">
-                        <div class="sim-step-progress-head">
-                            <span>Memproses {formatMinuteSpan(simStepDone)} / {formatMinuteSpan(simStepTarget)}</span>
-                            <b>{simStepPercent}%</b>
-                        </div>
-                        <div class="sim-step-progress-rail">
-                            <i style={`width:${simStepPercent}%`}></i>
-                        </div>
-                    </div>
-                {/if}
             </div>
 
             <div class="sim-deck-controls">
-                <span class="sim-preset-label">Mode simulasi</span>
+                <span class="sim-preset-label">Percepatan waktu</span>
                 <div class="sim-preset-row">
                     <div class="sim-preset-speeds" role="group" aria-label="Kecepatan simulasi">
                         {#each [1, 2, 5, 10] as speed}
@@ -1628,46 +1665,44 @@
                                 class="sim-preset-chip"
                                 class:selected={simulationSpeed === speed}
                                 aria-pressed={simulationSpeed === speed}
+                                disabled={simBusy}
                                 onclick={() => changeSpeed(speed)}
                             >
                                 {speed}×
                             </button>
                         {/each}
                     </div>
-                    <span class="sim-preset-divider" aria-hidden="true"></span>
-                    <div class="sim-preset-durations" role="group" aria-label="Durasi simulasi cepat">
-                        <button type="button" class="sim-preset-chip duration" disabled={simBusy} onclick={() => runPreset(1)}>1 Hari</button>
-                        <button type="button" class="sim-preset-chip duration" disabled={simBusy} onclick={() => runPreset(7)}>7 Hari</button>
-                    </div>
+                    <span class="sim-speed-note">1× = 10 menit / 3 detik</span>
                 </div>
             </div>
         </div>
 
         <div class="sim-deck-footer">
             <div class="sim-deck-footer-actions">
-                <button class="sim-bottom-action run" class:playing onclick={togglePlayback}>
+                <button class="sim-bottom-action run" class:playing onclick={togglePlayback} disabled={simBusy}>
                     <span class="sim-action-icon">{playing ? 'Ⅱ' : '▶'}</span>
                     <span class="sim-action-copy">
                         <b>{playing ? 'Jeda simulasi' : 'Jalankan simulasi'}</b>
-                        <small>{playing ? 'Hentikan sementara laju waktu' : 'Mulai percepatan waktu sandbox'}</small>
+                        <small>{playing ? 'Hentikan sementara laju waktu' : `Mulai percepatan ${simulationSpeed}×`}</small>
                     </span>
                 </button>
-                <button class="sim-bottom-action reset" onclick={() => (resetOpen = true)}>
+                <button class="sim-bottom-action reset" onclick={() => (resetOpen = true)} disabled={simBusy || playing}>
                     <span class="sim-action-icon">
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v6h-6" />
                         </svg>
                     </span>
                     <span class="sim-action-copy">
-                        <b>Perbarui dari awal</b>
-                        <small>Reset data dan mulai siklus baru</small>
+                        <b>Mulai ulang</b>
+                        <small>{playing ? 'Jeda simulasi sebelum reset' : 'Kosongkan data, mulai siklus baru'}</small>
                     </span>
                 </button>
             </div>
             <div class="sim-deck-footer-meta">
                 <span class="sim-deck-hint">
-                    {simBusy ? 'Simulasi sedang diproses. Waktu virtual dan data sensor diperbarui secara bertahap.' : 'Pilih kecepatan atau durasi cepat untuk memperbarui data operasional.'}
+                    {simBusy ? 'Simulasi sedang diproses. Sensor membaca setiap tick virtual.' : playing ? `Percepatan ${simulationSpeed}× aktif. Sensor tetap membaca sesuai interval.` : 'Sensor membaca otomatis setiap interval. Mulai simulasi hanya mempercepat waktu.'}
                 </span>
+                <span class="sim-sensor-status"><i></i> Sensor merekam otomatis</span>
                 <button class="sim-deck-edit" onclick={openEdit}>Edit kolam</button>
             </div>
         </div>
@@ -1810,9 +1845,32 @@
                 <h2>Riwayat kualitas air & populasi</h2>
                 <p>Satu tampilan untuk melihat dinamika sensor atas/bawah, pertumbuhan ikan, dan kematian harian.</p>
             </div>
-            <div class="chart-section-meta">
-                <span>{chartModel.dates.length} titik · {chartRangeLabel}</span>
-                <span>Sinkron otomatis · {lastUpdated || '—'}</span>
+            <div class="chart-section-actions">
+                <div class="chart-section-meta">
+                    <span>{chartModel.dates.length} titik · {chartRangeLabel}</span>
+                    <span>Sinkron otomatis · {lastUpdated || '—'}</span>
+                </div>
+                <details class="chart-export">
+                    <summary>
+                        Export dataset
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19h14" /></svg>
+                    </summary>
+                    <div class="chart-export-menu">
+                        <p>Export memakai seluruh riwayat kolam, bukan hanya rentang chart.</p>
+                        <a href={`/api/kolam/${id}/export/ringkas?format=csv`} download>
+                            <b>Ringkas harian</b>
+                            <small>CSV · satu baris per hari</small>
+                        </a>
+                        <a href={`/api/kolam/${id}/export/lengkap?format=csv`} download>
+                            <b>Sensor lengkap</b>
+                            <small>CSV · semua pembacaan sensor</small>
+                        </a>
+                        <a href={`/api/kolam/${id}/export/lengkap?format=json`} download>
+                            <b>Dataset lengkap</b>
+                            <small>JSON · sensor, populasi, sampling</small>
+                        </a>
+                    </div>
+                </details>
             </div>
         </div>
 
@@ -1833,7 +1891,7 @@
                             >{range.label}</button>
                         {/each}
                     </div>
-                    <span class="chart-live"><i></i> Data historis</span>
+                    <span class="chart-live"><i></i> Live · refresh 5 dtk</span>
                 </div>
             </div>
 
@@ -1865,7 +1923,7 @@
                         {#if latestReadingTime}
                             Pembacaan terakhir {formatVirtualTime(latestReadingTime)}.
                         {/if}
-                        Titik live tetap memakai nilai terakhir; interval pembacaan perangkat sekitar 10 menit.
+                        Titik live memakai nilai terakhir; heartbeat sensor membaca ulang tiap 15 detik.
                     </div>
                 {/if}
 

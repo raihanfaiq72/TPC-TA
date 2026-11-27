@@ -1,0 +1,103 @@
+info:
+  name: Export Ringkas
+  type: http
+  seq: 1
+  tags:
+    - sandbox
+    - export
+    - dataset
+http:
+  method: GET
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/export/ringkas"
+  params:
+    - name: format
+      value: csv
+      type: query
+      enabled: true
+  headers:
+    - name: Accept
+      value: application/json
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Export Ringkas
+
+  Mengunduh dataset harian untuk training atau analisis tabular. Satu baris
+  mewakili satu tanggal virtual sandbox.
+
+  ## Request
+
+  ```http
+  GET {{baseUrl}}/api/kolam/{{kolamId}}/export/ringkas?format=csv
+  Accept: application/json
+  ```
+
+  Gunakan `format=json` untuk response JSON array.
+
+  ## Kolom CSV
+
+  | Kolom | Keterangan |
+  |---|---|
+  | tanggal | Tanggal virtual (UTC) |
+  | kolam_kode / kolam_nama | Identitas kolam |
+  | target_bobot_g | Target bobot panen |
+  | tanggal_tebar | Tanggal mulai siklus |
+  | suhu_atas / suhu_bawah | Rata-rata suhu zona |
+  | do_atas / do_bawah | Rata-rata DO zona |
+  | ph_atas / ph_bawah | Rata-rata pH zona |
+  | amonia_atas / amonia_bawah | Rata-rata amonia zona |
+  | level_air | Rata-rata level air |
+  | jumlah_baca_valid | Jumlah pembacaan normal/outlier |
+  | jumlah_baca_gagal | Jumlah pembacaan gagal |
+  | bobot_rata_g | Rata-rata bobot ikan dari log harian |
+  | biomassa_g | Total biomassa dari log harian |
+  | stres_rata | Rata-rata stres ikan |
+  | pakan_total_g | Total pakan dimakan |
+  | jumlah_mati | Ikan mati pada tanggal tersebut |
+  | sampling_jumlah | Jumlah sampel timbang |
+  | sampling_bobot_rata_g | Bobot rata-rata sampling |
+  | sampling_panjang_rata_cm | Panjang rata-rata sampling |
+
+  ## Response 200 — JSON
+
+  ```json
+  [
+    {
+      "tanggal": "2026-11-06",
+      "kolam_kode": "C07",
+      "kolam_nama": "Kolam C07 — Lele Sangkuriang",
+      "target_bobot_g": 100,
+      "tanggal_tebar": "2026-09-01",
+      "suhu_atas": 28.42,
+      "suhu_bawah": 27.91,
+      "do_atas": 4.82,
+      "do_bawah": 3.76,
+      "ph_atas": 7.21,
+      "ph_bawah": 7.18,
+      "amonia_atas": 0.21,
+      "amonia_bawah": 0.31,
+      "level_air": 95.8,
+      "jumlah_baca_valid": 42,
+      "jumlah_baca_gagal": 0,
+      "bobot_rata_g": 88.4,
+      "biomassa_g": 104312.0,
+      "stres_rata": 18.2,
+      "pakan_total_g": 4200,
+      "jumlah_mati": 0,
+      "sampling_jumlah": 25,
+      "sampling_bobot_rata_g": 88.4,
+      "sampling_panjang_rata_cm": 18.0
+    }
+  ]
+  ```
+
+  Nilai yang tidak tersedia dikirim sebagai `null` pada JSON dan sel kosong
+  pada CSV.

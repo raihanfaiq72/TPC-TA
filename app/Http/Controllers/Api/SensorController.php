@@ -28,7 +28,7 @@ class SensorController extends Controller
         return mt_rand() / mt_getrandmax();
     }
 
-    public function bacaSemua(int $kolamId, string $waktu): int
+    public function bacaSemua(int $kolamId, string $waktu, bool $paksa = false): int
     {
         $waktuCarbon = Carbon::parse($waktu);
 
@@ -47,7 +47,11 @@ class SensorController extends Controller
             ->where('status', 'aktif')
             ->whereHas('jenisPerangkat', fn ($query) => $query->where('kode', '!=', 'feeder'))
             ->get()
-            ->filter(function (Perangkat $item) use ($waktuCarbon): bool {
+            ->filter(function (Perangkat $item) use ($waktuCarbon, $paksa): bool {
+                if ($paksa) {
+                    return true;
+                }
+
                 if ($item->terakhir_baca === null) {
                     return true;
                 }
@@ -138,6 +142,7 @@ class SensorController extends Controller
     {
         $data = $request->validate([
             'waktu' => ['required', 'date'],
+            'paksa' => ['sometimes', 'boolean'],
         ]);
 
         if (! Kolam::query()->whereKey($kolamId)->exists()) {
@@ -147,11 +152,12 @@ class SensorController extends Controller
         }
 
         $waktu = Carbon::parse((string) $data['waktu'])->format('Y-m-d H:i:s');
-        $jumlah = $this->bacaSemua($kolamId, $waktu);
+        $jumlah = $this->bacaSemua($kolamId, $waktu, (bool) ($data['paksa'] ?? false));
 
         return response()->json([
             'kolam_id' => $kolamId,
             'waktu' => $waktu,
+            'paksa' => (bool) ($data['paksa'] ?? false),
             'jumlah_dibaca' => $jumlah,
         ]);
     }

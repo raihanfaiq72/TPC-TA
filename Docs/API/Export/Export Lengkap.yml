@@ -1,0 +1,127 @@
+info:
+  name: Export Lengkap
+  type: http
+  seq: 2
+  tags:
+    - sandbox
+    - export
+    - dataset
+http:
+  method: GET
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/export/lengkap"
+  params:
+    - name: format
+      value: json
+      type: query
+      enabled: true
+  headers:
+    - name: Accept
+      value: application/json
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Export Lengkap
+
+  Mengunduh seluruh dataset mentah kolam. Ada dua bentuk response:
+
+  - `format=csv` — satu baris per pembacaan sensor (semua kualitas data).
+  - `format=json` — object dengan array `sensor`, `populasi`, dan `sampling`.
+
+  Gunakan JSON jika membutuhkan seluruh tabel sekaligus untuk training model
+  populasi. Gunakan CSV sensor jika pipeline hanya membutuhkan time-series
+  sensor yang besar.
+
+  ## Request
+
+  ```http
+  GET {{baseUrl}}/api/kolam/{{kolamId}}/export/lengkap?format=json
+  Accept: application/json
+  ```
+
+  ## CSV sensor
+
+  Kolom:
+
+  | Kolom | Keterangan |
+  |---|---|
+  | waktu_ukur | Waktu pembacaan (UTC) |
+  | perangkat | Kode perangkat |
+  | zona | Zona sensor; kosong untuk sensor level |
+  | parameter | `suhu`, `do`, `ph`, `amonia`, atau `level` |
+  | nilai | Nilai pembacaan; kosong jika gagal |
+  | satuan | Satuan pembacaan |
+  | kualitas_data | `normal`, `outlier`, atau `gagal` |
+  | baterai_persen | Baterai perangkat saat membaca |
+  | sinyal_rssi | Sinyal perangkat saat membaca |
+
+  ## JSON lengkap
+
+  ```json
+  {
+    "meta": {
+      "versi": "lengkap",
+      "dibuat_pada": "2026-11-27T14:00:00+00:00",
+      "kolam": {
+        "id": 11,
+        "kode": "C07",
+        "nama": "Kolam C07 — Lele Sangkuriang",
+        "target_bobot_g": 100,
+        "tanggal_tebar": "2026-09-01"
+      },
+      "timezone": "UTC"
+    },
+    "sensor": [
+      {
+        "waktu_ukur": "2026-11-06 06:50:00",
+        "perangkat": "C07-ATAS-SUHU",
+        "zona": "atas",
+        "parameter": "suhu",
+        "nilai": 28.42,
+        "satuan": "°C",
+        "kualitas_data": "normal",
+        "baterai_persen": 86,
+        "sinyal_rssi": -61
+      }
+    ],
+    "populasi": [
+      {
+        "tanggal": "2026-11-06",
+        "ikan": "C07-F0001",
+        "bobot_g": 88.4,
+        "panjang_cm": 18.0,
+        "sgr_hari_persen": 2.1,
+        "jam_di_atas": 10.4,
+        "jam_di_bawah": 13.6,
+        "suhu_terpapar": 28.3,
+        "ph_terpapar": 7.2,
+        "do_terpapar": 4.8,
+        "amonia_terpapar": 0.2,
+        "pakan_dimakan_g": 5.2,
+        "faktor_ransum": 1.0,
+        "stres": 16.2
+      }
+    ],
+    "sampling": [
+      {
+        "tanggal": "2026-11-06",
+        "jumlah_sampel": 25,
+        "jumlah_mati": 0,
+        "bobot_total_sampel_g": 2210,
+        "bobot_rata_g": 88.4,
+        "panjang_rata_cm": 18
+      }
+    ]
+  }
+  ```
+
+  Response JSON ditulis secara streaming agar aman untuk riwayat besar.
+  Parameter `format=csv` hanya berisi tabel sensor; gunakan `format=json`
+  untuk mengambil populasi per ikan dan sampling sekaligus.

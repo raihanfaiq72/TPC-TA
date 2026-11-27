@@ -1762,6 +1762,7 @@
 .aqua-app .live-note { color: rgba(255,255,255,0.72); font-size: 11px; }
 .aqua-app .detail-alert { margin-top: 14px; }
 .aqua-app .monitor-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, .75fr); gap: 18px; margin-top: 18px; }
+.aqua-app .monitor-grid.single-monitor { grid-template-columns: minmax(0, 1fr); }
 .aqua-app .pool-map-card, .aqua-app .device-inspector { min-width: 0; }
 .aqua-app .pond-stage { height: 500px; position: relative; overflow: hidden; margin: 16px 0; border-radius: 18px; background: #fff; border: 1px solid #dbe6ec; }
 .aqua-app .pond-reference-image { position: absolute; z-index: 1; inset: 1% 6%; width: 88%; height: 98%; object-fit: contain; filter: contrast(1.03) saturate(.94); }
@@ -4009,7 +4010,7 @@
     border: 0;
     border-radius: 999px;
     background: #e4ecf8;
-    cursor: pointer;
+    cursor: default;
     text-align: left;
 }
 .aqua-app .sim-deck-progress .player-progress-rail:disabled {
@@ -4357,6 +4358,13 @@
     opacity: 0.5;
     cursor: wait;
 }
+.aqua-app .sim-speed-note {
+    margin-left: auto;
+    color: #8a98ac;
+    font-size: 8px;
+    font-weight: 700;
+    white-space: nowrap;
+}
 .aqua-app .sim-preset-divider {
     width: 1px;
     height: 20px;
@@ -4424,6 +4432,69 @@
     font-size: 10px;
     font-weight: 700;
 }
+.aqua-app .chart-section-actions {
+    display: flex;
+    align-items: flex-end;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 7px;
+}
+.aqua-app .chart-export {
+    position: relative;
+}
+.aqua-app .chart-export summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 8px;
+    border: 1px solid #d7e2f2;
+    border-radius: 6px;
+    color: #263c92;
+    background: #f8fbff;
+    cursor: pointer;
+    font-size: 9px;
+    font-weight: 900;
+    list-style: none;
+    white-space: nowrap;
+}
+.aqua-app .chart-export summary::-webkit-details-marker { display: none; }
+.aqua-app .chart-export summary:hover { border-color: #9fb6e7; background: #eef3fd; }
+.aqua-app .chart-export summary svg {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.aqua-app .chart-export-menu {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 5px);
+    right: 0;
+    width: 228px;
+    padding: 6px;
+    border: 1px solid #d7e2f2;
+    border-radius: 9px;
+    background: #ffffff;
+    box-shadow: 0 14px 30px -16px rgba(20, 48, 100, 0.45);
+}
+.aqua-app .chart-export-menu p {
+    margin: 2px 4px 5px;
+    color: #8a98ac;
+    font-size: 8px;
+    line-height: 1.4;
+}
+.aqua-app .chart-export-menu a {
+    display: grid;
+    gap: 1px;
+    padding: 7px 6px;
+    border-radius: 6px;
+}
+.aqua-app .chart-export-menu a:hover { background: #f3f7fd; }
+.aqua-app .chart-export-menu a b { color: #14235c; font-size: 9px; font-weight: 900; }
+.aqua-app .chart-export-menu a small { color: #7b8aa6; font-size: 8px; }
 .aqua-app .chart-section-meta span:first-child {
     color: #263c92;
     font-weight: 800;
@@ -4904,6 +4975,15 @@
         flex-direction: column;
         gap: 3px;
     }
+    .aqua-app .chart-section-actions {
+        align-items: flex-start;
+        width: 100%;
+    }
+    .aqua-app .chart-export-menu {
+        right: auto;
+        left: 0;
+        max-width: calc(100vw - 40px);
+    }
 }
 .aqua-app .sim-deck-grid {
     grid-template-columns: minmax(150px, 0.62fr) minmax(200px, 0.9fr) minmax(270px, 1.08fr);
@@ -4941,6 +5021,11 @@
     border-color: #8fa9db;
     background: #edf4ff;
     box-shadow: 0 5px 12px -8px rgba(20, 48, 100, 0.35);
+}
+.aqua-app .sim-bottom-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    box-shadow: none;
 }
 .aqua-app .sim-bottom-action.run {
     border-color: #263c92;
@@ -5027,6 +5112,22 @@
     flex-wrap: wrap;
     gap: 10px;
     width: 100%;
+}
+.aqua-app .sim-sensor-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #16794a;
+    font-size: 8px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.aqua-app .sim-sensor-status i {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #21a366;
+    box-shadow: 0 0 0 3px rgba(33, 163, 102, 0.12);
 }
 .aqua-app .sim-deck-footer-meta .sim-deck-hint {
     margin: 0;

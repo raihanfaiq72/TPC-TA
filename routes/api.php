@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AnalisisController;
+use App\Http\Controllers\Api\DatasetController;
 use App\Http\Controllers\Api\IkanController;
 use App\Http\Controllers\Api\KolamController;
 use App\Http\Controllers\Api\LingkunganController;
@@ -90,6 +91,14 @@ Route::middleware('throttle:600,1')->group(function () {
             Route::get('/alert', 'daftarAlert')->whereNumber('kolamId')->name('alert');
             Route::get('/rekomendasi', 'rekomendasiTerbaru')->whereNumber('kolamId')->name('rekomendasi');
             Route::get('/validasi', 'ringkasanValidasi')->whereNumber('kolamId')->name('validasi');
+        });
+
+    Route::prefix('kolam/{kolamId}/export')
+        ->name('api.kolam.export.')
+        ->controller(DatasetController::class)
+        ->group(function () {
+            Route::get('/ringkas', 'ringkas')->whereNumber('kolamId')->name('ringkas');
+            Route::get('/lengkap', 'lengkap')->whereNumber('kolamId')->name('lengkap');
         });
 
     // Alias

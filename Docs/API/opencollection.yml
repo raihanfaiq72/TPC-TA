@@ -43,6 +43,8 @@ docs:
     | GET | `/kolam/{id}/sensor/riwayat` | Riwayat pembacaan sensor |
     | GET | `/kolam/{id}/sensor/grafik` | Agregasi grafik sensor per rentang waktu |
     | PATCH | `/kolam/{id}/sensor/{perangkatId}` | Aktifkan/matikan sensor |
+    | GET | `/kolam/{id}/export/ringkas` | Export dataset harian |
+    | GET | `/kolam/{id}/export/lengkap` | Export sensor mentah / dataset lengkap |
 
     ## Autentikasi
 

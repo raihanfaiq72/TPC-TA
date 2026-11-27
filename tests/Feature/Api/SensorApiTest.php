@@ -35,6 +35,29 @@ test('api can enable and disable a sensor', function () {
         ->assertJsonPath('perangkat.status', 'aktif');
 });
 
+test('api can force-read all active sensors for live chart heartbeat', function () {
+    $this->seed(SandboxSeeder::class);
+
+    $kolam = Kolam::query()->where('kode', 'C07')->firstOrFail();
+    $activeSensors = Perangkat::query()
+        ->where('kolam_id', $kolam->id)
+        ->where('status', 'aktif')
+        ->whereHas('jenisPerangkat', fn ($query) => $query->where('kode', '!=', 'feeder'))
+        ->count();
+    $sebelum = PembacaanSensor::query()->where('kolam_id', $kolam->id)->count();
+
+    $this->postJson("/api/kolam/{$kolam->id}/sensor/baca", [
+        'waktu' => '2026-11-08 14:10:00',
+        'paksa' => true,
+    ])
+        ->assertOk()
+        ->assertJsonPath('paksa', true)
+        ->assertJsonPath('jumlah_dibaca', $activeSensors);
+
+    expect(PembacaanSensor::query()->where('kolam_id', $kolam->id)->count())
+        ->toBeGreaterThan($sebelum);
+});
+
 test('api can read sensors and show latest and history readings', function () {
     $this->seed(SandboxSeeder::class);
 
