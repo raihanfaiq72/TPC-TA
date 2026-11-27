@@ -47,18 +47,20 @@ test('api sampling stores the sample and returns a harvest recommendation', func
     $this->seed(SandboxSeeder::class);
 
     $kolam = Kolam::query()->where('kode', 'C07')->firstOrFail();
+    $kolam->update(['waktu_sandbox_sekarang' => '2026-11-13 14:00:00']);
 
     $this->postJson("/api/kolam/{$kolam->id}/sampling", [
+        'tanggal' => '2026-11-13',
         'jumlah_sampel' => 5,
         'bobot_total_sampel_g' => 440.5,
         'panjang_rata_cm' => 17.9,
     ])
         ->assertOk()
-        ->assertJsonPath('tanggal', '2026-11-08')
+        ->assertJsonPath('tanggal', '2026-11-13')
         ->assertJsonPath('rekomendasi.status', 'hampir siap');
 
     expect(SamplingPertumbuhan::query()
         ->where('kolam_id', $kolam->id)
-        ->whereDate('tanggal', '2026-11-08')
+        ->whereDate('tanggal', '2026-11-13')
         ->count())->toBeGreaterThan(0);
 });

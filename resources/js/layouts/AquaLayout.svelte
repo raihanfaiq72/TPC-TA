@@ -31,10 +31,6 @@
 
     const PAGES: Record<string, [string, string]> = {
         '/dashboard': ['Beranda', 'Semua kolam kamu hari ini'],
-        '/catat': ['Catat timbang', 'Isi 3 kolom, sisanya otomatis'],
-        '/air': ['Kondisi air', 'Kolam C07 · diperbarui 2 menit lalu'],
-        '/hasil': ['Hasil panen', 'Perkembangan ikan kolam C07'],
-        '/panen': ['Jadwal panen', 'Kolam C07 · perkiraan sistem'],
         '/kolam': ['Daftar kolam', '3 kolam aktif'],
         '/pengaturan': ['Pengaturan', 'Target panen dan batas aman air'],
     };
@@ -151,44 +147,9 @@
                 >
                 Beranda
             </Link>
-            <Link href="/catat" class={cn('nav', isActive('/catat') && 'on')}>
-                <svg viewBox="0 0 24 24"
-                    ><path
-                        d="M4.5 19.5V6a1.5 1.5 0 0 1 1.5-1.5h4.6l2 2.5h5A1.5 1.5 0 0 1 19.5 8.5v11"
-                    /><path d="M8.5 13.5h7M12 10v7" /></svg
-                >
-                Catat timbang
-            </Link>
-            <Link href="/air" class={cn('nav', isActive('/air') && 'on')}>
-                <svg viewBox="0 0 24 24"
-                    ><path
-                        d="M12 3.5s5.5 5.9 5.5 9.8a5.5 5.5 0 0 1-11 0C6.5 9.4 12 3.5 12 3.5Z"
-                    /></svg
-                >
-                Kondisi air
-                <span class="pill">1</span>
-            </Link>
-            <Link href="/hasil" class={cn('nav', isActive('/hasil') && 'on')}>
-                <svg viewBox="0 0 24 24"
-                    ><path d="M4 19V5M4 19h16" /><path
-                        d="m7.5 15 4-4 3 2.6L19 8"
-                    /></svg
-                >
-                Hasil panen
-            </Link>
-            <Link href="/panen" class={cn('nav', isActive('/panen') && 'on')}>
-                <svg viewBox="0 0 24 24"
-                    ><rect x="3.5" y="5.5" width="17" height="14" rx="2.5" /><path
-                        d="M3.5 10h17M8 3.5v4M16 3.5v4"
-                    /><path d="m9 14.5 2 2 3.8-3.8" /></svg
-                >
-                Jadwal panen
-            </Link>
-
-            <div class="nav-t hide-m">Lainnya</div>
             <Link
                 href="/kolam"
-                class={cn('nav hide-m', (isActive('/kolam') || path.startsWith('/kolam/')) && 'on')}
+                class={cn('nav', (isActive('/kolam') || path.startsWith('/kolam/')) && 'on')}
             >
                 <svg viewBox="0 0 24 24"
                     ><path
@@ -308,7 +269,7 @@
                 </Link>
             </header>
 
-            <main class="content">
+            <main class="content" class:dashboard-content={path === '/dashboard'}>
                 {@render children?.()}
             </main>
         </div>
@@ -346,7 +307,8 @@
                         <div>
                             <b>Timbang ikan, lalu catat</b>
                             <p>
-                                Buka menu "Catat timbang". Isi jumlah ikan dan
+                                Buka menu "Daftar kolam", tekan "Catat dan
+                                timbang" pada kartu kolam, isi jumlah ikan dan
                                 berat rata-ratanya, lalu simpan.
                             </p>
                         </div>
@@ -356,17 +318,17 @@
                         <div>
                             <b>Lihat hasilnya</b>
                             <p>
-                                Menu "Hasil panen" menunjukkan berat ikan dan
-                                perkembangannya. Kamu tidak perlu menghitung.
+                                Grafik dan ringkasan pertumbuhan tersedia di
+                                detail kolam. Kamu tidak perlu menghitung.
                             </p>
                         </div>
                     </div>
                     <div class="how-i">
                         <span class="n">3</span>
                         <div>
-                            <b>Ikuti tanggal panen</b>
+                            <b>Ikuti rekomendasi panen</b>
                             <p>
-                                Menu "Jadwal panen" memberi tanggal perkiraan.
+                                Rekomendasi panen muncul di detail kolam.
                                 Kamu yang memutuskan, sistem hanya membantu.
                             </p>
                         </div>

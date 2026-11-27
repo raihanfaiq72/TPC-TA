@@ -14,7 +14,22 @@
         jumlah_ikan_hidup?: number;
         jumlah_zona?: number;
         volume_air_m3?: number;
+        waktu_mulai_sandbox?: string;
+        waktu_sandbox_sekarang?: string;
         foto_url?: string | null;
+    };
+
+    type CatatForm = {
+        tanggal: string;
+        jumlah_sampel: number;
+        bobot_rata_g: number;
+        panjang_rata_cm: number;
+    };
+
+    type CatatWeek = {
+        number: number;
+        date: string;
+        status: 'done' | 'missed' | 'available' | 'future';
     };
 
     type PondForm = {
@@ -40,6 +55,23 @@
     let deleteTarget = $state<Pond | null>(null);
     let deleteBusy = $state(false);
     let deleteError = $state('');
+    let catatTarget = $state<Pond | null>(null);
+    let catatForm = $state<CatatForm>({ tanggal: '', jumlah_sampel: 25, bobot_rata_g: 0, panjang_rata_cm: 0 });
+    let catatBusy = $state(false);
+    let catatLoading = $state(false);
+    let catatError = $state('');
+    let catatMinDate = $state('');
+    let catatMaxDate = $state('');
+    let catatWeeks = $state<CatatWeek[]>([]);
+
+    const catatTotalWeight = $derived(
+        Math.max(0, (Number(catatForm.jumlah_sampel) || 0) * (Number(catatForm.bobot_rata_g) || 0)),
+    );
+    const catatDateValid = $derived(
+        catatForm.tanggal !== ''
+        && (catatMinDate === '' || catatForm.tanggal >= catatMinDate)
+        && (catatMaxDate === '' || catatForm.tanggal <= catatMaxDate),
+    );
 
     const emptyForm = (): PondForm => ({
         nama: '',
@@ -73,6 +105,222 @@
     function askDelete(pond: Pond): void {
         deleteError = '';
         deleteTarget = pond;
+    }
+
+    function dateOnly(value: string | null | undefined): string {
+        if (!value) return '';
+
+        const candidate = value.slice(0, 10);
+
+        return /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : '';
+    }
+
+    function addDays(date: string, days: number): string {
+        const [year, month, day] = date.split('-').map(Number);
+        const value = new Date(Date.UTC(year, month - 1, day));
+
+        value.setUTCDate(value.getUTCDate() + days);
+
+        return value.toISOString().slice(0, 10);
+    }
+
+    function formatDateOnly(date: string): string {
+        if (!date) return '—';
+
+        return new Date(`${date}T00:00:00Z`).toLocaleDateString('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            timeZone: 'UTC',
+        });
+    }
+
+    function buildCatatWeeks(
+        tebarDate: string,
+        maxDate: string,
+        minDate: string,
+        historyDates: string[],
+    ): CatatWeek[] {
+        if (!tebarDate || !maxDate) return [];
+
+        const weeks: CatatWeek[] = [];
+        let cursor = addDays(tebarDate, 7);
+        let number = 1;
+
+        while (cursor <= addDays(maxDate, 7) && number <= 60) {
+            const end = addDays(cursor, 6);
+            const done = historyDates.some((date) => date >= cursor && date <= end);
+
+            let status: CatatWeek['status'] = 'future';
+
+            if (done) {
+                status = 'done';
+            } else if (cursor > maxDate) {
+                status = 'future';
+            } else if (end < maxDate) {
+                status = 'missed';
+            } else if (end >= minDate && cursor <= maxDate) {
+                status = 'available';
+            } else {
+                status = 'missed';
+            }
+
+            weeks.push({ number, date: cursor, status });
+            cursor = addDays(cursor, 7);
+            number++;
+        }
+
+        return weeks.slice(-8);
+    }
+
+    async function openCatat(pond: Pond): Promise<void> {
+        catatTarget = pond;
+        catatError = '';
+        catatLoading = true;
+
+        const tebarDate = dateOnly(pond.waktu_mulai_sandbox);
+        const maxDate = dateOnly(pond.waktu_sandbox_sekarang) || new Date().toISOString().slice(0, 10);
+        const fallbackMin = tebarDate ? addDays(tebarDate, 7) : maxDate;
+
+        catatMinDate = fallbackMin;
+        catatMaxDate = maxDate;
+        catatWeeks = buildCatatWeeks(tebarDate, maxDate, fallbackMin, []);
+        catatForm = {
+            tanggal: fallbackMin <= maxDate ? fallbackMin : '',
+            jumlah_sampel: Math.max(1, Math.min(pond.jumlah_ikan_hidup ?? 25, 25)),
+            bobot_rata_g: 0,
+            panjang_rata_cm: 0,
+        };
+
+        try {
+            const [sampleResponse, historyResponse] = await Promise.all([
+                fetch(`/api/kolam/${pond.id}/sampel?n=25`, { headers: { Accept: 'application/json' } }),
+                fetch(`/api/kolam/${pond.id}/sampling`, { headers: { Accept: 'application/json' } }),
+            ]);
+            const sample = sampleResponse.ok
+                ? (await sampleResponse.json()) as {
+                    jumlah_sampel?: number;
+                    bobot_total_sampel_g?: number;
+                    panjang_rata_cm?: number;
+                }
+                : null;
+            const history = historyResponse.ok
+                ? (await historyResponse.json()) as Array<{ tanggal?: string }>
+                : [];
+            const historyDates = history
+                .map((row) => dateOnly(row.tanggal))
+                .filter((date): date is string => date !== '')
+                .sort();
+            const lastDate = historyDates.at(-1) ?? '';
+            const minDate = lastDate ? addDays(lastDate, 7) : fallbackMin;
+            const count = Math.max(1, Math.round(Number(sample?.jumlah_sampel ?? catatForm.jumlah_sampel)));
+            const total = Math.max(0, Number(sample?.bobot_total_sampel_g ?? 0));
+
+            if (catatTarget?.id !== pond.id) return;
+
+            catatMinDate = minDate;
+            catatWeeks = buildCatatWeeks(tebarDate, maxDate, minDate, historyDates);
+            catatForm = {
+                tanggal: minDate <= maxDate ? minDate : '',
+                jumlah_sampel: count,
+                bobot_rata_g: total > 0 ? Number((total / count).toFixed(2)) : 0,
+                panjang_rata_cm: Number(sample?.panjang_rata_cm ?? 0),
+            };
+        } catch {
+            // Form tetap bisa diisi manual jika sampel otomatis gagal.
+        } finally {
+            catatLoading = false;
+        }
+    }
+
+    function closeCatat(): void {
+        catatTarget = null;
+        catatError = '';
+        catatLoading = false;
+        catatMinDate = '';
+        catatMaxDate = '';
+        catatWeeks = [];
+    }
+
+    async function saveCatat(): Promise<void> {
+        if (!catatTarget) return;
+
+        const count = Math.max(1, Math.round(Number(catatForm.jumlah_sampel)));
+        const average = Number(catatForm.bobot_rata_g);
+        const length = Number(catatForm.panjang_rata_cm);
+        const tanggal = dateOnly(catatForm.tanggal);
+
+        if (!tanggal) {
+            catatError = 'Tanggal timbang wajib diisi.';
+            return;
+        }
+
+        if (catatMinDate && tanggal < catatMinDate) {
+            catatError = `Tanggal paling cepat ${formatDateOnly(catatMinDate)}.`;
+            return;
+        }
+
+        if (catatMaxDate && tanggal > catatMaxDate) {
+            catatError = `Tanggal tidak boleh melewati ${formatDateOnly(catatMaxDate)}.`;
+            return;
+        }
+
+        if (!Number.isFinite(count) || count < 1) {
+            catatError = 'Jumlah ikan ditimbang harus minimal 1 ekor.';
+            return;
+        }
+
+        if (!Number.isFinite(average) || average <= 0) {
+            catatError = 'Berat rata-rata harus lebih dari 0 gram.';
+            return;
+        }
+
+        if (!Number.isFinite(length) || length <= 0) {
+            catatError = 'Panjang rata-rata harus lebih dari 0 cm.';
+            return;
+        }
+
+        if (catatTarget.jumlah_ikan_hidup !== undefined && count > catatTarget.jumlah_ikan_hidup) {
+            catatError = `Jumlah sampel melebihi ikan hidup (${catatTarget.jumlah_ikan_hidup}).`;
+            return;
+        }
+
+        catatBusy = true;
+        catatError = '';
+        const targetName = catatTarget.nama;
+
+        try {
+            const response = await fetch(`/api/kolam/${catatTarget.id}/sampling`, {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tanggal,
+                    jumlah_sampel: count,
+                    jumlah_mati: 0,
+                    bobot_total_sampel_g: Number((count * average).toFixed(2)),
+                    panjang_rata_cm: Number(length.toFixed(2)),
+                }),
+            });
+            const payload = (await response.json().catch(() => null)) as
+                | { message?: string; error?: string; errors?: Record<string, string[]> }
+                | null;
+
+            if (!response.ok) {
+                const validation = payload?.errors
+                    ? Object.values(payload.errors).flat().join(' ')
+                    : null;
+
+                throw new Error(validation ?? payload?.error ?? payload?.message ?? 'Data timbangan tidak dapat disimpan.');
+            }
+
+            closeCatat();
+            await loadPonds();
+            say(`${count} ekor dari ${targetName} berhasil dicatat`);
+        } catch (reason) {
+            catatError = reason instanceof Error ? reason.message : 'Data timbangan tidak dapat disimpan.';
+        } finally {
+            catatBusy = false;
+        }
     }
 
     async function createPond(): Promise<void> {
@@ -280,6 +528,14 @@
                     <svg viewBox="0 0 24 24"><path d="M12 16V4M7.5 8.5 12 4l4.5 4.5M5 14.5v3A1.5 1.5 0 0 0 6.5 19h11a1.5 1.5 0 0 0 1.5-1.5v-3" /></svg>
                     {uploadingId === pond.id ? 'Menyimpan...' : pond.foto_url ? 'Ganti foto' : 'Upload foto'}
                 </label>
+                <button class="pond-catat" type="button" onclick={() => void openCatat(pond)}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4.5 7.5h15l-1.6 12a1.5 1.5 0 0 1-1.5 1.3H7.6a1.5 1.5 0 0 1-1.5-1.3l-1.6-12Z" />
+                        <path d="M9 7.5V6a3 3 0 0 1 6 0v1.5" />
+                        <path d="M12 11v6" />
+                    </svg>
+                    Catat dan timbang
+                </button>
                 <div class="pond-card-actions">
                     <Link class="btn sm" href={`/kolam/${pond.id}?edit=1`}>Edit</Link>
                     <Link class="btn sm" href={`/kolam/${pond.id}`}>Detail</Link>
@@ -367,6 +623,91 @@
                 <button class="btn" onclick={() => (deleteTarget = null)}>Batal</button>
                 <button class="btn danger" disabled={deleteBusy} onclick={() => void deletePond()}>{deleteBusy ? 'Menghapus...' : 'Ya, hapus kolam'}</button>
             </div>
+        </dialog>
+    </div>
+{/if}
+
+{#if catatTarget}
+    <div class="pond-modal" role="presentation">
+        <button class="pond-modal-backdrop" aria-label="Tutup catat timbang" onclick={closeCatat}></button>
+        <dialog open class="pond-modal-box pond-form-box" aria-label="Catat dan timbang">
+            <button class="pond-modal-close" aria-label="Tutup" onclick={closeCatat}>×</button>
+            <span class="modal-kicker">CATAT &amp; TIMBANG</span>
+            <h2>Catat hasil timbang {catatTarget.nama}</h2>
+            <p class="modal-subtitle">Kolam <b>{catatTarget.kode}</b> · data akan masuk ke riwayat sampling dan memperbarui rekomendasi panen.</p>
+
+            {#if catatLoading}
+                <div class="note">Mengambil sampel ikan dari simulasi...</div>
+            {/if}
+
+            <form class="pond-form" onsubmit={(event) => { event.preventDefault(); void saveCatat(); }}>
+                <label class="pond-field-wide catat-date-field">
+                    Tanggal timbang
+                    <input
+                        type="date"
+                        min={catatMinDate}
+                        max={catatMaxDate}
+                        bind:value={catatForm.tanggal}
+                        disabled={catatLoading || catatBusy}
+                        required
+                    />
+                    <span class="hint">
+                        {#if catatMinDate > catatMaxDate}
+                            Belum ada minggu yang bisa diukur. Tunggu sampai tanggal {formatDateOnly(catatMinDate)}.
+                        {:else}
+                            Minimal 7 hari setelah timbangan sebelumnya · paling lambat {formatDateOnly(catatMaxDate)}.
+                        {/if}
+                    </span>
+                </label>
+
+                {#if catatWeeks.length > 0}
+                    <div class="catat-week-strip" aria-label="Status minggu penimbangan">
+                        {#each catatWeeks as week}
+                            <span class="catat-week {week.status}" class:selected={catatForm.tanggal >= week.date && catatForm.tanggal <= addDays(week.date, 6)}>
+                                <b>Minggu {week.number}</b>
+                                <small>{formatDateOnly(week.date)}</small>
+                                <em>
+                                    {#if week.status === 'done'}sudah
+                                    {:else if week.status === 'missed'}terlewat
+                                    {:else if week.status === 'available'}bisa diukur
+                                    {:else}akan datang{/if}
+                                </em>
+                            </span>
+                        {/each}
+                    </div>
+                {/if}
+
+                <div class="pond-field-grid">
+                    <label>
+                        Jumlah ikan ditimbang
+                        <input type="number" min="1" step="1" inputmode="numeric" bind:value={catatForm.jumlah_sampel} disabled={catatLoading || catatBusy} required />
+                    </label>
+                    <label>
+                        Berat rata-rata (g)
+                        <input type="number" min="0.1" step="any" inputmode="decimal" bind:value={catatForm.bobot_rata_g} disabled={catatLoading || catatBusy} required />
+                    </label>
+                    <label>
+                        Panjang rata-rata (cm)
+                        <input type="number" min="0.1" step="any" inputmode="decimal" bind:value={catatForm.panjang_rata_cm} disabled={catatLoading || catatBusy} required />
+                    </label>
+                </div>
+
+                <div class="pond-volume-preview">
+                    <span>Total bobot sampel</span>
+                    <b>{catatTotalWeight.toLocaleString('id-ID', { maximumFractionDigits: 2 })} g</b>
+                </div>
+
+                {#if catatError}
+                    <div class="note bad">{catatError}</div>
+                {/if}
+
+                <div class="modal-actions">
+                    <button type="button" class="btn" onclick={closeCatat} disabled={catatBusy}>Batal</button>
+                    <button type="submit" class="btn pri" disabled={catatBusy || catatLoading || !catatDateValid}>
+                        {catatBusy ? 'Menyimpan...' : 'Simpan timbangan'}
+                    </button>
+                </div>
+            </form>
         </dialog>
     </div>
 {/if}

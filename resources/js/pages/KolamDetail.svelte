@@ -3,6 +3,7 @@
     import { onMount } from 'svelte';
     import AppHead from '@/components/AppHead.svelte';
     import FishIcon from '@/components/FishIcon.svelte';
+    import HarvestPlanMockup from '@/components/HarvestPlanMockup.svelte';
     import SensorIcon from '@/components/SensorIcon.svelte';
     import { say } from '@/lib/aqua-ui.svelte';
 
@@ -84,6 +85,28 @@
         xPositions: number[];
         sampleCount: number;
     };
+    type SamplingRow = {
+        id: number;
+        tanggal: string;
+        jumlah_sampel: number;
+        jumlah_mati: number;
+        bobot_total_sampel_g: number;
+        bobot_rata_g: number;
+        panjang_rata_cm: number;
+    };
+    type SamplingChartPoint = {
+        tanggal: string;
+        x: number;
+        y: number;
+        value: number;
+    };
+    type SamplingChartModel = {
+        points: SamplingChartPoint[];
+        xLabels: Array<{ x: number; label: string }>;
+        yLabels: Array<{ y: number; label: string }>;
+        path: string;
+        targetY: number | null;
+    };
     type DeathCause = { penyebab: string; jumlah: number };
     type SimulationStatus = {
         kolam: {
@@ -136,6 +159,7 @@
     let fishModalOpen = $state(false);
     let history = $state<HistoryRow[]>([]);
     let sensorHistory = $state<SensorHistoryRow[]>([]);
+    let samplingRows = $state<SamplingRow[]>([]);
     let historyRequest = 0;
     let deathCauses = $state<DeathCause[]>([]);
     let hiddenChartSeries = $state<string[]>([]);
@@ -396,6 +420,21 @@
         sensorHistory = sensorRows;
     }
 
+    async function loadSampling(): Promise<void> {
+        try {
+            const response = await fetch(`/api/kolam/${id}/sampling`, { headers: { Accept: 'application/json' } });
+
+            if (!response.ok) {
+                samplingRows = [];
+                return;
+            }
+
+            samplingRows = (await response.json()) as SamplingRow[];
+        } catch {
+            samplingRows = [];
+        }
+    }
+
     function changeChartRange(range: ChartRange): void {
         if (chartRange === range) return;
 
@@ -587,7 +626,7 @@
             resetOpen = false;
             playing = false;
             if (playTimer) clearInterval(playTimer);
-            await Promise.all([loadDetail(), loadSimulation(), loadReadings(), loadHistory(), loadFish()]);
+            await Promise.all([loadDetail(), loadSimulation(), loadReadings(), loadHistory(), loadFish(), loadSampling()]);
             say('Kolam kembali ke kondisi awal');
         } catch (reason) {
             error = reason instanceof Error ? reason.message : 'Kolam tidak dapat direset.';
@@ -929,7 +968,7 @@
                     openEdit();
                 }
 
-                await Promise.all([loadReadings(), loadSimulation(), loadHistory(), loadRecommendation(), loadFish()]);
+                await Promise.all([loadReadings(), loadSimulation(), loadHistory(), loadRecommendation(), loadFish(), loadSampling()]);
             } catch (reason) {
                 error = reason instanceof Error ? reason.message : 'Data realtime belum tersedia.';
             } finally {
@@ -943,6 +982,7 @@
                 void loadReadings().catch(() => undefined);
                 void loadSimulation().catch(() => undefined);
                 void loadHistory().catch(() => undefined);
+                void loadSampling().catch(() => undefined);
             }
         }, 15000);
 
@@ -1231,6 +1271,88 @@
         };
     });
 
+    function formatSamplingDate(value: string): string {
+        const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+
+        if (!year || !month || !day) return value;
+
+        return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            timeZone: 'UTC',
+        });
+    }
+
+    function samplingPath(points: SamplingChartPoint[], originX: number, originY: number): string {
+        if (points.length === 0) return '';
+
+        return [
+            `M ${originX.toFixed(2)} ${originY.toFixed(2)}`,
+            ...points.map((point) => `L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`),
+        ].join(' ');
+    }
+
+    const SAMPLING_CHART_WIDTH = 960;
+    const SAMPLING_CHART_HEIGHT = 260;
+    const SAMPLING_CHART_PAD = { left: 48, right: 22, top: 18, bottom: 34 };
+
+    const samplingChartModel = $derived.by((): SamplingChartModel => {
+        const rows = [...samplingRows]
+            .filter((row) => row.tanggal)
+            .sort((left, right) => left.tanggal.localeCompare(right.tanggal));
+
+        if (rows.length === 0) {
+            return { points: [], xLabels: [], yLabels: [], path: '', targetY: null };
+        }
+
+        const chartLeft = SAMPLING_CHART_PAD.left;
+        const chartRight = SAMPLING_CHART_WIDTH - SAMPLING_CHART_PAD.right;
+        const chartTop = SAMPLING_CHART_PAD.top;
+        const chartBottom = SAMPLING_CHART_HEIGHT - SAMPLING_CHART_PAD.bottom;
+        const chartWidth = chartRight - chartLeft;
+        const chartHeight = chartBottom - chartTop;
+        const target = Number(detail?.kolam.bobot_target_panen_g ?? 0);
+        const values = rows.map((row) => Number(row.bobot_rata_g) || 0);
+        const maxValue = Math.max(1, target || 0, ...values);
+        const scaleMax = maxValue * 1.08;
+        const xFor = (index: number): number => rows.length === 1
+            ? chartLeft + chartWidth / 2
+            : chartLeft + (index / (rows.length - 1)) * chartWidth;
+        const yFor = (value: number): number => chartBottom - ((value - 0) / scaleMax) * chartHeight;
+        const points = rows.map((row, index) => ({
+            tanggal: row.tanggal,
+            x: xFor(index),
+            y: yFor(Number(row.bobot_rata_g) || 0),
+            value: Number(row.bobot_rata_g) || 0,
+        }));
+        const labelIndexes = Array.from(new Set([
+            0,
+            Math.floor((rows.length - 1) / 2),
+            rows.length - 1,
+        ]));
+        const yValues = [0, scaleMax / 2, scaleMax];
+
+        return {
+            points,
+            path: samplingPath(points, chartLeft, chartBottom),
+            targetY: target > 0 ? yFor(target) : null,
+            xLabels: labelIndexes.map((index) => ({
+                x: xFor(index),
+                label: formatSamplingDate(rows[index].tanggal),
+            })),
+            yLabels: yValues.map((value) => ({
+                y: yFor(value),
+                label: `${Math.round(value).toLocaleString('id-ID')} g`,
+            })),
+        };
+    });
+
+    const latestSampling = $derived(
+        samplingChartModel.points.length > 0
+            ? samplingChartModel.points[samplingChartModel.points.length - 1]
+            : null,
+    );
     const visibleChartSeries = $derived(
         chartModel.series.filter((item) => !hiddenChartSeries.includes(item.key)),
     );
@@ -1858,6 +1980,120 @@
             {/if}
         </div>
     </section>
+
+    <section class="sampling-chart-section">
+        <div class="section-title-row">
+            <div>
+                <h2>Grafik timbang ikan</h2>
+                <p>Bobot rata-rata per sesi penimbangan. Grafik ini terpisah dari sensor kualitas air.</p>
+            </div>
+            <div class="chart-section-meta">
+                <span>{samplingRows.length} sesi timbang</span>
+                <span>Target {detail?.kolam.bobot_target_panen_g ?? '—'} g</span>
+            </div>
+        </div>
+
+        <div class="card sampling-chart-card">
+            {#if samplingChartModel.points.length === 0}
+                <div class="sampling-chart-empty">
+                    <b>Belum ada data timbang ikan.</b>
+                    <span>Catat dan timbang dari kartu kolam di daftar kolam.</span>
+                    <Link class="btn sm" href="/kolam">Buka daftar kolam</Link>
+                </div>
+            {:else}
+                <div class="sampling-chart-summary">
+                    <span>Bobot terakhir <b>{latestSampling ? `${latestSampling.value.toLocaleString('id-ID', { maximumFractionDigits: 2 })} g` : '—'}</b></span>
+                    <span>Target panen <b>{detail?.kolam.bobot_target_panen_g ?? '—'} g</b></span>
+                </div>
+
+                <div class="sampling-chart-scroll">
+                    <svg
+                        viewBox={`0 0 ${SAMPLING_CHART_WIDTH} ${SAMPLING_CHART_HEIGHT}`}
+                        role="img"
+                        aria-label="Grafik bobot rata-rata ikan dari hasil timbang"
+                    >
+                        {#each samplingChartModel.yLabels as label}
+                            <line
+                                class="sampling-chart-grid"
+                                x1={SAMPLING_CHART_PAD.left}
+                                x2={SAMPLING_CHART_WIDTH - SAMPLING_CHART_PAD.right}
+                                y1={label.y}
+                                y2={label.y}
+                            />
+                            <text
+                                class="sampling-chart-y-label"
+                                x={SAMPLING_CHART_PAD.left - 8}
+                                y={label.y + 3}
+                                text-anchor="end"
+                            >{label.label}</text>
+                        {/each}
+
+                        {#if samplingChartModel.targetY !== null}
+                            <line
+                                class="sampling-chart-target"
+                                x1={SAMPLING_CHART_PAD.left}
+                                x2={SAMPLING_CHART_WIDTH - SAMPLING_CHART_PAD.right}
+                                y1={samplingChartModel.targetY}
+                                y2={samplingChartModel.targetY}
+                            />
+                            <text
+                                class="sampling-chart-target-label"
+                                x={SAMPLING_CHART_WIDTH - SAMPLING_CHART_PAD.right}
+                                y={samplingChartModel.targetY - 5}
+                                text-anchor="end"
+                            >Target panen</text>
+                        {/if}
+
+                        <line
+                            class="sampling-chart-axis"
+                            x1={SAMPLING_CHART_PAD.left}
+                            x2={SAMPLING_CHART_WIDTH - SAMPLING_CHART_PAD.right}
+                            y1={SAMPLING_CHART_HEIGHT - SAMPLING_CHART_PAD.bottom}
+                            y2={SAMPLING_CHART_HEIGHT - SAMPLING_CHART_PAD.bottom}
+                        />
+
+                        <path class="sampling-chart-line" d={samplingChartModel.path} fill="none" />
+                        <circle
+                            class="sampling-chart-origin"
+                            cx={SAMPLING_CHART_PAD.left}
+                            cy={SAMPLING_CHART_HEIGHT - SAMPLING_CHART_PAD.bottom}
+                            r="3.5"
+                        />
+                        {#each samplingChartModel.points as point}
+                            <circle class="sampling-chart-point" cx={point.x} cy={point.y} r="4" />
+                        {/each}
+
+                        {#each samplingChartModel.xLabels as label}
+                            <text
+                                class="sampling-chart-x-label"
+                                x={label.x}
+                                y={SAMPLING_CHART_HEIGHT - 14}
+                                text-anchor="middle"
+                            >{label.label}</text>
+                        {/each}
+                        <text
+                            class="sampling-chart-axis-title"
+                            x={(SAMPLING_CHART_PAD.left + SAMPLING_CHART_WIDTH - SAMPLING_CHART_PAD.right) / 2}
+                            y={SAMPLING_CHART_HEIGHT - 2}
+                            text-anchor="middle"
+                        >Tanggal timbang</text>
+                        <text
+                            class="sampling-chart-axis-title"
+                            transform={`translate(13 ${(SAMPLING_CHART_PAD.top + SAMPLING_CHART_HEIGHT - SAMPLING_CHART_PAD.bottom) / 2}) rotate(-90)`}
+                            text-anchor="middle"
+                        >Bobot rata-rata (g)</text>
+                    </svg>
+                </div>
+
+                <div class="chart-footnote">
+                    <span><i class="chart-legend-line solid"></i> Bobot rata-rata hasil timbang</span>
+                    <span><i class="chart-legend-line target"></i> Target panen</span>
+                </div>
+            {/if}
+        </div>
+    </section>
+
+    <HarvestPlanMockup />
 {/if}
 
 {#if deviceModalOpen && selectedDevice}

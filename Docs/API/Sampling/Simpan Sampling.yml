@@ -17,6 +17,7 @@ http:
     type: json
     data: |
       {
+        "tanggal": "2026-11-13",
         "jumlah_sampel": 30,
         "jumlah_mati": 2,
         "bobot_total_sampel_g": 2651.7,
@@ -46,7 +47,10 @@ docs: |
   `jumlah_mati` adalah input manusia untuk mencatat jumlah ikan mati pada
   periode sampling. Nilai ini tidak mengubah status ikan di tabel `ikans`.
 
-  Tanggal diambil dari `kolams.waktu_sandbox_sekarang`, bukan tanggal nyata.
+  `tanggal` wajib diisi dan merupakan tanggal virtual penimbangan. Tanggal
+  minimal adalah **7 hari setelah tanggal tebar** untuk penimbangan pertama,
+  atau **7 hari setelah penimbangan terakhir** untuk penimbangan berikutnya.
+  Tanggal tidak boleh melewati `kolams.waktu_sandbox_sekarang`.
 
   ## Request
 
@@ -56,6 +60,7 @@ docs: |
   Accept: application/json
 
   {
+    "tanggal": "2026-11-13",
     "jumlah_sampel": 30,
     "jumlah_mati": 2,
     "bobot_total_sampel_g": 2651.7,
@@ -65,6 +70,7 @@ docs: |
 
   | Field | Tipe | Wajib | Keterangan |
   |---|---|---|---|
+  | tanggal | date | ya | Tanggal virtual timbang; minimal 7 hari sejak tebar/sampling terakhir dan tidak melewati waktu virtual |
   | jumlah_sampel | integer >= 1 | ya | Tidak boleh melebihi jumlah ikan hidup |
   | jumlah_mati | integer >= 0 | tidak | Jumlah ikan mati yang diinput manusia; default 0 |
   | bobot_total_sampel_g | number > 0 | ya | Total bobot seluruh ikan sampel |
@@ -74,7 +80,7 @@ docs: |
 
   ```json
   {
-    "tanggal": "2026-11-08",
+    "tanggal": "2026-11-13",
     "rekomendasi": {
       "status": "hampir siap",
       "skor_kesiapan": 82.54,

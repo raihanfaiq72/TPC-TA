@@ -23,8 +23,10 @@ docs:
     - `PUT/PATCH /api/kolam/{kolamId}/sampling/{samplingId}` — ubah sampling
     - `DELETE /api/kolam/{kolamId}/sampling/{samplingId}` — hapus sampling
 
-    `Sampling` menerima input manusia berupa `jumlah_sampel`,
+    `Sampling` menerima input manusia berupa `tanggal`, `jumlah_sampel`,
     `jumlah_mati`, `bobot_total_sampel_g`, dan `panjang_rata_cm`.
+    `tanggal` wajib diisi, minimal 7 hari setelah tebar atau sampling
+    sebelumnya, dan tidak boleh melewati waktu virtual kolam.
     `jumlah_mati` mencatat ikan mati yang diketahui manusia dan tidak
     mengubah status ikan secara otomatis.
 
@@ -47,6 +49,6 @@ docs:
     4. Gunakan **Daftar Sampling** → **Detail Sampling** untuk melihat
        riwayat, lalu **Ubah/Hapus Sampling** bila perlu koreksi.
 
-    Tanggal sampling memakai `waktu_sandbox_sekarang` dari kolam, bukan
-    tanggal nyata.
+    Tanggal sampling wajib dikirim dan divalidasi terhadap tanggal tebar,
+    sampling terakhir, dan waktu virtual kolam. Jarak minimal 7 hari.
   type: text/markdown

@@ -8,10 +8,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'Dashboard')->name('dashboard');
 
     // Halaman aplikasi SmartAqua (tampilan frontend).
-    Route::inertia('catat', 'Catat')->name('catat');
-    Route::inertia('air', 'Air')->name('air');
-    Route::inertia('hasil', 'Hasil')->name('hasil');
-    Route::inertia('panen', 'Panen')->name('panen');
     Route::inertia('kolam', 'Kolam')->name('kolam');
     Route::inertia('kolam/{id}', 'KolamDetail')->whereNumber('id')->name('kolam.detail');
     Route::inertia('pengaturan', 'Pengaturan')->name('pengaturan');

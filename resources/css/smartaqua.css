@@ -423,8 +423,13 @@
     padding: 22px 24px 96px;
     width: 100%;
     max-width: 1080px;
+    min-width: 0;
+    overflow-x: hidden;
     margin: 0 auto;
     flex: 1;
+}
+.aqua-app .content.dashboard-content {
+    max-width: 1480px;
 }
 .aqua-app .page {
     display: none;
@@ -1542,6 +1547,36 @@
 .aqua-app .pond-upload.uploading { opacity: .6; pointer-events: none; }
 .aqua-app .pond-upload input { display: none; }
 .aqua-app .pond-upload svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.aqua-app .pond-catat {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    width: calc(100% - 34px);
+    margin: 0 17px 10px;
+    padding: 10px 12px;
+    border: 1px solid #b9dcc9;
+    border-radius: 10px;
+    color: #11633a;
+    background: #eef8f2;
+    font-size: 11px;
+    font-weight: 800;
+    transition: background 0.18s, border-color 0.18s, transform 0.18s;
+}
+.aqua-app .pond-catat:hover {
+    border-color: #79bf9b;
+    background: #e3f5eb;
+    transform: translateY(-1px);
+}
+.aqua-app .pond-catat svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
 .aqua-app .pond-card-actions {
     display: flex;
     align-items: center;
@@ -1582,6 +1617,76 @@
 .aqua-app .edit-form input:focus {
     outline: 2px solid rgba(38, 60, 146, .18);
     border-color: #6e83df;
+}
+.aqua-app .catat-date-field .hint {
+    display: block;
+    margin-top: 6px;
+    color: #7b8aa6;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.45;
+}
+.aqua-app .catat-week-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+}
+.aqua-app .catat-week {
+    display: flex;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 7px 8px;
+    border: 1px solid #e0e8f5;
+    border-radius: 8px;
+    color: #52647e;
+    background: #f8fbff;
+}
+.aqua-app .catat-week b {
+    color: inherit;
+    font-size: 9px;
+    font-weight: 900;
+}
+.aqua-app .catat-week small {
+    overflow: hidden;
+    max-width: 100%;
+    color: #7b8aa6;
+    font-size: 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.aqua-app .catat-week em {
+    color: #7b8aa6;
+    font-size: 8px;
+    font-style: normal;
+    font-weight: 700;
+}
+.aqua-app .catat-week.done {
+    border-color: #b9dcc9;
+    color: #11633a;
+    background: #eef8f2;
+}
+.aqua-app .catat-week.available {
+    border-color: #b7c9ed;
+    color: #263c92;
+    background: #edf3ff;
+}
+.aqua-app .catat-week.selected {
+    outline: 2px solid #6e83df;
+    outline-offset: 1px;
+}
+.aqua-app .catat-week.missed,
+.aqua-app .catat-week.future {
+    border-color: #e5eaf2;
+    color: #9aa7ba;
+    background: #f1f4f8;
+    opacity: 0.58;
+}
+@media (max-width: 620px) {
+    .aqua-app .catat-week-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 .aqua-app .pond-field-wide { display: block; }
 .aqua-app .pond-fieldset {
@@ -4376,6 +4481,10 @@
     .aqua-app .chart-head-side {
         align-items: flex-start;
     }
+    .aqua-app .chart-hover-readout > small {
+        flex-basis: 100%;
+        margin-left: 0;
+    }
 }
 .aqua-app .chart-head h3 {
     margin: 0;
@@ -4449,6 +4558,8 @@
 }
 .aqua-app .chart-scroll {
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     overflow-x: auto;
     overflow-y: hidden;
     padding: 4px 0 0;
@@ -4456,7 +4567,7 @@
 .aqua-app .chart-scroll svg {
     display: block;
     width: 100%;
-    min-width: 720px;
+    min-width: 560px;
     height: auto;
 }
 .aqua-app .chart-y-label,
@@ -4494,10 +4605,14 @@
 .aqua-app .chart-hover-readout {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
+    min-width: 0;
+    max-width: 100%;
     min-height: 31px;
     margin: 0 0 8px;
     padding: 6px 10px;
+    box-sizing: border-box;
     border: 1px dashed #d7e2f2;
     border-radius: 8px;
     color: #7b8aa6;
@@ -4522,6 +4637,7 @@
 }
 .aqua-app .chart-hover-readout > span {
     overflow: hidden;
+    flex: 1 1 120px;
     min-width: 0;
     color: #263c92;
     font-weight: 800;
@@ -4536,6 +4652,8 @@
 }
 .aqua-app .chart-hover-readout > small {
     overflow: hidden;
+    flex: 0 1 auto;
+    min-width: 0;
     margin-left: auto;
     color: #7b8aa6;
     font-size: 9px;
@@ -4560,7 +4678,7 @@
 }
 @media (max-width: 620px) {
     .aqua-app .chart-scroll svg {
-        min-width: 680px;
+        min-width: 560px;
     }
     .aqua-app .chart-hover-readout {
         flex-wrap: wrap;
@@ -4601,7 +4719,7 @@
 .aqua-app .chart-canvas svg {
     display: block;
     width: 100%;
-    min-width: 720px;
+    min-width: 560px;
     height: auto;
 }
 .aqua-app .chart-grid-line {
@@ -4653,6 +4771,117 @@
     color: #64748b;
     font-size: 11px;
     text-align: center;
+}
+.aqua-app .sampling-chart-section {
+    margin-top: 26px;
+}
+.aqua-app .sampling-chart-card {
+    padding: 18px 20px 14px;
+    border-color: #d7e2f2;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 14px 30px -26px rgba(20, 48, 100, 0.32);
+}
+.aqua-app .sampling-chart-summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    margin-bottom: 10px;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 700;
+}
+.aqua-app .sampling-chart-summary b {
+    margin-left: 3px;
+    color: #14235c;
+    font-size: 12px;
+    font-weight: 900;
+}
+.aqua-app .sampling-chart-scroll {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    padding-top: 4px;
+}
+.aqua-app .sampling-chart-scroll svg {
+    display: block;
+    width: 100%;
+    min-width: 560px;
+    height: auto;
+}
+.aqua-app .sampling-chart-grid {
+    stroke: #e6edf7;
+    stroke-width: 1;
+    stroke-dasharray: 3 5;
+}
+.aqua-app .sampling-chart-axis {
+    stroke: #b8c9e4;
+    stroke-width: 1;
+}
+.aqua-app .sampling-chart-y-label,
+.aqua-app .sampling-chart-x-label,
+.aqua-app .sampling-chart-target-label {
+    fill: #7b8aa6;
+    font-size: 9px;
+    font-weight: 700;
+}
+.aqua-app .sampling-chart-axis-title {
+    fill: #52647e;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+}
+.aqua-app .sampling-chart-line {
+    stroke: #263c92;
+    stroke-width: 2.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.aqua-app .sampling-chart-point {
+    fill: #ffffff;
+    stroke: #263c92;
+    stroke-width: 2.2;
+}
+.aqua-app .sampling-chart-origin {
+    fill: #d9a62e;
+    stroke: #ffffff;
+    stroke-width: 1.5;
+}
+.aqua-app .sampling-chart-target {
+    stroke: #d9a62e;
+    stroke-width: 1.3;
+    stroke-dasharray: 5 5;
+}
+.aqua-app .sampling-chart-target-label {
+    fill: #a06b00;
+    font-size: 8px;
+}
+.aqua-app .sampling-chart-empty {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    gap: 6px;
+    padding: 24px 16px;
+    color: #64748b;
+    font-size: 11px;
+    text-align: center;
+}
+.aqua-app .sampling-chart-empty b {
+    color: #14235c;
+    font-size: 13px;
+}
+.aqua-app .sampling-chart-empty .btn {
+    margin-top: 7px;
+}
+.aqua-app .chart-legend-line.target {
+    border-top-color: #d9a62e;
+    border-top-style: dashed;
+}
+@media (max-width: 620px) {
+    .aqua-app .sampling-chart-card {
+        padding: 15px 13px 12px;
+    }
 }
 @media (max-width: 900px) {
     .aqua-app .chart-legend {

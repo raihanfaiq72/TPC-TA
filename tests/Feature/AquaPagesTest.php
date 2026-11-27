@@ -4,10 +4,6 @@ use App\Models\User;
 
 dataset('aqua pages', [
     'dashboard' => ['dashboard'],
-    'catat timbang' => ['catat'],
-    'kondisi air' => ['air'],
-    'hasil panen' => ['hasil'],
-    'jadwal panen' => ['panen'],
     'daftar kolam' => ['kolam'],
     'pengaturan' => ['pengaturan'],
 ]);
@@ -15,6 +11,10 @@ dataset('aqua pages', [
 test('guests are redirected to the login page', function (string $routeName) {
     $this->get(route($routeName))->assertRedirect(route('login'));
 })->with('aqua pages');
+
+test('removed aqua pages are not available', function (string $path) {
+    $this->get($path)->assertNotFound();
+})->with(['/catat', '/air', '/hasil', '/panen']);
 
 test('authenticated users can visit every aqua page', function (string $routeName) {
     $user = User::factory()->create();

@@ -54,6 +54,7 @@ class SamplingController extends Controller
     public function store(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
+            'tanggal' => ['required', 'date'],
             'jumlah_sampel' => ['required', 'integer', 'min:1'],
             'jumlah_mati' => ['sometimes', 'integer', 'min:0'],
             'bobot_total_sampel_g' => ['required', 'numeric', 'gt:0'],
@@ -68,6 +69,44 @@ class SamplingController extends Controller
             ], 404);
         }
 
+        $waktu = Carbon::parse($kolam->waktu_sandbox_sekarang);
+        $tanggal = Carbon::parse($data['tanggal'])->toDateString();
+        $tanggalTebar = Carbon::parse($kolam->waktu_mulai_sandbox)->toDateString();
+        $tanggalMinimalPertama = Carbon::parse($tanggalTebar)->addDays(7)->toDateString();
+        $tanggalMaksimal = $waktu->toDateString();
+        $samplingTerakhir = SamplingPertumbuhan::query()
+            ->where('kolam_id', $kolam->id)
+            ->orderByDesc('tanggal')
+            ->orderByDesc('id')
+            ->first();
+        $tanggalMinimal = $samplingTerakhir instanceof SamplingPertumbuhan
+            ? Carbon::parse($samplingTerakhir->tanggal)->addDays(7)->toDateString()
+            : $tanggalMinimalPertama;
+
+        if ($tanggal < $tanggalTebar) {
+            return response()->json([
+                'message' => "Tanggal timbang tidak boleh sebelum tanggal tebar ({$tanggalTebar}).",
+            ], 422);
+        }
+
+        if ($tanggal < $tanggalMinimalPertama) {
+            return response()->json([
+                'message' => "Timbangan pertama minimal 7 hari setelah tebar ({$tanggalMinimalPertama}).",
+            ], 422);
+        }
+
+        if ($tanggal > $tanggalMaksimal) {
+            return response()->json([
+                'message' => "Tanggal timbang tidak boleh melewati tanggal virtual kolam ({$tanggalMaksimal}).",
+            ], 422);
+        }
+
+        if ($tanggal < $tanggalMinimal) {
+            return response()->json([
+                'message' => "Timbangan berikutnya minimal 7 hari setelah timbangan terakhir ({$tanggalMinimal}).",
+            ], 422);
+        }
+
         $hidup = Ikan::query()
             ->where('kolam_id', $id)
             ->where('status', 'hidup')
@@ -78,9 +117,6 @@ class SamplingController extends Controller
                 'error' => "jumlah_sampel melebihi ikan hidup ({$hidup})",
             ], 422);
         }
-
-        $waktu = Carbon::parse($kolam->waktu_sandbox_sekarang);
-        $tanggal = $waktu->toDateString();
 
         SamplingPertumbuhan::query()->create([
             'kolam_id' => $kolam->id,
