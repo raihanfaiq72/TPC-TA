@@ -81,6 +81,7 @@ class KolamController extends Controller
                 'bobot_target_panen_g' => $data['bobot_target_panen_g'] ?? 100.0,
                 'waktu_mulai_sandbox' => $mulai,
                 'waktu_sandbox_sekarang' => $mulai,
+                'waktu_sandbox_sinkron' => Carbon::now(),
                 'kecepatan_waktu' => $data['kecepatan_waktu'] ?? 60,
             ]);
 
@@ -366,7 +367,11 @@ class KolamController extends Controller
                 }
             }
 
-            $kolam->update(['waktu_sandbox_sekarang' => $kolam->waktu_mulai_sandbox, 'status' => 'aktif']);
+            $kolam->update([
+                'waktu_sandbox_sekarang' => $kolam->waktu_mulai_sandbox,
+                'waktu_sandbox_sinkron' => Carbon::now(),
+                'status' => 'aktif',
+            ]);
             $kolam->perangkats()->update([
                 'terakhir_baca' => null,
                 'baterai_persen' => 100,

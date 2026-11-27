@@ -41,6 +41,7 @@ docs:
     | POST | `/kolam/{id}/sensor/baca` | Baca sensor yang jatuh tempo |
     | GET | `/kolam/{id}/sensor/terbaru` | Pembacaan terakhir tiap perangkat |
     | GET | `/kolam/{id}/sensor/riwayat` | Riwayat pembacaan sensor |
+    | GET | `/kolam/{id}/sensor/grafik` | Agregasi grafik sensor per rentang waktu |
     | PATCH | `/kolam/{id}/sensor/{perangkatId}` | Aktifkan/matikan sensor |
 
     ## Autentikasi

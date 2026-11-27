@@ -67,6 +67,7 @@ Route::middleware('throttle:600,1')->group(function () {
         ->controller(SensorController::class)
         ->group(function () {
             Route::post('/baca', 'bacaSemuaSensor')->whereNumber('kolamId')->name('baca');
+            Route::get('/grafik', 'grafik')->whereNumber('kolamId')->name('grafik');
             Route::get('/terbaru', 'terbaru')->whereNumber('kolamId')->name('terbaru');
             Route::get('/riwayat', 'riwayat')->whereNumber('kolamId')->name('riwayat');
             Route::patch('/{perangkatId}', 'updateStatus')

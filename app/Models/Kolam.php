@@ -28,6 +28,7 @@ use Illuminate\Support\Facades\Storage;
  * @property float $bobot_target_panen_g
  * @property Carbon $waktu_mulai_sandbox
  * @property Carbon $waktu_sandbox_sekarang
+ * @property Carbon|null $waktu_sandbox_sinkron
  * @property float $kecepatan_waktu
  * @property string $status
  * @property Carbon|null $created_at
@@ -51,6 +52,7 @@ use Illuminate\Support\Facades\Storage;
     'bobot_target_panen_g',
     'waktu_mulai_sandbox',
     'waktu_sandbox_sekarang',
+    'waktu_sandbox_sinkron',
     'kecepatan_waktu',
     'status',
 ])]
@@ -79,6 +81,7 @@ class Kolam extends Model
             'bobot_target_panen_g' => 'float',
             'waktu_mulai_sandbox' => 'datetime',
             'waktu_sandbox_sekarang' => 'datetime',
+            'waktu_sandbox_sinkron' => 'datetime',
             'kecepatan_waktu' => 'float',
             'created_at' => 'datetime',
         ];

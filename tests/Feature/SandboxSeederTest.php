@@ -2,6 +2,8 @@
 
 use App\Models\Ikan;
 use App\Models\Kolam;
+use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\SandboxSeeder;
 use Illuminate\Support\Facades\DB;
 
@@ -50,4 +52,13 @@ test('sandbox seeder is idempotent when run twice', function () {
         ->and(DB::table('perangkats')->count())->toBe(10)
         ->and(DB::table('pembacaan_sensors')->count())->toBe(27)
         ->and(DB::table('ikan_log_harians')->count())->toBe(33);
+});
+
+test('database seeder can run twice without duplicate test user', function () {
+    $this->seed(DatabaseSeeder::class);
+    $this->seed(DatabaseSeeder::class);
+
+    expect(User::query()->where('email', 'test@example.com')->count())->toBe(1)
+        ->and(Kolam::count())->toBe(1)
+        ->and(Ikan::count())->toBe(12);
 });

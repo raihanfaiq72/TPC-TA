@@ -19,6 +19,7 @@ docs:
     - `POST /api/kolam/{kolamId}/sensor/baca` — baca semua perangkat yang jatuh tempo
     - `GET /api/kolam/{kolamId}/sensor/terbaru` — pembacaan terakhir tiap perangkat
     - `GET /api/kolam/{kolamId}/sensor/riwayat` — riwayat pembacaan terfilter
+    - `GET /api/kolam/{kolamId}/sensor/grafik` — agregasi grafik per rentang waktu
     - `PATCH /api/kolam/{kolamId}/sensor/{perangkatId}` — aktifkan/matikan sensor
 
     ## Aturan pembacaan

@@ -52,9 +52,45 @@
         stres_rata: number;
         jumlah_mati: number;
     };
+    type SensorHistoryRow = {
+        waktu: string;
+        zona: string | null;
+        parameter: string;
+        nilai: number;
+    };
+    type ChartRange = '1m' | '1h' | '1d' | '1w' | '1mo' | '1y';
+    const chartRanges: Array<{ value: ChartRange; label: string }> = [
+        { value: '1m', label: '1 menit' },
+        { value: '1h', label: '1 jam' },
+        { value: '1d', label: '1 hari' },
+        { value: '1w', label: '1 minggu' },
+        { value: '1mo', label: '1 bulan' },
+        { value: '1y', label: '1 tahun' },
+    ];
+    type ChartPoint = { date: string; x: number; y: number; value: number };
+    type ChartSeries = {
+        key: string;
+        label: string;
+        color: string;
+        dashed: boolean;
+        unit: string;
+        latest: number | null;
+        points: ChartPoint[];
+    };
+    type ChartModel = {
+        dates: string[];
+        series: ChartSeries[];
+        xLabels: Array<{ x: number; label: string }>;
+        xPositions: number[];
+        sampleCount: number;
+    };
     type DeathCause = { penyebab: string; jumlah: number };
     type SimulationStatus = {
-        kolam: { waktu_sandbox_sekarang: string; kecepatan_waktu: number };
+        kolam: {
+            waktu_sandbox_sekarang: string;
+            waktu_sandbox_sinkron?: string;
+            kecepatan_waktu: number;
+        };
         ikan: { jumlah_awal: number; jumlah_hidup: number; jumlah_mati: number; biomassa_hidup_g: number };
     };
     type Recommendation = {
@@ -72,6 +108,7 @@
         selesai?: boolean;
         menit_dijalankan?: number;
         waktu_sekarang?: string;
+        waktu_sinkron?: string;
     };
     type FeedEvent = { waktu: string; gram: number };
     type DetailResponse = { kolam: Pond; zona: Zone[]; perangkat: Device[] };
@@ -98,13 +135,21 @@
     let deviceModalOpen = $state(false);
     let fishModalOpen = $state(false);
     let history = $state<HistoryRow[]>([]);
+    let sensorHistory = $state<SensorHistoryRow[]>([]);
+    let historyRequest = 0;
     let deathCauses = $state<DeathCause[]>([]);
+    let hiddenChartSeries = $state<string[]>([]);
+    let chartHoverSeriesKey = $state<string | null>(null);
+    let chartHoverPointDate = $state<string | null>(null);
+    let chartRange = $state<ChartRange>('1d');
+    const chartRangeLabel = $derived(
+        chartRanges.find((range) => range.value === chartRange)?.label ?? '1 hari',
+    );
     let simulation = $state<SimulationStatus | null>(null);
+    let clockNow = $state(Date.now());
     let recommendation = $state<Recommendation | null>(null);
     let playing = $state(false);
     let simulationSpeed = $state(1);
-    let stepAmount = $state(10);
-    let stepUnit = $state<'menit' | 'jam' | 'hari' | 'bulan'>('menit');
     let feedActive = $state(false);
     let feedLabel = $state('PAKAN DIBERIKAN');
     let feedQueue = $state<FeedEvent[]>([]);
@@ -122,6 +167,7 @@
         Math.max(0, editForm.panjang_m * editForm.lebar_m * editForm.tinggi_air_m),
     );
     let playTimer: ReturnType<typeof setInterval> | undefined;
+    let clockTimer: ReturnType<typeof setInterval> | undefined;
     let fishCanvas = $state<HTMLCanvasElement>();
     let fishAnimationFrame: number | undefined;
     let fishAnimationStarted = false;
@@ -255,14 +301,10 @@
         }
     }
 
-    function stepToMinutes(): number {
-        const factor = { menit: 1, jam: 60, hari: 1440, bulan: 43200 }[stepUnit];
+    function runPreset(days: number): void {
+        if (simBusy) return;
 
-        return Math.max(1, Math.round(stepAmount)) * factor;
-    }
-
-    function stepLabel(): string {
-        return `${Math.max(1, Math.round(stepAmount))} ${stepUnit}`;
+        void advanceSimulation(days * 1440);
     }
 
     function formatMinuteSpan(total: number): string {
@@ -317,7 +359,10 @@
         }
 
         feedActive = true;
-        const jamPakan = next.waktu ? next.waktu.slice(11, 16) : '';
+        const feedTime = next.waktu ? parseVirtualDate(next.waktu) : null;
+        const jamPakan = feedTime
+            ? feedTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+            : '';
         feedLabel = `PAKAN ${jamPakan}${jamPakan ? ' · ' : ''}${next.gram.toLocaleString('id-ID')} g`;
 
         if (feedTimer) {
@@ -331,11 +376,34 @@
     }
 
     async function loadHistory(): Promise<void> {
-        const response = await fetch(`/api/kolam/${id}/ikan/riwayat`, { headers: { Accept: 'application/json' } });
-        if (!response.ok) throw new Error('Riwayat pertumbuhan belum bisa dibaca.');
-        const payload = (await response.json()) as { riwayat: HistoryRow[]; kematian: DeathCause[] };
+        const requestId = ++historyRequest;
+        const [historyResponse, sensorResponse] = await Promise.all([
+            fetch(`/api/kolam/${id}/ikan/riwayat`, { headers: { Accept: 'application/json' } }),
+            fetch(`/api/kolam/${id}/sensor/grafik?range=${chartRange}`, { headers: { Accept: 'application/json' } }),
+        ]);
+
+        if (!historyResponse.ok) throw new Error('Riwayat pertumbuhan belum bisa dibaca.');
+
+        const payload = (await historyResponse.json()) as { riwayat: HistoryRow[]; kematian: DeathCause[] };
+        const sensorRows = sensorResponse.ok
+            ? (await sensorResponse.json()) as SensorHistoryRow[]
+            : [];
+
+        if (requestId !== historyRequest) return;
+
         history = payload.riwayat;
         deathCauses = payload.kematian;
+        sensorHistory = sensorRows;
+    }
+
+    function changeChartRange(range: ChartRange): void {
+        if (chartRange === range) return;
+
+        chartRange = range;
+        clearChartHover();
+        void loadHistory().catch((reason) => {
+            error = reason instanceof Error ? reason.message : 'Riwayat grafik belum bisa dibaca.';
+        });
     }
 
     async function loadFish(): Promise<void> {
@@ -352,7 +420,7 @@
         if (simBusy) return;
         simBusy = true;
         error = '';
-        const target = minutes ?? stepToMinutes();
+        const target = minutes ?? 10;
         let remaining = target;
         simStepTarget = target;
         simStepDone = 0;
@@ -406,6 +474,8 @@
                         kolam: {
                             ...simulation.kolam,
                             waktu_sandbox_sekarang: payload.waktu_sekarang,
+                            waktu_sandbox_sinkron: payload.waktu_sinkron
+                                ?? toVirtualDateTimeString(new Date()),
                         },
                     };
                 }
@@ -418,9 +488,10 @@
             }
 
             await Promise.all([loadSimulation(), loadReadings(), loadFish()]);
+            await loadHistory();
 
             if (dailyProcess) {
-                await Promise.all([loadHistory(), loadRecommendation()]);
+                await loadRecommendation();
             }
 
             if (alertCount > 0) {
@@ -528,9 +599,84 @@
     function parseVirtualDate(value: string | undefined): Date | null {
         if (!value) return null;
 
-        const parsed = new Date(value.includes('T') ? value : value.replace(' ', 'T'));
+        const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+        const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized);
+        const candidate = /^\d{4}-\d{2}-\d{2}$/.test(normalized)
+            ? `${normalized}T00:00:00Z`
+            : hasTimezone
+                ? normalized
+                : `${normalized}Z`;
+        const parsed = new Date(candidate);
 
         return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    function toVirtualDateTimeString(value: Date): string {
+        const pad = (part: number): string => String(part).padStart(2, '0');
+
+        return [
+            `${value.getUTCFullYear()}-${pad(value.getUTCMonth() + 1)}-${pad(value.getUTCDate())}`,
+            `${pad(value.getUTCHours())}:${pad(value.getUTCMinutes())}:${pad(value.getUTCSeconds())}`,
+        ].join(' ');
+    }
+
+    function chartPath(points: ChartPoint[]): string {
+        return points
+            .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+            .join(' ');
+    }
+
+    function formatChartValue(value: number | null, unit: string): string {
+        if (value === null) return '—';
+
+        return `${value.toLocaleString('id-ID', { maximumFractionDigits: 2 })}${unit ? ` ${unit}` : ''}`;
+    }
+
+    function chartDateLabel(value: string, range: ChartRange): string {
+        const parsed = parseVirtualDate(value);
+
+        if (!parsed) return value;
+
+        if (range === '1m' || range === '1h') {
+            return parsed.toLocaleTimeString('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit',
+            });
+        }
+
+        if (range === '1d') {
+            return parsed.toLocaleTimeString('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit',
+            });
+        }
+
+        if (range === '1w') {
+            return parsed.toLocaleDateString('id-ID', {
+                day: '2-digit',
+                month: 'short',
+            });
+        }
+
+        return parsed.toLocaleDateString('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            year: range === '1y' ? '2-digit' : undefined,
+        });
+    }
+
+    function chartTooltipDate(value: string): string {
+        const parsed = parseVirtualDate(value);
+
+        if (!parsed) return value;
+
+        return parsed.toLocaleString('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
     }
 
     function formatVirtualTime(value: string | undefined): string {
@@ -567,10 +713,13 @@
             const response = await fetch(`/api/kolam/${id}/sensor/baca`, {
                 method: 'POST',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-                body: JSON.stringify({ waktu: new Date().toISOString().slice(0, 19).replace('T', ' ') }),
+                body: JSON.stringify({
+                    waktu: virtualTimeValue ?? toVirtualDateTimeString(new Date()),
+                }),
             });
             if (!response.ok) throw new Error('Perangkat belum merespons.');
             await loadReadings();
+            await loadHistory();
             say('Data perangkat berhasil diperbarui');
         } catch (reason) {
             error = reason instanceof Error ? reason.message : 'Perangkat belum merespons.';
@@ -768,6 +917,10 @@
 
     onMount(() => {
         let timer: ReturnType<typeof setInterval> | undefined;
+        clockTimer = setInterval(() => {
+            clockNow = Date.now();
+        }, 1000);
+
         void (async () => {
             try {
                 await loadDetail();
@@ -786,11 +939,16 @@
         })();
 
         timer = setInterval(() => {
-            if (autoRefresh && !refreshing) void loadReadings().catch(() => undefined);
+            if (autoRefresh && !refreshing && !simBusy) {
+                void loadReadings().catch(() => undefined);
+                void loadSimulation().catch(() => undefined);
+                void loadHistory().catch(() => undefined);
+            }
         }, 15000);
 
         return () => {
             if (timer) clearInterval(timer);
+            if (clockTimer) clearInterval(clockTimer);
             if (playTimer) clearInterval(playTimer);
             if (feedTimer) clearTimeout(feedTimer);
             if (fishAnimationFrame) cancelAnimationFrame(fishAnimationFrame);
@@ -801,7 +959,21 @@
 
     const selectedDevice = $derived(detail?.perangkat.find((device) => device.kode === selectedCode));
     const selectedReading = $derived(selectedDevice ? readingFor(selectedDevice) : undefined);
+    const latestReadingTime = $derived.by(() => {
+        let latest: { waktu: string; timestamp: number } | null = null;
+
+        for (const reading of readings) {
+            const parsed = parseVirtualDate(reading.waktu_ukur);
+
+            if (parsed !== null && (latest === null || parsed.getTime() > latest.timestamp)) {
+                latest = { waktu: reading.waktu_ukur, timestamp: parsed.getTime() };
+            }
+        }
+
+        return latest?.waktu ?? null;
+    });
     const onlineCount = $derived(detail?.perangkat.filter((device) => device.status === 'aktif').length ?? 0);
+    const offlineCount = $derived(Math.max(0, (detail?.perangkat.length ?? 0) - onlineCount));
     const fishCount = $derived(simulation?.ikan.jumlah_hidup ?? fishRecords.length ?? detail?.kolam.jumlah_ikan_awal ?? 0);
     const doValue = $derived(readings.find((reading) => reading.parameter === 'do')?.nilai ?? null);
     const suhuValue = $derived(readings.find((reading) => reading.parameter === 'suhu')?.nilai ?? null);
@@ -811,9 +983,22 @@
     const harvestTone = $derived(
         harvestStatus === 'siap panen' ? 'ready' : harvestStatus === 'hampir siap' ? 'near' : 'wait',
     );
-    const virtualTimeValue = $derived(
-        simulation?.kolam.waktu_sandbox_sekarang ?? detail?.kolam.waktu_sandbox_sekarang,
-    );
+    const virtualTimeValue = $derived.by((): string | undefined => {
+        const baseValue = simulation?.kolam.waktu_sandbox_sekarang
+            ?? detail?.kolam.waktu_sandbox_sekarang;
+        const base = parseVirtualDate(baseValue);
+
+        if (!base) return baseValue;
+
+        const sinkron = parseVirtualDate(simulation?.kolam.waktu_sandbox_sinkron);
+
+        if (!sinkron) return baseValue;
+
+        const elapsed = Math.max(0, clockNow - sinkron.getTime());
+
+        return toVirtualDateTimeString(new Date(base.getTime() + elapsed));
+    });
+    const virtualDateValue = $derived(virtualTimeValue?.slice(0, 10));
     const virtualClock = $derived.by(() => {
         const parsed = parseVirtualDate(virtualTimeValue);
 
@@ -843,6 +1028,331 @@
 
         return Math.min(100, Math.max(0, (seconds / 86400) * 100));
     });
+
+    const CHART_WIDTH = 960;
+    const CHART_HEIGHT = 300;
+    const CHART_PAD = { left: 34, right: 18, top: 16, bottom: 32 };
+
+    const chartModel = $derived.by((): ChartModel => {
+        const liveTimestamp = virtualTimeValue;
+        const rangeSeconds: Record<ChartRange, number> = {
+            '1m': 60,
+            '1h': 3600,
+            '1d': 86400,
+            '1w': 604800,
+            '1mo': 2592000,
+            '1y': 31536000,
+        };
+        const bucketSeconds: Record<ChartRange, number> = {
+            '1m': 10,
+            '1h': 300,
+            '1d': 3600,
+            '1w': 86400,
+            '1mo': 86400,
+            '1y': 2592000,
+        };
+        const now = parseVirtualDate(liveTimestamp) ?? new Date();
+        const rangeStart = now.getTime() - rangeSeconds[chartRange] * 1000;
+        const sensorRangeStart = rangeStart - bucketSeconds[chartRange] * 1000;
+
+        const historyEntries = history
+            .map((row) => ({
+                key: `${row.tanggal.slice(0, 10)} 00:00:00`,
+                row,
+            }))
+            .filter(({ key }) => {
+                const parsed = parseVirtualDate(key);
+
+                return parsed !== null
+                    && parsed.getTime() >= rangeStart
+                    && parsed.getTime() <= now.getTime();
+            });
+
+        const historyDates = historyEntries.map((entry) => entry.key);
+        const sensorRows = sensorHistory.filter((row) => {
+            const parsed = parseVirtualDate(row.waktu);
+
+            return parsed !== null
+                && parsed.getTime() >= sensorRangeStart
+                && parsed.getTime() <= now.getTime();
+        });
+        const sensorTimes = sensorRows.map((row) => row.waktu);
+        const dates = Array.from(new Set([
+            ...historyDates,
+            ...sensorTimes,
+            ...(liveTimestamp ? [liveTimestamp] : []),
+        ])).sort();
+
+        if (dates.length === 0) {
+            return { dates: [], series: [], xLabels: [], xPositions: [], sampleCount: 0 };
+        }
+
+        const chartLeft = CHART_PAD.left;
+        const chartRight = CHART_WIDTH - CHART_PAD.right;
+        const chartTop = CHART_PAD.top;
+        const chartBottom = CHART_HEIGHT - CHART_PAD.bottom;
+        const chartWidth = chartRight - chartLeft;
+        const chartHeight = chartBottom - chartTop;
+
+        const xFor = (index: number): number => dates.length === 1
+            ? chartLeft + chartWidth / 2
+            : chartLeft + (index / (dates.length - 1)) * chartWidth;
+
+        const sensorValues = (
+            parameter: string,
+            zona: string | null,
+        ): Map<string, number> => {
+            const groups = new Map<string, { sum: number; count: number }>();
+
+            for (const row of sensorRows) {
+                if (row.parameter !== parameter) {
+                    continue;
+                }
+
+                if (zona !== null && row.zona !== zona) {
+                    continue;
+                }
+
+                const date = row.waktu;
+                const current = groups.get(date) ?? { sum: 0, count: 0 };
+
+                groups.set(date, {
+                    sum: current.sum + row.nilai,
+                    count: current.count + 1,
+                });
+            }
+
+            const result = new Map(
+                Array.from(groups.entries()).map(([date, value]) => [
+                    date,
+                    value.sum / value.count,
+                ]),
+            );
+
+            if (liveTimestamp !== undefined) {
+                const live = readings.find((reading) => reading.parameter === parameter
+                    && reading.nilai !== null
+                    && (zona === null || reading.zona === zona));
+
+                if (live?.nilai !== null && live?.nilai !== undefined) {
+                    result.set(liveTimestamp, live.nilai);
+                }
+            }
+
+            return result;
+        };
+
+        const historyValues = (field: 'bobot_rata_g' | 'jumlah_mati'): Map<string, number> => new Map(
+            historyEntries.map(({ key, row }) => [key, row[field]]),
+        );
+
+        const growthValues = historyValues('bobot_rata_g');
+
+        if (liveTimestamp !== undefined && fishRecords.length > 0) {
+            const avgWeight = fishRecords.reduce((total, fish) => total + fish.bobot_g, 0) / fishRecords.length;
+            growthValues.set(liveTimestamp, avgWeight);
+        }
+
+        const configs: Array<{
+            key: string;
+            label: string;
+            color: string;
+            unit: string;
+            dashed?: boolean;
+            values: Map<string, number>;
+        }> = [
+            { key: 'suhu-atas', label: 'Suhu atas', color: '#f59e0b', unit: '°C', values: sensorValues('suhu', 'atas') },
+            { key: 'suhu-bawah', label: 'Suhu bawah', color: '#f97316', unit: '°C', dashed: true, values: sensorValues('suhu', 'bawah') },
+            { key: 'do-atas', label: 'Oksigen atas', color: '#06b6d4', unit: 'mg/L', values: sensorValues('do', 'atas') },
+            { key: 'do-bawah', label: 'Oksigen bawah', color: '#2563eb', unit: 'mg/L', dashed: true, values: sensorValues('do', 'bawah') },
+            { key: 'ph-atas', label: 'pH atas', color: '#8b5cf6', unit: 'pH', values: sensorValues('ph', 'atas') },
+            { key: 'ph-bawah', label: 'pH bawah', color: '#c026d3', unit: 'pH', dashed: true, values: sensorValues('ph', 'bawah') },
+            { key: 'amonia-atas', label: 'Amonia atas', color: '#ef4444', unit: 'ppm', values: sensorValues('amonia', 'atas') },
+            { key: 'amonia-bawah', label: 'Amonia bawah', color: '#be123c', unit: 'ppm', dashed: true, values: sensorValues('amonia', 'bawah') },
+            { key: 'level', label: 'Level air', color: '#0f766e', unit: 'cm', values: sensorValues('level', null) },
+            { key: 'growth', label: 'Bobot rata-rata', color: '#16a34a', unit: 'g', values: growthValues },
+            { key: 'deaths', label: 'Ikan mati', color: '#475569', unit: 'ikan', values: historyValues('jumlah_mati') },
+        ];
+
+        const series: ChartSeries[] = [];
+
+        for (const config of configs) {
+            const rawPoints = dates
+                .map((date, index) => {
+                    const value = config.values.get(date);
+
+                    return value === undefined
+                        ? null
+                        : { date, index, value };
+                })
+                .filter((point): point is { date: string; index: number; value: number } => point !== null);
+
+            if (rawPoints.length === 0) continue;
+
+            const valuesOnly = rawPoints.map((point) => point.value);
+            const min = Math.min(...valuesOnly);
+            const max = Math.max(...valuesOnly);
+
+            const points: ChartPoint[] = rawPoints.map((point) => ({
+                date: point.date,
+                x: xFor(point.index),
+                y: max === min
+                    ? chartTop + chartHeight / 2
+                    : chartBottom - ((point.value - min) / (max - min)) * chartHeight,
+                value: point.value,
+            }));
+
+            series.push({
+                key: config.key,
+                label: config.label,
+                color: config.color,
+                dashed: config.dashed ?? false,
+                unit: config.unit,
+                latest: valuesOnly[valuesOnly.length - 1],
+                points,
+            });
+        }
+
+        const labelIndexes = Array.from(new Set([
+            0,
+            Math.floor((dates.length - 1) / 2),
+            dates.length - 1,
+        ]));
+
+        return {
+            dates,
+            series,
+            xLabels: labelIndexes.map((index) => ({
+                x: xFor(index),
+                label: chartDateLabel(dates[index], chartRange),
+            })),
+            xPositions: dates.map((_, index) => xFor(index)),
+            sampleCount: new Set(sensorTimes).size,
+        };
+    });
+
+    const visibleChartSeries = $derived(
+        chartModel.series.filter((item) => !hiddenChartSeries.includes(item.key)),
+    );
+    const chartHoverSeries = $derived(
+        chartHoverSeriesKey === null
+            ? null
+            : visibleChartSeries.find((item) => item.key === chartHoverSeriesKey) ?? null,
+    );
+    const chartHoverPoint = $derived(
+        chartHoverSeries === null || chartHoverPointDate === null
+            ? null
+            : chartHoverSeries.points.find((point) => point.date === chartHoverPointDate) ?? null,
+    );
+    const chartHoverX = $derived(chartHoverPoint?.x ?? null);
+
+    function toggleChartSeries(key: string): void {
+        hiddenChartSeries = hiddenChartSeries.includes(key)
+            ? hiddenChartSeries.filter((item) => item !== key)
+            : [...hiddenChartSeries, key];
+
+        if (hiddenChartSeries.includes(key) && chartHoverSeriesKey === key) {
+            clearChartHover();
+        }
+    }
+
+    function clearChartHover(): void {
+        chartHoverSeriesKey = null;
+        chartHoverPointDate = null;
+    }
+
+    function distanceToChartSegment(
+        px: number,
+        py: number,
+        start: ChartPoint,
+        end: ChartPoint,
+    ): { distance: number; position: number } {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const lengthSquared = dx * dx + dy * dy;
+
+        if (lengthSquared === 0) {
+            return { distance: Math.hypot(px - start.x, py - start.y), position: 0 };
+        }
+
+        const position = Math.max(
+            0,
+            Math.min(1, ((px - start.x) * dx + (py - start.y) * dy) / lengthSquared),
+        );
+        const nearestX = start.x + position * dx;
+        const nearestY = start.y + position * dy;
+
+        return {
+            distance: Math.hypot(px - nearestX, py - nearestY),
+            position,
+        };
+    }
+
+    function nearestChartPoint(px: number, py: number): { series: ChartSeries; point: ChartPoint; distance: number } | null {
+        let nearest: { series: ChartSeries; point: ChartPoint; distance: number } | null = null;
+
+        for (const series of visibleChartSeries) {
+            const points = series.points;
+
+            if (points.length === 0) continue;
+
+            if (points.length === 1) {
+                const point = points[0];
+                const distance = Math.hypot(px - point.x, py - point.y);
+
+                if (nearest === null || distance < nearest.distance) {
+                    nearest = { series, point, distance };
+                }
+
+                continue;
+            }
+
+            for (let index = 0; index < points.length - 1; index += 1) {
+                const start = points[index];
+                const end = points[index + 1];
+                const match = distanceToChartSegment(px, py, start, end);
+                const point = match.position < 0.5 ? start : end;
+
+                if (nearest === null || match.distance < nearest.distance) {
+                    nearest = { series, point, distance: match.distance };
+                }
+            }
+        }
+
+        return nearest;
+    }
+
+    function handleChartHover(event: MouseEvent): void {
+        const svg = event.currentTarget as SVGSVGElement;
+        const rect = svg.getBoundingClientRect();
+        const chartX = ((event.clientX - rect.left) / rect.width) * CHART_WIDTH;
+        const chartY = ((event.clientY - rect.top) / rect.height) * CHART_HEIGHT;
+        const left = CHART_PAD.left;
+        const right = CHART_WIDTH - CHART_PAD.right;
+        const top = CHART_PAD.top;
+        const bottom = CHART_HEIGHT - CHART_PAD.bottom;
+
+        if (
+            chartX < left
+            || chartX > right
+            || chartY < top
+            || chartY > bottom
+            || visibleChartSeries.length === 0
+        ) {
+            clearChartHover();
+            return;
+        }
+
+        const nearest = nearestChartPoint(chartX, chartY);
+
+        if (nearest === null || nearest.distance > 30) {
+            clearChartHover();
+            return;
+        }
+
+        chartHoverSeriesKey = nearest.series.key;
+        chartHoverPointDate = nearest.point.date;
+    }
 </script>
 
 <AppHead title={detail ? `Pantauan ${detail.kolam.kode}` : 'Pantauan kolam'} />
@@ -862,116 +1372,182 @@
         <b>{detail.kolam.kode}</b>
     </div>
 
-    <section class="pond-detail-hero">
-        <div>
-            <span class="eyebrow"><i class="status-pulse"></i> LIVE MONITORING</span>
-            <h1>{detail.kolam.nama}</h1>
-            <p class="lead">Peta kondisi air dan perangkat IoT yang sedang bekerja di kolam ini.</p>
-            <div class="hero-meta">
-                <span><b>{onlineCount}</b> perangkat aktif</span>
-                <span><b>{detail.zona.length}</b> zona air</span>
-                <span><b>{detail.kolam.volume_air_m3.toFixed(1)} m³</b> volume</span>
+    <section class="pond-detail-hero corporate-hero">
+        <div class="hero-content">
+            <div class="hero-topline">
+                <span class="eyebrow"><i class="status-pulse"></i> OPERASIONAL KOLAM</span>
+                <span class="hero-code">KODE {detail.kolam.kode}</span>
+                <span class="hero-status" class:offline={onlineCount === 0} class:warning={onlineCount > 0 && offlineCount > 0}><i></i> {onlineCount === 0 ? 'Perangkat offline' : offlineCount > 0 ? `${offlineCount} perangkat perlu perhatian` : 'Monitoring aktif'}</span>
             </div>
+
+            <div class="hero-title-block">
+                <h1>{detail.kolam.nama}</h1>
+                <p class="lead">Ringkasan kondisi kolam, kualitas air, dan perangkat IoT dalam satu tampilan operasional.</p>
+            </div>
+
+            <div class="hero-metrics">
+                <div class="hero-metric">
+                    <span class="hero-metric-label">Perangkat aktif</span>
+                    <b>{onlineCount}<em>/{detail.perangkat.length}</em></b>
+                    <small>unit terhubung</small>
+                </div>
+                <div class="hero-metric">
+                    <span class="hero-metric-label">Zona pemantauan</span>
+                    <b>{detail.zona.length}</b>
+                    <small>zona air</small>
+                </div>
+                <div class="hero-metric">
+                    <span class="hero-metric-label">Kapasitas air</span>
+                    <b>{detail.kolam.volume_air_m3.toFixed(1)} <em>m³</em></b>
+                    <small>volume efektif</small>
+                </div>
+                <div class="hero-metric">
+                    <span class="hero-metric-label">Populasi aktif</span>
+                    <b>{fishCount.toLocaleString('id-ID')}</b>
+                    <small>ikan hidup</small>
+                </div>
+            </div>
+
             <div class="virtual-clock" aria-label="Waktu virtual kolam">
-                <span><small>Tanggal</small><b>{virtualClock.date}</b></span>
-                <span><small>Jam</small><b>{virtualClock.hour}</b></span>
-                <span><small>Menit</small><b>{virtualClock.minute}</b></span>
-                <span><small>Detik</small><b>{virtualClock.second}</b></span>
+                <div class="virtual-clock-label"><i class="clock-dot"></i> Waktu virtual</div>
+                <div class="virtual-clock-value">
+                    <b>{virtualClock.date}</b>
+                    <strong class="virtual-clock-time">{virtualClock.hour}<i>:</i>{virtualClock.minute}<i>:</i>{virtualClock.second}</strong>
+                </div>
             </div>
         </div>
-        <div class="hero-actions">
-            <button class="btn pri" disabled={refreshing} onclick={() => void refreshNow()}>
+
+        <aside class="hero-actions">
+            <span class="hero-actions-label">Tindakan cepat</span>
+            <button class="btn pri hero-primary-action" disabled={refreshing} onclick={() => void refreshNow()}>
                 <span class:spin={refreshing}>↻</span>
-                {refreshing ? 'Membaca...' : 'Baca perangkat sekarang'}
+                {refreshing ? 'Menyinkronkan...' : 'Sinkronkan perangkat'}
             </button>
-            <span class="live-note"><i class="status-pulse"></i> Diperbarui {lastUpdated || '—'} · otomatis 15 detik</span>
-        </div>
+            <button class="btn hero-secondary-action" onclick={openEdit}>Pengaturan kolam</button>
+            <span class="live-note"><i class="status-pulse"></i> Sinkronisasi terakhir {lastUpdated || '—'} · otomatis 15 detik</span>
+        </aside>
     </section>
 
     {#if error}
         <div class="note warn detail-alert"><b>Perhatian:</b> {error}</div>
     {/if}
 
-    <section class="sim-console sim-player">
-        <div class="player-main">
-            <button class="play-button" class:playing onclick={togglePlayback} aria-label={playing ? 'Jeda simulasi' : 'Putar simulasi'}>
-                {playing ? 'Ⅱ' : '▶'}
-            </button>
-            <div class="player-track">
-                <span class="sim-label">SANDBOX SIMULATOR</span>
-                <b>{playing ? 'Simulasi sedang berjalan' : 'Simulasi dijeda'}</b>
-                <small>Tick {stepLabel()} · kecepatan {simulationSpeed}×</small>
-            </div>
-        </div>
-
-        <div class="player-progress">
-            <div class="player-progress-head">
-                <span>Waktu virtual · progres hari</span>
-                <b>{formatVirtualTime(virtualTimeValue)}</b>
-            </div>
-            <button
-                type="button"
-                class="player-progress-rail"
-                class:active={playing}
-                aria-label={`Progres hari virtual ${Math.round(virtualDayProgress)} persen, klik untuk memajukan simulasi`}
-                title={`${Math.round(virtualDayProgress)}% hari virtual · klik untuk seek`}
-                disabled={simBusy}
-                onclick={(event) => void seekVirtualDay(event)}
-            >
-                <i style={`width:${virtualDayProgress}%`}></i>
-                <span class="player-progress-marker" style={`left:${virtualDayProgress}%`}></span>
-            </button>
-            <div class="player-progress-scale">
-                <span>00:00</span>
-                <span>12:00</span>
-                <span>24:00</span>
-            </div>
-            {#if simStepVisible}
-                <div class="sim-step-progress" role="status" aria-live="polite">
-                    <div class="sim-step-progress-head">
-                        <span>Memproses {formatMinuteSpan(simStepDone)} / {formatMinuteSpan(simStepTarget)}</span>
-                        <b>{simStepPercent}%</b>
-                    </div>
-                    <div class="sim-step-progress-rail">
-                        <i style={`width:${simStepPercent}%`}></i>
-                    </div>
+    <section class="simulator-deck">
+        <div class="sim-deck-header">
+            <div>
+                <span class="sim-label">KONTROL SIMULASI</span>
+                <div class="sim-deck-heading">
+                    <h2>Sandbox operasional</h2>
+                    <span class="sim-run-status" class:active={playing} class:busy={simBusy}>
+                        <i></i>
+                        {simBusy ? 'Memproses' : playing ? 'Berjalan' : 'Dijeda'}
+                    </span>
                 </div>
-            {/if}
-        </div>
-
-        <div class="player-controls">
-            <label class="player-field">Langkah
-                <span class="step-input">
-                    <input type="number" min="1" max="999" bind:value={stepAmount} />
-                    <select bind:value={stepUnit} aria-label="Satuan langkah simulasi">
-                        <option value="menit">menit</option>
-                        <option value="jam">jam</option>
-                        <option value="hari">hari</option>
-                        <option value="bulan">bulan</option>
-                    </select>
-                </span>
-            </label>
-            <button class="player-advance" disabled={simBusy} onclick={() => void advanceSimulation()} aria-label={`Majukan simulasi ${stepLabel()}`}>
-                <span>+</span>
-                <b>{stepLabel()}</b>
-            </button>
-            <label class="player-field">Kecepatan
-                <select class="player-speed-select" value={simulationSpeed} onchange={(event) => changeSpeed(Number((event.currentTarget as HTMLSelectElement).value))}>
-                    <option value="1">1×</option>
-                    <option value="2">2×</option>
-                    <option value="5">5×</option>
-                    <option value="10">10×</option>
-                </select>
-            </label>
+                <p>Atur mode simulasi dan kecepatan waktu untuk menguji respons kualitas air, sensor, pakan, dan pertumbuhan ikan.</p>
+            </div>
             <span class="sim-harvest {harvestTone}">
-                <FishIcon size={13} />
-                {harvestStatus}
+                <FishIcon size={14} />
+                <span>Status panen</span>
+                <b>{harvestStatus}</b>
             </span>
         </div>
 
-        <div class="player-actions">
-            <button class="btn sm" onclick={openEdit}>Edit kolam</button>
-            <button class="btn sm soft" onclick={() => (resetOpen = true)}>Perbarui dari awal</button>
+        <div class="sim-deck-grid">
+            <div class="sim-deck-clock">
+                <div class="sim-clock-readout">
+                    <span>Waktu virtual</span>
+                    <b>{virtualClock.date}</b>
+                    <strong>{virtualClock.hour}<i>:</i>{virtualClock.minute}<i>:</i>{virtualClock.second}</strong>
+                </div>
+            </div>
+
+            <div class="player-progress sim-deck-progress">
+                <div class="player-progress-head">
+                    <span>Progres hari</span>
+                    <b>{formatVirtualTime(virtualTimeValue)}</b>
+                </div>
+                <button
+                    type="button"
+                    class="player-progress-rail"
+                    class:active={playing}
+                    aria-label={`Progres hari virtual ${Math.round(virtualDayProgress)} persen, klik untuk memajukan simulasi`}
+                    title={`${Math.round(virtualDayProgress)}% hari virtual · klik untuk seek`}
+                    disabled={simBusy}
+                    onclick={(event) => void seekVirtualDay(event)}
+                >
+                    <i style={`width:${virtualDayProgress}%`}></i>
+                    <span class="player-progress-marker" style={`left:clamp(5px, ${virtualDayProgress}%, calc(100% - 5px))`}></span>
+                </button>
+                <div class="player-progress-scale">
+                    <span>00:00</span>
+                    <span>12:00</span>
+                    <span>24:00</span>
+                </div>
+                {#if simStepVisible}
+                    <div class="sim-step-progress" role="status" aria-live="polite">
+                        <div class="sim-step-progress-head">
+                            <span>Memproses {formatMinuteSpan(simStepDone)} / {formatMinuteSpan(simStepTarget)}</span>
+                            <b>{simStepPercent}%</b>
+                        </div>
+                        <div class="sim-step-progress-rail">
+                            <i style={`width:${simStepPercent}%`}></i>
+                        </div>
+                    </div>
+                {/if}
+            </div>
+
+            <div class="sim-deck-controls">
+                <span class="sim-preset-label">Mode simulasi</span>
+                <div class="sim-preset-row">
+                    <div class="sim-preset-speeds" role="group" aria-label="Kecepatan simulasi">
+                        {#each [1, 2, 5, 10] as speed}
+                            <button
+                                type="button"
+                                class="sim-preset-chip"
+                                class:selected={simulationSpeed === speed}
+                                aria-pressed={simulationSpeed === speed}
+                                onclick={() => changeSpeed(speed)}
+                            >
+                                {speed}×
+                            </button>
+                        {/each}
+                    </div>
+                    <span class="sim-preset-divider" aria-hidden="true"></span>
+                    <div class="sim-preset-durations" role="group" aria-label="Durasi simulasi cepat">
+                        <button type="button" class="sim-preset-chip duration" disabled={simBusy} onclick={() => runPreset(1)}>1 Hari</button>
+                        <button type="button" class="sim-preset-chip duration" disabled={simBusy} onclick={() => runPreset(7)}>7 Hari</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sim-deck-footer">
+            <div class="sim-deck-footer-actions">
+                <button class="sim-bottom-action run" class:playing onclick={togglePlayback}>
+                    <span class="sim-action-icon">{playing ? 'Ⅱ' : '▶'}</span>
+                    <span class="sim-action-copy">
+                        <b>{playing ? 'Jeda simulasi' : 'Jalankan simulasi'}</b>
+                        <small>{playing ? 'Hentikan sementara laju waktu' : 'Mulai percepatan waktu sandbox'}</small>
+                    </span>
+                </button>
+                <button class="sim-bottom-action reset" onclick={() => (resetOpen = true)}>
+                    <span class="sim-action-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v6h-6" />
+                        </svg>
+                    </span>
+                    <span class="sim-action-copy">
+                        <b>Perbarui dari awal</b>
+                        <small>Reset data dan mulai siklus baru</small>
+                    </span>
+                </button>
+            </div>
+            <div class="sim-deck-footer-meta">
+                <span class="sim-deck-hint">
+                    {simBusy ? 'Simulasi sedang diproses. Waktu virtual dan data sensor diperbarui secara bertahap.' : 'Pilih kecepatan atau durasi cepat untuk memperbarui data operasional.'}
+                </span>
+                <button class="sim-deck-edit" onclick={openEdit}>Edit kolam</button>
+            </div>
         </div>
     </section>
 
@@ -1106,57 +1682,181 @@
         </section>
     </div>
 
-    <div class="section-title-row">
-        <div><h2>Pembacaan terakhir</h2><p>Angka dari modul sensor di kolam ini.</p></div>
-        <span class="tiny muted">Sinkron otomatis · {lastUpdated || '—'}</span>
-    </div>
-    <div class="metric-grid">
-        {#each ['suhu', 'do', 'ph', 'amonia', 'level'] as parameter}
-            {@const reading = readings.find((item) => item.parameter === parameter)}
-            {@const status = statusFor(reading)}
-            <div class="metric-card {status}">
-                <div class="metric-card-top">
-                    <span class="metric-card-label"><span class="metric-icon"><SensorIcon name={parameter} size={16} /></span>{labels[parameter]}</span>
-                    <i class="status-pulse"></i>
-                </div>
-                <strong>{formatValue(reading?.nilai ?? null)}</strong>
-                <small>{reading?.satuan ?? 'belum ada data'} · {statusLabel(status)}</small>
-            </div>
-        {/each}
-    </div>
-
-    <section class="history-section">
+    <section class="sensor-chart-section">
         <div class="section-title-row">
-            <div><h2>Riwayat pertumbuhan kolam</h2><p>Perubahan bobot rata-rata dan biomassa dari waktu virtual.</p></div>
-            <span class="tiny muted">{history.length} hari terekam</span>
+            <div>
+                <h2>Riwayat kualitas air & populasi</h2>
+                <p>Satu tampilan untuk melihat dinamika sensor atas/bawah, pertumbuhan ikan, dan kematian harian.</p>
+            </div>
+            <div class="chart-section-meta">
+                <span>{chartModel.dates.length} titik · {chartRangeLabel}</span>
+                <span>Sinkron otomatis · {lastUpdated || '—'}</span>
+            </div>
         </div>
-        {#if history.length === 0}
-            <div class="card history-empty">Riwayat akan muncul setelah simulasi melewati satu hari virtual.</div>
-        {:else}
-            <div class="history-layout">
-                <div class="card history-chart">
-                    <div class="history-chart-head"><b>Bobot rata-rata ikan</b><span>gram</span></div>
-                    <div class="history-bars">
-                        {#each history.slice(-14) as row}
-                            <div class="history-bar-wrap" title={`${row.tanggal}: ${row.bobot_rata_g} g`}>
-                                <span class="history-bar" style={`height:${Math.max(8, Math.min(100, row.bobot_rata_g))}%`}></span>
-                                <small>{row.tanggal.slice(5)}</small>
-                            </div>
+
+        <div class="card sensor-chart-card">
+            <div class="chart-head">
+                <div>
+                    <h3>Indikator operasional kolam</h3>
+                    <p>Centang legenda untuk menampilkan atau menyembunyikan garis. Solid = zona atas, putus-putus = zona bawah. Arahkan kursor ke salah satu garis untuk melihat nilai titik yang dipilih.</p>
+                </div>
+                <div class="chart-head-side">
+                    <div class="chart-range-tabs" role="group" aria-label="Rentang waktu chart">
+                        {#each chartRanges as range}
+                            <button
+                                type="button"
+                                class:active={chartRange === range.value}
+                                aria-pressed={chartRange === range.value}
+                                onclick={() => changeChartRange(range.value)}
+                            >{range.label}</button>
                         {/each}
                     </div>
-                </div>
-                <div class="card death-card">
-                    <div class="card-head"><div class="grow"><h3>Ikan mati</h3><p>Terpantau dari proses harian.</p></div><strong class="death-total">{simulation?.ikan.jumlah_mati ?? 0}</strong></div>
-                    {#if deathCauses.length === 0}
-                        <div class="death-clear">Belum ada kematian tercatat.</div>
-                    {:else}
-                        {#each deathCauses as cause}
-                            <div class="death-row"><span><i></i>{cause.penyebab.replaceAll('_', ' ')}</span><b>{cause.jumlah}</b></div>
-                        {/each}
-                    {/if}
+                    <span class="chart-live"><i></i> Data historis</span>
                 </div>
             </div>
-        {/if}
+
+            {#if chartModel.dates.length === 0}
+                <div class="chart-empty">Riwayat akan muncul setelah simulasi melewati satu hari virtual.</div>
+            {:else}
+                <div class="chart-legend">
+                    {#each chartModel.series as item (item.key)}
+                        <label class="chart-legend-item" class:muted={hiddenChartSeries.includes(item.key)}>
+                            <input
+                                type="checkbox"
+                                checked={!hiddenChartSeries.includes(item.key)}
+                                onchange={() => toggleChartSeries(item.key)}
+                            />
+                            <i class:dashed={item.dashed} style={`--line-color:${item.color}`}></i>
+                            <span>{item.label}</span>
+                            <b>{formatChartValue(item.latest, item.unit)}</b>
+                        </label>
+                    {/each}
+                </div>
+
+                {#if chartModel.sampleCount < 2}
+                    <div class="chart-range-note">
+                        {#if chartModel.sampleCount === 0}
+                            Belum ada sampel sensor pada rentang ini.
+                        {:else}
+                            Baru ada 1 sampel sensor pada rentang ini.
+                        {/if}
+                        {#if latestReadingTime}
+                            Pembacaan terakhir {formatVirtualTime(latestReadingTime)}.
+                        {/if}
+                        Titik live tetap memakai nilai terakhir; interval pembacaan perangkat sekitar 10 menit.
+                    </div>
+                {/if}
+
+                <div class="chart-hover-readout" class:active={chartHoverSeries !== null && chartHoverPoint !== null} aria-live="polite">
+                    {#if chartHoverSeries !== null && chartHoverPoint !== null}
+                        <i style={`--line-color:${chartHoverSeries.color}`}></i>
+                        <span>{chartHoverSeries.label}</span>
+                        <strong>{formatChartValue(chartHoverPoint.value, chartHoverSeries.unit)}</strong>
+                        <small>{chartTooltipDate(chartHoverPoint.date)}</small>
+                    {:else}
+                        <span class="chart-hover-hint">Arahkan kursor ke salah satu garis untuk melihat nilainya.</span>
+                    {/if}
+                </div>
+
+                <div class="chart-plot">
+                    <div class="chart-scroll">
+                    <svg
+                        viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+                        role="img"
+                        aria-label="Grafik riwayat suhu, oksigen, pH, amonia, level air, pertumbuhan ikan, dan ikan mati"
+                        onmousemove={handleChartHover}
+                        onmouseleave={clearChartHover}
+                    >
+                        {#each [0, 1, 2, 3, 4] as gridIndex}
+                            {@const gridY = CHART_PAD.top + (gridIndex / 4) * (CHART_HEIGHT - CHART_PAD.top - CHART_PAD.bottom)}
+                            <line
+                                class="chart-grid-line"
+                                x1={CHART_PAD.left}
+                                x2={CHART_WIDTH - CHART_PAD.right}
+                                y1={gridY}
+                                y2={gridY}
+                            />
+                            <text
+                                class="chart-y-label"
+                                x={CHART_PAD.left - 8}
+                                y={gridY + 3}
+                                text-anchor="end"
+                            >{100 - gridIndex * 25}%</text>
+                        {/each}
+
+                        <line
+                            class="chart-axis-line"
+                            x1={CHART_PAD.left}
+                            x2={CHART_WIDTH - CHART_PAD.right}
+                            y1={CHART_HEIGHT - CHART_PAD.bottom}
+                            y2={CHART_HEIGHT - CHART_PAD.bottom}
+                        />
+                        <line
+                            class="chart-axis-line"
+                            x1={CHART_PAD.left}
+                            x2={CHART_PAD.left}
+                            y1={CHART_PAD.top}
+                            y2={CHART_HEIGHT - CHART_PAD.bottom}
+                        />
+                        <text
+                            class="chart-axis-title"
+                            x={(CHART_PAD.left + CHART_WIDTH - CHART_PAD.right) / 2}
+                            y={CHART_HEIGHT - 4}
+                            text-anchor="middle"
+                        >{chartRange === '1mo' || chartRange === '1y' ? 'Tanggal' : 'Waktu'}</text>
+                        <text
+                            class="chart-axis-title"
+                            transform={`translate(10 ${(CHART_PAD.top + CHART_HEIGHT - CHART_PAD.bottom) / 2}) rotate(-90)`}
+                            text-anchor="middle"
+                        >Indeks relatif</text>
+
+                        {#each chartModel.xLabels as label}
+                            <text class="chart-axis-label" x={label.x} y={CHART_HEIGHT - 18} text-anchor="middle">{label.label}</text>
+                        {/each}
+
+                        {#each visibleChartSeries as item (item.key)}
+                            <path
+                                class="chart-series"
+                                class:dashed={item.dashed}
+                                class:hovered={item.key === chartHoverSeriesKey}
+                                d={chartPath(item.points)}
+                                fill="none"
+                                stroke={item.color}
+                            />
+                            {#if item.points.length > 0}
+                                {@const lastPoint = item.points[item.points.length - 1]}
+                                <circle cx={lastPoint.x} cy={lastPoint.y} r="3.5" fill={item.color} />
+                            {/if}
+                        {/each}
+
+                        {#if chartHoverSeries !== null && chartHoverPoint !== null && chartHoverX !== null}
+                            <line
+                                class="chart-crosshair"
+                                x1={chartHoverX}
+                                x2={chartHoverX}
+                                y1={CHART_PAD.top}
+                                y2={CHART_HEIGHT - CHART_PAD.bottom}
+                            />
+                            <circle
+                                cx={chartHoverPoint.x}
+                                cy={chartHoverPoint.y}
+                                r="4.5"
+                                fill="#ffffff"
+                                stroke={chartHoverSeries.color}
+                                stroke-width="2.5"
+                            />
+                        {/if}
+                    </svg>
+                    </div>
+                </div>
+
+                <div class="chart-footnote">
+                    <span><i class="chart-legend-line solid"></i> Zona atas</span>
+                    <span><i class="chart-legend-line dashed"></i> Zona bawah</span>
+                    <span>Skala vertikal dinormalisasi per indikator agar seluruh metrik dapat dibandingkan dalam satu chart.</span>
+                </div>
+            {/if}
+        </div>
     </section>
 {/if}
 

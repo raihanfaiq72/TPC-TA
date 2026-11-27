@@ -51,6 +51,7 @@ Docs/API/
     ├── Baca Sensor.yml         # POST /api/kolam/{id}/sensor/baca
     ├── Pembacaan Terbaru.yml   # GET /api/kolam/{id}/sensor/terbaru
     ├── Riwayat Pembacaan.yml   # GET /api/kolam/{id}/sensor/riwayat
+    ├── Grafik Sensor.yml       # GET /api/kolam/{id}/sensor/grafik
     └── Atur Status Sensor.yml  # PATCH /api/kolam/{id}/sensor/{perangkatId}
 ```
 
@@ -74,7 +75,7 @@ Docs/API/
 10. Buka folder `Analisis` → `Daftar Alert` → `Rekomendasi Terbaru` →
     `Ringkasan Validasi`.
 11. Buka folder `Sensor` → `Baca Sensor` → `Pembacaan Terbaru` →
-    `Riwayat Pembacaan`.
+    `Riwayat Pembacaan` → `Grafik Sensor`.
 
 Kalau `baseUrl` berbeda, ubah di:
 
@@ -117,6 +118,7 @@ variables:
 | POST | `/api/kolam/{id}/sensor/baca` | Baca Sensor | Baca perangkat yang jatuh tempo |
 | GET | `/api/kolam/{id}/sensor/terbaru` | Pembacaan Terbaru | Pembacaan terakhir tiap perangkat |
 | GET | `/api/kolam/{id}/sensor/riwayat` | Riwayat Pembacaan | Riwayat sensor terfilter |
+| GET | `/api/kolam/{id}/sensor/grafik` | Grafik Sensor | Agregasi sensor per range chart |
 | PATCH | `/api/kolam/{id}/sensor/{perangkatId}` | Atur Status Sensor | Aktifkan/matikan perangkat |
 
 > **Route Sampling sudah aktif** dan `AnalisisController` sudah tersedia,
@@ -171,6 +173,8 @@ API otomatis memakai prefix `/api` dari `bootstrap/app.php`. Alias lama
 - **Pembacaan Terbaru** memeriksa response berupa array.
 - **Riwayat Pembacaan** memakai query `parameter`, `zona`, `dari`, dan
   `sampai`, lalu memeriksa array hasil.
+- **Grafik Sensor** memakai query `range` (`1m`, `1h`, `1d`, `1w`, `1mo`,
+  `1y`) dan memeriksa array `waktu`, `zona`, `parameter`, serta `nilai`.
 - **Atur Status Sensor** mengirim `status` `aktif`/`mati` dan memeriksa
   pesan response.
 - **Daftar Alert**, **Rekomendasi Terbaru**, dan **Ringkasan Validasi**

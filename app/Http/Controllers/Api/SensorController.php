@@ -11,6 +11,7 @@ use App\Models\Perangkat;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class SensorController extends Controller
 {
@@ -210,6 +211,84 @@ class SensorController extends Controller
             ->values();
 
         return response()->json($rows);
+    }
+
+    public function grafik(Request $request, int $id): JsonResponse
+    {
+        $kolam = Kolam::query()->find($id);
+
+        if (! $kolam instanceof Kolam) {
+            return response()->json([
+                'message' => 'Kolam tidak ditemukan.',
+            ], 404);
+        }
+
+        $range = (string) $request->query('range', '1d');
+        $ranges = [
+            '1m' => ['seconds' => 60, 'bucket' => 10],
+            '1h' => ['seconds' => 3600, 'bucket' => 300],
+            '1d' => ['seconds' => 86400, 'bucket' => 3600],
+            '1w' => ['seconds' => 604800, 'bucket' => 86400],
+            '1mo' => ['seconds' => 2592000, 'bucket' => 86400],
+            '1y' => ['seconds' => 31536000, 'bucket' => 2592000],
+        ];
+
+        $config = $ranges[$range] ?? $ranges['1d'];
+        $bucketSeconds = $config['bucket'];
+        $end = $this->waktuVirtual($kolam);
+        $start = $end->copy()->subSeconds($config['seconds']);
+
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'sqlite') {
+            $bucketEpochExpr = "CAST(CAST(strftime('%s', pembacaan_sensors.waktu_ukur) AS INTEGER) / {$bucketSeconds} AS INTEGER) * {$bucketSeconds}";
+        } else {
+            // UNIX_TIMESTAMP() memakai zona waktu sesi database, sedangkan
+            // kolom waktu disimpan sebagai UTC. Koreksi offset agar bucket
+            // tetap UTC dan label waktu tidak bergeser di browser.
+            $offset = (int) DB::selectOne(
+                'SELECT TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), NOW()) AS tz_offset'
+            )->tz_offset;
+            $bucketEpochExpr = "(FLOOR((UNIX_TIMESTAMP(pembacaan_sensors.waktu_ukur) + {$offset}) / {$bucketSeconds}) * {$bucketSeconds})";
+        }
+
+        $rows = PembacaanSensor::query()
+            ->leftJoin('zona_kolams', 'zona_kolams.id', '=', 'pembacaan_sensors.zona_id')
+            ->where('pembacaan_sensors.kolam_id', $id)
+            ->whereNotNull('pembacaan_sensors.nilai')
+            ->whereIn('pembacaan_sensors.kualitas_data', ['normal', 'outlier'])
+            ->where('pembacaan_sensors.waktu_ukur', '>=', $start)
+            ->where('pembacaan_sensors.waktu_ukur', '<=', $end)
+            ->selectRaw("{$bucketEpochExpr} as bucket_epoch, pembacaan_sensors.parameter, zona_kolams.nama as zona, AVG(pembacaan_sensors.nilai) as nilai")
+            ->groupByRaw("{$bucketEpochExpr}, pembacaan_sensors.parameter, zona_kolams.nama")
+            ->orderBy('bucket_epoch')
+            ->get()
+            ->map(fn ($row): array => [
+                'waktu' => Carbon::createFromTimestampUTC((int) $row->bucket_epoch)->format('Y-m-d H:i:s'),
+                'zona' => $row->zona,
+                'parameter' => (string) $row->parameter,
+                'nilai' => (float) $row->nilai,
+            ])
+            ->values();
+
+        return response()->json($rows);
+    }
+
+    private function waktuVirtual(Kolam $kolam): Carbon
+    {
+        $virtual = Carbon::parse($kolam->waktu_sandbox_sekarang);
+
+        if ($kolam->waktu_sandbox_sinkron === null) {
+            return $virtual;
+        }
+
+        $elapsed = max(
+            0,
+            Carbon::now()->getTimestamp()
+                - Carbon::parse($kolam->waktu_sandbox_sinkron)->getTimestamp(),
+        );
+
+        return $virtual->copy()->addSeconds($elapsed);
     }
 
     public function riwayat(Request $request, int $id): JsonResponse

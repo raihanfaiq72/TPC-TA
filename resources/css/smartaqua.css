@@ -546,6 +546,21 @@
 .aqua-app .btn.block {
     width: 100%;
 }
+.aqua-app .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.aqua-app .btn:disabled:hover,
+.aqua-app .btn.pri:disabled:hover {
+    background: var(--card);
+}
+.aqua-app .btn.pri:disabled {
+    background: var(--green);
+    color: #fff;
+}
+.aqua-app .btn:disabled:active {
+    transform: none;
+}
 .aqua-app .badge {
     display: inline-flex;
     align-items: center;
@@ -938,6 +953,14 @@
     color: var(--text2);
     margin-top: 2px;
 }
+.aqua-app .row-i .chev {
+    width: 16px;
+    height: 16px;
+    stroke: var(--muted);
+    fill: none;
+    stroke-width: 2.2;
+    flex: 0 0 auto;
+}
 
 /* langkah (stepper) */
 .aqua-app .steps {
@@ -1001,6 +1024,9 @@
 .aqua-app .field .hint {
     font-size: 12px;
     color: var(--muted);
+}
+.aqua-app .field.spaced {
+    margin-top: 14px;
 }
 .aqua-app input,
 .aqua-app select {
@@ -1883,7 +1909,11 @@
         display: none;
     }
     .aqua-app .content {
-        padding: 16px 14px 100px;
+        padding: 16px 14px 180px;
+    }
+    /* Bar lengket tidak boleh tertutup navigasi bawah. */
+    .aqua-app .stickybar {
+        bottom: 72px;
     }
     .aqua-app .topbar {
         padding: 11px 14px;
@@ -3359,4 +3389,1467 @@
 @keyframes sensor-node-pulse {
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.06); }
+}
+/* Header operasional kolam: hierarki data, status, dan aksi. */
+.aqua-app .pond-detail-hero.corporate-hero {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 238px;
+    align-items: stretch;
+    gap: 26px;
+    overflow: hidden;
+    padding: 28px 30px;
+    border: 1px solid rgba(169, 205, 230, 0.24);
+    border-radius: 24px;
+    color: #fff;
+    background:
+        radial-gradient(circle at 78% -20%, rgba(76, 190, 216, 0.3), transparent 44%),
+        linear-gradient(125deg, #102a4c 0%, #123d5d 58%, #10596c 100%);
+    box-shadow: 0 24px 52px -30px rgba(8, 31, 63, 0.72);
+}
+.aqua-app .pond-detail-hero.corporate-hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 36px 36px;
+    mask-image: linear-gradient(90deg, transparent, #000 38%, #000);
+    pointer-events: none;
+}
+.aqua-app .corporate-hero .hero-content,
+.aqua-app .corporate-hero .hero-actions {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+}
+.aqua-app .corporate-hero .hero-topline {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.aqua-app .corporate-hero .eyebrow {
+    color: #a9f3d0;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+}
+.aqua-app .corporate-hero .hero-code,
+.aqua-app .corporate-hero .hero-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid rgba(191, 222, 239, 0.22);
+    border-radius: 999px;
+    color: #d9ebf7;
+    background: rgba(4, 22, 43, 0.24);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
+.aqua-app .corporate-hero .hero-status {
+    color: #b9f1d2;
+    border-color: rgba(137, 230, 174, 0.26);
+    background: rgba(22, 121, 74, 0.24);
+}
+.aqua-app .corporate-hero .hero-status i {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #68e3a0;
+    box-shadow: 0 0 0 3px rgba(104, 227, 160, 0.12);
+}
+.aqua-app .corporate-hero .hero-status.offline {
+    color: #ffd0c4;
+    border-color: rgba(255, 157, 132, 0.28);
+    background: rgba(125, 43, 31, 0.28);
+}
+.aqua-app .corporate-hero .hero-status.offline i {
+    background: #ff9d84;
+    box-shadow: 0 0 0 3px rgba(255, 157, 132, 0.12);
+}
+.aqua-app .corporate-hero .hero-status.warning {
+    color: #ffe2a4;
+    border-color: rgba(247, 200, 105, 0.3);
+    background: rgba(126, 83, 20, 0.28);
+}
+.aqua-app .corporate-hero .hero-status.warning i {
+    background: #f5c45c;
+    box-shadow: 0 0 0 3px rgba(245, 196, 92, 0.13);
+}
+.aqua-app .corporate-hero .hero-title-block {
+    margin-top: 15px;
+}
+.aqua-app .corporate-hero h1 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1.12;
+}
+.aqua-app .corporate-hero .lead {
+    max-width: 620px;
+    margin: 8px 0 0;
+    color: #c6dbea;
+    font-size: 12px;
+    line-height: 1.65;
+}
+.aqua-app .corporate-hero .hero-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 9px;
+    max-width: 690px;
+    margin-top: 21px;
+}
+.aqua-app .corporate-hero .hero-metric {
+    min-width: 0;
+    padding: 11px 12px;
+    border: 1px solid rgba(190, 222, 239, 0.16);
+    border-radius: 12px;
+    background: rgba(4, 22, 43, 0.2);
+}
+.aqua-app .corporate-hero .hero-metric-label {
+    display: block;
+    overflow: hidden;
+    color: #9ebbd0;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.aqua-app .corporate-hero .hero-metric b {
+    display: block;
+    margin-top: 4px;
+    color: #ffffff;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+}
+.aqua-app .corporate-hero .hero-metric b em {
+    color: #a9c9dc;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 700;
+}
+.aqua-app .corporate-hero .hero-metric small {
+    display: block;
+    margin-top: 3px;
+    color: #91aec4;
+    font-size: 9px;
+    font-weight: 600;
+}
+.aqua-app .corporate-hero .virtual-clock {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 15px;
+    padding: 9px 12px;
+    border: 1px solid rgba(190, 222, 239, 0.2);
+    border-radius: 11px;
+    color: #ffffff;
+    background: rgba(4, 22, 43, 0.25);
+    box-shadow: none;
+}
+.aqua-app .corporate-hero .virtual-clock-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #a8c5d8;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.aqua-app .corporate-hero .clock-dot {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #70dbe0;
+}
+.aqua-app .corporate-hero .virtual-clock-value {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+}
+.aqua-app .corporate-hero .virtual-clock-value b {
+    color: #e9f5fb;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.aqua-app .corporate-hero .virtual-clock-time {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+.aqua-app .corporate-hero .virtual-clock-time i {
+    color: #83b9c9;
+    font-style: normal;
+    padding: 0 1px;
+}
+.aqua-app .corporate-hero .hero-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 9px;
+    width: 100%;
+    padding: 15px;
+    border: 1px solid rgba(190, 222, 239, 0.18);
+    border-radius: 16px;
+    background: rgba(3, 18, 37, 0.3);
+}
+.aqua-app .corporate-hero .hero-actions-label {
+    color: #a8c5d8;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.aqua-app .corporate-hero .hero-actions .btn {
+    width: 100%;
+    min-height: 36px;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+}
+.aqua-app .corporate-hero .hero-actions .hero-primary-action {
+    border-color: #ffffff;
+    color: #12324c;
+    background: #ffffff;
+}
+.aqua-app .corporate-hero .hero-actions .hero-primary-action:hover {
+    color: #0d273d;
+    background: #eaf7fb;
+}
+.aqua-app .corporate-hero .hero-actions .hero-secondary-action {
+    border-color: rgba(190, 222, 239, 0.26);
+    color: #e5f2fa;
+    background: rgba(255, 255, 255, 0.06);
+}
+.aqua-app .corporate-hero .hero-actions .hero-secondary-action:hover {
+    border-color: rgba(190, 222, 239, 0.48);
+    background: rgba(255, 255, 255, 0.12);
+}
+.aqua-app .corporate-hero .hero-actions .live-note {
+    margin-top: 4px;
+    color: #a9c2d4;
+    font-size: 9px;
+    line-height: 1.5;
+}
+@media (max-width: 980px) {
+    .aqua-app .pond-detail-hero.corporate-hero {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 18px;
+    }
+    .aqua-app .corporate-hero .hero-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .aqua-app .corporate-hero .hero-actions-label,
+    .aqua-app .corporate-hero .hero-actions .live-note {
+        grid-column: 1 / -1;
+    }
+}
+.aqua-app .simulator-deck {
+    display: grid;
+    gap: 16px;
+    margin: 18px 0;
+    padding: 20px 22px;
+    border: 1px solid #cbd9f4;
+    border-radius: 18px;
+    color: #14235c;
+    background: #ffffff;
+    box-shadow: 0 14px 30px -24px rgba(20, 48, 100, 0.38);
+}
+.aqua-app .sim-deck-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+}
+.aqua-app .sim-deck-header > div {
+    min-width: 0;
+}
+.aqua-app .sim-deck-header .sim-label {
+    color: #263c92;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+}
+.aqua-app .sim-deck-heading {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin-top: 4px;
+}
+.aqua-app .sim-deck-heading h2 {
+    margin: 0;
+    color: #14235c;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+}
+.aqua-app .sim-deck-header p {
+    max-width: 650px;
+    margin: 5px 0 0;
+    color: #64748b;
+    font-size: 11px;
+    line-height: 1.55;
+}
+.aqua-app .sim-run-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid #d6e3f4;
+    border-radius: 999px;
+    color: #52647e;
+    background: #f5f9ff;
+    font-size: 9px;
+    font-weight: 800;
+}
+.aqua-app .sim-run-status i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #94a3b8;
+}
+.aqua-app .sim-run-status.active {
+    color: #11633a;
+    border-color: #b9e4c8;
+    background: #eaf8ef;
+}
+.aqua-app .sim-run-status.active i {
+    background: #21a366;
+}
+.aqua-app .sim-run-status.busy {
+    color: #805000;
+    border-color: #ecd797;
+    background: #fff8e5;
+}
+.aqua-app .sim-run-status.busy i {
+    background: #d99b23;
+    animation: aqua-pulse 1.2s infinite;
+}
+.aqua-app .simulator-deck .sim-harvest {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    flex: 0 0 auto;
+    padding: 7px 10px;
+    border: 1px solid #ecd797;
+    border-radius: 10px;
+    color: #805000;
+    background: #fff8e5;
+    font-size: 9px;
+    font-weight: 800;
+}
+.aqua-app .simulator-deck .sim-harvest span {
+    color: #805000;
+}
+.aqua-app .simulator-deck .sim-harvest b {
+    color: #805000;
+    font-size: 10px;
+}
+.aqua-app .simulator-deck .sim-harvest.ready {
+    border-color: #b9e4c8;
+    color: #11633a;
+    background: #eaf8ef;
+}
+.aqua-app .simulator-deck .sim-harvest.ready span,
+.aqua-app .simulator-deck .sim-harvest.ready b {
+    color: #11633a;
+}
+.aqua-app .sim-deck-grid {
+    display: grid;
+    grid-template-columns: minmax(210px, 0.8fr) minmax(260px, 1.4fr) minmax(220px, 0.8fr);
+    align-items: center;
+    gap: 20px;
+    padding-top: 14px;
+    border-top: 1px solid #e7edf7;
+}
+.aqua-app .sim-deck-clock {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
+}
+.aqua-app .sim-play-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 5px 10px 5px 6px;
+    border: 1px solid #cbd9f4;
+    border-radius: 11px;
+    color: #263c92;
+    background: #f7faff;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.18s, background 0.18s;
+}
+.aqua-app .sim-play-control:hover {
+    border-color: #8fa9db;
+    background: #edf4ff;
+}
+.aqua-app .sim-play-glyph {
+    display: grid;
+    place-items: center;
+    width: 29px;
+    height: 29px;
+    border-radius: 8px;
+    color: #fff;
+    background: #263c92;
+    font-size: 11px;
+    font-weight: 900;
+}
+.aqua-app .sim-play-control.playing .sim-play-glyph {
+    color: #263c92;
+    background: #f7d84a;
+}
+.aqua-app .sim-play-control > span:last-child b,
+.aqua-app .sim-play-control > span:last-child small {
+    display: block;
+    color: #263c92;
+    line-height: 1.15;
+}
+.aqua-app .sim-play-control > span:last-child b {
+    font-size: 10px;
+    font-weight: 900;
+}
+.aqua-app .sim-play-control > span:last-child small {
+    margin-top: 2px;
+    color: #64748b;
+    font-size: 8px;
+    font-weight: 700;
+}
+.aqua-app .sim-clock-readout {
+    min-width: 0;
+}
+.aqua-app .sim-clock-readout > span,
+.aqua-app .sim-clock-readout > b,
+.aqua-app .sim-clock-readout > strong {
+    display: block;
+}
+.aqua-app .sim-clock-readout > span {
+    color: #7b8aa6;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.aqua-app .sim-clock-readout > b {
+    margin-top: 3px;
+    color: #263c92;
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.aqua-app .sim-clock-readout > strong {
+    margin-top: 1px;
+    color: #14235c;
+    font-size: 17px;
+    font-weight: 900;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+.aqua-app .sim-clock-readout > strong i {
+    color: #7b8aa6;
+    font-style: normal;
+    padding: 0 1px;
+}
+.aqua-app .sim-deck-progress {
+    min-width: 0;
+}
+.aqua-app .sim-deck-progress .player-progress-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    color: #64748b;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+}
+.aqua-app .sim-deck-progress .player-progress-head b {
+    color: #263c92;
+    font-size: 10px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.aqua-app .sim-deck-progress .player-progress-rail {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 7px;
+    margin-top: 8px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: #e4ecf8;
+    cursor: pointer;
+    text-align: left;
+}
+.aqua-app .sim-deck-progress .player-progress-rail:disabled {
+    cursor: wait;
+    opacity: 0.7;
+}
+.aqua-app .sim-deck-progress .player-progress-rail i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #263c92, #35a7c7);
+    transition: width 0.25s ease;
+}
+.aqua-app .sim-deck-progress .player-progress-rail.active i {
+    box-shadow: 0 0 0 3px rgba(53, 167, 199, 0.12);
+}
+.aqua-app .sim-deck-progress .player-progress-marker {
+    position: absolute;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    background: #263c92;
+    box-shadow: 0 1px 4px rgba(20, 48, 100, 0.35);
+    transform: translate(-50%, -50%);
+    transition: left 0.25s ease;
+    pointer-events: none;
+}
+.aqua-app .sim-deck-progress .player-progress-scale {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    color: #7b89a6;
+    font-size: 8px;
+    font-weight: 700;
+}
+.aqua-app .sim-deck-progress .sim-step-progress {
+    margin-top: 7px;
+    padding: 6px 8px;
+    border: 1px solid #c9d9f4;
+    border-radius: 8px;
+    background: #f7faff;
+}
+.aqua-app .sim-deck-progress .sim-step-progress-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: #52647e;
+    font-size: 8px;
+    font-weight: 800;
+}
+.aqua-app .sim-deck-progress .sim-step-progress-head b {
+    color: #263c92;
+    font-size: 9px;
+}
+.aqua-app .sim-deck-progress .sim-step-progress-rail {
+    height: 4px;
+    margin-top: 4px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #dbe6f8;
+}
+.aqua-app .sim-deck-progress .sim-step-progress-rail i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #263c92, #35a7c7);
+    transition: width 0.25s ease;
+}
+.aqua-app .sim-deck-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    align-items: end;
+}
+.aqua-app .sim-deck-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    color: #52647e;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+.aqua-app .sim-deck-field .step-input {
+    display: flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 3px 4px 3px 8px;
+    border: 1px solid #cbd9f4;
+    border-radius: 9px;
+    background: #ffffff;
+}
+.aqua-app .sim-deck-field .step-input input {
+    width: 38px;
+    padding: 4px 2px;
+    border: 0;
+    outline: 0;
+    color: #14235c !important;
+    background: transparent;
+    font-size: 12px;
+    font-weight: 800;
+    text-align: right;
+}
+.aqua-app .sim-deck-field .step-input select {
+    width: auto;
+    min-width: 65px;
+    padding: 4px 18px 4px 4px;
+    border: 0;
+    outline: 0;
+    color: #14235c !important;
+    background: #ffffff;
+    font-size: 11px;
+    font-weight: 800;
+}
+.aqua-app .sim-deck-field .player-speed-select {
+    min-height: 34px;
+    padding: 5px 8px;
+    border: 1px solid #cbd9f4;
+    border-radius: 9px;
+    color: #14235c !important;
+    background: #ffffff;
+    font-size: 11px;
+    font-weight: 800;
+}
+.aqua-app .sim-deck-field .speed-options {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3px;
+    min-height: 34px;
+    padding: 3px;
+    border: 1px solid #cbd9f4;
+    border-radius: 9px;
+    background: #f5f9ff;
+}
+.aqua-app .sim-deck-field .speed-options button {
+    min-width: 0;
+    min-height: 27px;
+    padding: 0 3px;
+    border-radius: 6px;
+    color: #52647e;
+    background: transparent;
+    font-size: 10px;
+    font-weight: 800;
+    transition: color 0.16s, background 0.16s, box-shadow 0.16s;
+}
+.aqua-app .sim-deck-field .speed-options button:hover {
+    color: #263c92;
+    background: #e8f0fc;
+}
+.aqua-app .sim-deck-field .speed-options button.selected {
+    color: #ffffff;
+    background: #263c92;
+    box-shadow: 0 2px 5px -2px rgba(38, 60, 146, 0.55);
+}
+.aqua-app .simulator-deck .player-advance {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    grid-column: 1 / -1;
+    gap: 6px;
+    min-height: 35px;
+    padding: 5px 10px;
+    border: 1px solid #263c92;
+    border-radius: 9px;
+    color: #ffffff;
+    background: #263c92;
+    font-size: 10px;
+    font-weight: 800;
+    white-space: nowrap;
+    transition: background 0.18s, transform 0.18s;
+}
+.aqua-app .simulator-deck .player-advance:hover {
+    background: #1b2c6f;
+}
+.aqua-app .simulator-deck .player-advance:disabled {
+    opacity: 0.55;
+    cursor: wait;
+}
+.aqua-app .simulator-deck .player-advance span {
+    display: grid;
+    place-items: center;
+    width: 17px;
+    height: 17px;
+    border-radius: 5px;
+    color: #263c92;
+    background: #f7d84a;
+    font-size: 14px;
+    line-height: 1;
+}
+.aqua-app .simulator-deck .player-advance b {
+    color: #ffffff;
+}
+.aqua-app .sim-deck-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #e7edf7;
+}
+.aqua-app .sim-deck-hint {
+    max-width: 620px;
+    color: #64748b;
+    font-size: 10px;
+    line-height: 1.45;
+}
+.aqua-app .sim-deck-footer .player-actions {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: 0 0 auto;
+}
+.aqua-app .sim-deck-footer .player-actions .btn {
+    min-height: 32px;
+    padding: 0 10px;
+    font-size: 10px;
+    white-space: nowrap;
+}
+@media (max-width: 1100px) {
+    .aqua-app .sim-deck-grid {
+        grid-template-columns: minmax(210px, 0.8fr) minmax(260px, 1.2fr);
+    }
+    .aqua-app .sim-deck-controls {
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .aqua-app .simulator-deck .player-advance {
+        grid-column: auto;
+    }
+}
+@media (max-width: 760px) {
+    .aqua-app .simulator-deck {
+        padding: 17px 16px;
+    }
+    .aqua-app .sim-deck-header,
+    .aqua-app .sim-deck-footer {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+    .aqua-app .sim-deck-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+    }
+    .aqua-app .sim-deck-controls {
+        grid-column: auto;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .aqua-app .simulator-deck .player-advance {
+        grid-column: 1 / -1;
+    }
+    .aqua-app .sim-deck-footer .player-actions {
+        width: 100%;
+    }
+    .aqua-app .sim-deck-footer .player-actions .btn {
+        flex: 1;
+        justify-content: center;
+    }
+}
+@media (max-width: 620px) {
+    .aqua-app .pond-detail-hero.corporate-hero {
+        padding: 22px 18px;
+    }
+    .aqua-app .corporate-hero h1 {
+        font-size: 27px;
+    }
+    .aqua-app .corporate-hero .hero-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .aqua-app .corporate-hero .virtual-clock {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 5px;
+    }
+    .aqua-app .corporate-hero .hero-actions {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .aqua-app .corporate-hero .hero-actions-label,
+    .aqua-app .corporate-hero .hero-actions .live-note {
+        grid-column: auto;
+    }
+}
+/* Preset tunggal: kecepatan + durasi cepat. */
+.aqua-app .sim-deck-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+.aqua-app .sim-preset-label {
+    color: #52647e;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
+.aqua-app .sim-preset-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-height: 36px;
+    padding: 3px;
+    border: 1px solid #cbd9f4;
+    border-radius: 9px;
+    background: #f5f9ff;
+}
+.aqua-app .sim-preset-speeds,
+.aqua-app .sim-preset-durations {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+}
+.aqua-app .sim-preset-chip {
+    min-height: 28px;
+    padding: 0 6px;
+    border-radius: 6px;
+    color: #52647e;
+    background: transparent;
+    font-size: 10px;
+    font-weight: 800;
+    white-space: nowrap;
+    transition: color 0.16s, background 0.16s, box-shadow 0.16s;
+}
+.aqua-app .sim-preset-chip:hover {
+    color: #263c92;
+    background: #e8f0fc;
+}
+.aqua-app .sim-preset-chip.selected {
+    color: #ffffff;
+    background: #263c92;
+    box-shadow: 0 2px 5px -2px rgba(38, 60, 146, 0.55);
+}
+.aqua-app .sim-preset-chip.duration {
+    color: #1b5f83;
+    background: #eaf5fb;
+}
+.aqua-app .sim-preset-chip.duration:hover {
+    color: #123f5b;
+    background: #d9edf8;
+}
+.aqua-app .sim-preset-chip:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+.aqua-app .sim-preset-divider {
+    width: 1px;
+    height: 20px;
+    margin: 0 1px;
+    background: #cbd9f4;
+}
+/* Susunan akhir: progress ringkas, tombol jalankan di kanan. */
+.aqua-app .sim-deck-grid {
+    grid-template-columns: minmax(150px, 0.62fr) minmax(190px, 0.82fr) minmax(270px, 1.08fr) auto;
+    grid-template-areas: 'clock progress controls play';
+    gap: 16px;
+}
+.aqua-app .sim-deck-clock { grid-area: clock; }
+.aqua-app .sim-deck-progress {
+    grid-area: progress;
+    width: 100%;
+    max-width: 330px;
+}
+.aqua-app .sim-deck-controls { grid-area: controls; }
+.aqua-app .sim-deck-play {
+    grid-area: play;
+    align-self: center;
+    justify-self: end;
+}
+@media (max-width: 1100px) {
+    .aqua-app .sim-deck-grid {
+        grid-template-columns: minmax(180px, 0.7fr) minmax(220px, 1fr) auto;
+        grid-template-areas:
+            'clock progress play'
+            'controls controls controls';
+    }
+    .aqua-app .sim-deck-progress {
+        max-width: 360px;
+    }
+}
+@media (max-width: 760px) {
+    .aqua-app .sim-deck-grid {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            'clock'
+            'progress'
+            'controls'
+            'play';
+        gap: 14px;
+    }
+    .aqua-app .sim-deck-progress {
+        max-width: none;
+    }
+    .aqua-app .sim-deck-play {
+        justify-self: stretch;
+        width: 100%;
+        justify-content: center;
+    }
+}
+/* Satu chart untuk kualitas air, pertumbuhan, dan kematian. */
+.aqua-app .sensor-chart-section {
+    margin-top: 24px;
+}
+.aqua-app .chart-section-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px 14px;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 700;
+}
+.aqua-app .chart-section-meta span:first-child {
+    color: #263c92;
+    font-weight: 800;
+}
+.aqua-app .sensor-chart-card {
+    padding: 18px 20px 15px;
+    border-color: #d7e2f2;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 14px 30px -26px rgba(20, 48, 100, 0.32);
+}
+.aqua-app .chart-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+.aqua-app .chart-head-side {
+    display: flex;
+    align-items: flex-end;
+    flex-direction: column;
+    gap: 7px;
+    flex: 0 0 auto;
+}
+.aqua-app .chart-range-tabs {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid #d7e2f2;
+    border-radius: 8px;
+    background: #f8fbff;
+}
+.aqua-app .chart-range-tabs button {
+    min-height: 24px;
+    padding: 0 7px;
+    border-radius: 5px;
+    color: #64748b;
+    background: transparent;
+    font-size: 8px;
+    font-weight: 800;
+    white-space: nowrap;
+    transition: color 0.16s, background 0.16s;
+}
+.aqua-app .chart-range-tabs button:hover {
+    color: #263c92;
+    background: #e8f0fc;
+}
+.aqua-app .chart-range-tabs button.active {
+    color: #ffffff;
+    background: #263c92;
+}
+@media (max-width: 900px) {
+    .aqua-app .chart-head-side {
+        align-items: flex-start;
+    }
+}
+.aqua-app .chart-head h3 {
+    margin: 0;
+    color: #14235c;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+.aqua-app .chart-head p {
+    max-width: 700px;
+    margin: 4px 0 0;
+    color: #64748b;
+    font-size: 10px;
+    line-height: 1.5;
+}
+.aqua-app .chart-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    padding: 5px 8px;
+    border: 1px solid #cfe0f5;
+    border-radius: 999px;
+    color: #52647e;
+    background: #f5f9ff;
+    font-size: 8px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.aqua-app .chart-live i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #35a7c7;
+    box-shadow: 0 0 0 3px rgba(53, 167, 199, 0.12);
+}
+.aqua-app .chart-legend {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px 16px;
+    margin: 16px 0 8px;
+    padding: 10px 12px;
+    border: 1px solid #e2ebf7;
+    border-radius: 11px;
+    background: #f8fbff;
+}
+.aqua-app .chart-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: #52647e;
+    font-size: 9px;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+}
+.aqua-app .chart-legend-item input {
+    width: 13px;
+    height: 13px;
+    margin: 0;
+    accent-color: #263c92;
+    cursor: pointer;
+}
+.aqua-app .chart-legend-item.muted {
+    opacity: 0.42;
+}
+.aqua-app .chart-plot {
+    position: relative;
+    width: 100%;
+}
+.aqua-app .chart-scroll {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 0 0;
+}
+.aqua-app .chart-scroll svg {
+    display: block;
+    width: 100%;
+    min-width: 720px;
+    height: auto;
+}
+.aqua-app .chart-y-label,
+.aqua-app .chart-axis-title {
+    fill: #7b8aa6;
+    font-size: 9px;
+    font-weight: 700;
+}
+.aqua-app .chart-axis-title {
+    fill: #52647e;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+}
+.aqua-app .chart-axis-line {
+    stroke: #b8c9e4;
+    stroke-width: 1;
+}
+.aqua-app .chart-crosshair {
+    stroke: #7b8aa6;
+    stroke-width: 1;
+    stroke-dasharray: 3 4;
+    pointer-events: none;
+}
+.aqua-app .chart-range-note {
+    margin: 0 0 8px;
+    padding: 7px 10px;
+    border: 1px solid #f0dfb1;
+    border-radius: 8px;
+    color: #805000;
+    background: #fffaf0;
+    font-size: 9px;
+    line-height: 1.45;
+}
+.aqua-app .chart-hover-readout {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 31px;
+    margin: 0 0 8px;
+    padding: 6px 10px;
+    border: 1px dashed #d7e2f2;
+    border-radius: 8px;
+    color: #7b8aa6;
+    background: #fbfdff;
+    font-size: 9px;
+    transition: border-color 0.16s, background 0.16s, box-shadow 0.16s;
+}
+.aqua-app .chart-hover-readout.active {
+    border-style: solid;
+    border-color: #b8c9e4;
+    background: #f4f9ff;
+    box-shadow: inset 0 0 0 1px rgba(38, 60, 146, 0.03);
+    color: #52647e;
+}
+.aqua-app .chart-hover-readout > i {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--line-color);
+    box-shadow: 0 0 0 3px rgba(38, 60, 146, 0.09);
+}
+.aqua-app .chart-hover-readout > span {
+    overflow: hidden;
+    min-width: 0;
+    color: #263c92;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.aqua-app .chart-hover-readout > strong {
+    color: #14235c;
+    font-size: 10px;
+    font-weight: 900;
+    white-space: nowrap;
+}
+.aqua-app .chart-hover-readout > small {
+    overflow: hidden;
+    margin-left: auto;
+    color: #7b8aa6;
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.aqua-app .chart-hover-readout > .chart-hover-hint {
+    color: #7b8aa6;
+    font-weight: 600;
+    white-space: normal;
+}
+.aqua-app .chart-series.hovered {
+    stroke-width: 3;
+    opacity: 1;
+    filter: drop-shadow(0 0 3px rgba(20, 35, 92, 0.25));
+}
+.aqua-app .chart-series.hovered.dashed {
+    opacity: 1;
+}
+.aqua-app .chart-footnote span:last-child {
+    flex-basis: 100%;
+}
+@media (max-width: 620px) {
+    .aqua-app .chart-scroll svg {
+        min-width: 680px;
+    }
+    .aqua-app .chart-hover-readout {
+        flex-wrap: wrap;
+        gap: 3px 7px;
+    }
+    .aqua-app .chart-hover-readout > small {
+        flex-basis: 100%;
+        margin-left: 16px;
+    }
+}
+.aqua-app .chart-legend-item > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.aqua-app .chart-legend-item > b {
+    margin-left: auto;
+    color: #263c92;
+    font-size: 9px;
+    font-weight: 900;
+    white-space: nowrap;
+}
+.aqua-app .chart-legend-item > i {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 0;
+    border-top: 2px solid var(--line-color);
+}
+.aqua-app .chart-legend-item > i.dashed {
+    border-top-style: dashed;
+}
+.aqua-app .chart-canvas {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 0 0;
+}
+.aqua-app .chart-canvas svg {
+    display: block;
+    width: 100%;
+    min-width: 720px;
+    height: auto;
+}
+.aqua-app .chart-grid-line {
+    stroke: #e6edf7;
+    stroke-width: 1;
+    stroke-dasharray: 3 5;
+}
+.aqua-app .chart-axis-label {
+    fill: #7b8aa6;
+    font-size: 10px;
+    font-weight: 700;
+}
+.aqua-app .chart-series {
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.9;
+}
+.aqua-app .chart-series.dashed {
+    stroke-dasharray: 5 5;
+    opacity: 0.8;
+}
+.aqua-app .chart-footnote {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px 14px;
+    margin-top: 9px;
+    color: #7b8aa6;
+    font-size: 9px;
+    line-height: 1.4;
+}
+.aqua-app .chart-footnote > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+.aqua-app .chart-legend-line {
+    display: inline-block;
+    width: 20px;
+    height: 0;
+    border-top: 2px solid #52647e;
+}
+.aqua-app .chart-legend-line.dashed {
+    border-top-style: dashed;
+}
+.aqua-app .chart-empty {
+    padding: 28px 16px;
+    color: #64748b;
+    font-size: 11px;
+    text-align: center;
+}
+@media (max-width: 900px) {
+    .aqua-app .chart-legend {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (max-width: 620px) {
+    .aqua-app .sensor-chart-card {
+        padding: 15px 13px 12px;
+    }
+    .aqua-app .chart-head {
+        flex-direction: column;
+        gap: 8px;
+    }
+    .aqua-app .chart-legend {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .aqua-app .chart-section-meta {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 3px;
+    }
+}
+.aqua-app .sim-deck-grid {
+    grid-template-columns: minmax(150px, 0.62fr) minmax(200px, 0.9fr) minmax(270px, 1.08fr);
+    grid-template-areas: 'clock progress controls';
+}
+.aqua-app .sim-deck-footer {
+    display: grid;
+    justify-items: center;
+    gap: 9px;
+    padding-top: 14px;
+    border-top: 1px solid #e7edf7;
+}
+.aqua-app .sim-deck-footer-actions {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 9px;
+    width: 100%;
+}
+.aqua-app .sim-bottom-action {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 190px;
+    padding: 8px 13px 8px 9px;
+    border: 1px solid #cbd9f4;
+    border-radius: 11px;
+    color: #263c92;
+    background: #f7faff;
+    text-align: left;
+    transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+}
+.aqua-app .sim-bottom-action:hover {
+    border-color: #8fa9db;
+    background: #edf4ff;
+    box-shadow: 0 5px 12px -8px rgba(20, 48, 100, 0.35);
+}
+.aqua-app .sim-bottom-action.run {
+    border-color: #263c92;
+    color: #14235c;
+    background: #edf3ff;
+}
+.aqua-app .sim-bottom-action.run.playing {
+    border-color: #b9e4c8;
+    color: #11633a;
+    background: #eaf8ef;
+}
+.aqua-app .sim-bottom-action.reset {
+    border-color: #ecd797;
+    color: #805000;
+    background: #fffaf0;
+}
+.aqua-app .sim-bottom-action.reset:hover {
+    border-color: #d9b85e;
+    background: #fff5db;
+}
+.aqua-app .sim-action-icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 31px;
+    height: 31px;
+    border-radius: 8px;
+    color: #ffffff;
+    background: #263c92;
+    font-size: 11px;
+    font-weight: 900;
+}
+.aqua-app .sim-bottom-action.run.playing .sim-action-icon {
+    color: #263c92;
+    background: #f7d84a;
+}
+.aqua-app .sim-bottom-action.reset .sim-action-icon {
+    color: #8a5a00;
+    background: #f7df9e;
+}
+.aqua-app .sim-action-icon svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.aqua-app .sim-action-copy {
+    min-width: 0;
+}
+.aqua-app .sim-action-copy b,
+.aqua-app .sim-action-copy small {
+    display: block;
+    line-height: 1.2;
+}
+.aqua-app .sim-action-copy b {
+    color: #14235c;
+    font-size: 10px;
+    font-weight: 900;
+    white-space: nowrap;
+}
+.aqua-app .sim-action-copy small {
+    margin-top: 3px;
+    color: #64748b;
+    font-size: 8px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.aqua-app .sim-bottom-action.run.playing .sim-action-copy b {
+    color: #11633a;
+}
+.aqua-app .sim-bottom-action.reset .sim-action-copy b {
+    color: #805000;
+}
+.aqua-app .sim-bottom-action.reset .sim-action-copy small {
+    color: #9a7732;
+}
+.aqua-app .sim-deck-footer-meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+}
+.aqua-app .sim-deck-footer-meta .sim-deck-hint {
+    margin: 0;
+    text-align: center;
+}
+.aqua-app .sim-deck-edit {
+    padding: 0;
+    color: #263c92;
+    font-size: 10px;
+    font-weight: 800;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.aqua-app .sim-deck-edit:hover {
+    color: #14235c;
+}
+@media (max-width: 1100px) {
+    .aqua-app .sim-deck-grid {
+        grid-template-columns: minmax(180px, 0.7fr) minmax(220px, 1fr);
+        grid-template-areas:
+            'clock progress'
+            'controls controls';
+    }
+}
+@media (max-width: 760px) {
+    .aqua-app .sim-deck-grid {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            'clock'
+            'progress'
+            'controls';
+        gap: 14px;
+    }
+    .aqua-app .sim-deck-progress {
+        max-width: none;
+    }
+    .aqua-app .sim-bottom-action {
+        flex: 1;
+        justify-content: center;
+        min-width: 0;
+    }
+    .aqua-app .sim-bottom-action .sim-action-copy {
+        text-align: left;
+    }
+}
+@media (max-width: 480px) {
+    .aqua-app .sim-bottom-action {
+        flex: 0 0 100%;
+    }
+    .aqua-app .sim-deck-footer-meta {
+        align-items: center;
+        flex-direction: column;
+        gap: 5px;
+    }
 }

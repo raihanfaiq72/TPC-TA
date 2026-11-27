@@ -1,7 +1,7 @@
 info:
   name: Atur Status Sensor
   type: http
-  seq: 4
+  seq: 5
   tags:
     - sandbox
     - sensor

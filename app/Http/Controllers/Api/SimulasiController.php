@@ -33,6 +33,27 @@ class SimulasiController extends Controller
      * waktu eksekusi dibatasi sandbox.maks_detik_per_eksekusi. Frontend
      * mengirim batch berikutnya sampai target menit tercapai.
      */
+    /**
+     * Waktu virtual berjalan realtime dari titik sinkronisasi terakhir.
+     * Waktu ini tetap berjalan meski tidak ada tick simulasi.
+     */
+    private function waktuLive(Kolam $kolam): Carbon
+    {
+        $virtual = Carbon::parse($kolam->waktu_sandbox_sekarang);
+
+        if ($kolam->waktu_sandbox_sinkron === null) {
+            return $virtual;
+        }
+
+        $selisihDetik = max(
+            0,
+            Carbon::now()->getTimestamp()
+                - Carbon::parse($kolam->waktu_sandbox_sinkron)->getTimestamp(),
+        );
+
+        return $virtual->copy()->addSeconds($selisihDetik);
+    }
+
     public function tick(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
@@ -50,7 +71,7 @@ class SimulasiController extends Controller
                 ], 404);
             }
 
-            $waktuAwal = Carbon::parse($kolam->waktu_sandbox_sekarang);
+            $waktuAwal = $this->waktuLive($kolam);
             $tickMenit = (int) config('sandbox.tick_menit');
 
             if ($tickMenit <= 0) {
@@ -116,8 +137,11 @@ class SimulasiController extends Controller
             }
 
             // 6. Simpan waktu virtual paling akhir sekali saja.
+            $waktuSinkron = Carbon::now();
+
             $kolam->update([
                 'waktu_sandbox_sekarang' => $waktuSekarang,
+                'waktu_sandbox_sinkron' => $waktuSinkron,
             ]);
 
             $pakan = LogPakan::query()
@@ -130,6 +154,7 @@ class SimulasiController extends Controller
                 'message' => 'Tick simulasi berhasil dijalankan',
                 'waktu_sebelum' => $waktuAwal->format('Y-m-d H:i:s'),
                 'waktu_sekarang' => $waktuSekarang->format('Y-m-d H:i:s'),
+                'waktu_sinkron' => $waktuSinkron->format('Y-m-d H:i:s'),
                 'menit_dijalankan' => $tickDijalankan * $tickMenit,
                 'tick_dijalankan' => $tickDijalankan,
                 'tick_menit' => $tickMenit,
@@ -158,6 +183,7 @@ class SimulasiController extends Controller
                 'nama',
                 'waktu_mulai_sandbox',
                 'waktu_sandbox_sekarang',
+                'waktu_sandbox_sinkron',
                 'kecepatan_waktu',
             ])
             ->find($id);
@@ -167,6 +193,13 @@ class SimulasiController extends Controller
                 'message' => 'Kolam tidak ditemukan',
             ], 404);
         }
+
+        $waktuSinkron = Carbon::now();
+
+        $kolam->update([
+            'waktu_sandbox_sekarang' => $this->waktuLive($kolam),
+            'waktu_sandbox_sinkron' => $waktuSinkron,
+        ]);
 
         $ikan = Ikan::query()
             ->where('kolam_id', $id)

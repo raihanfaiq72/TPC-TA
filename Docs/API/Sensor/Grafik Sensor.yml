@@ -1,0 +1,92 @@
+info:
+  name: Grafik Sensor
+  type: http
+  seq: 4
+  tags:
+    - sandbox
+    - sensor
+http:
+  method: GET
+  url: "{{baseUrl}}/api/kolam/{{kolamId}}/sensor/grafik"
+  params:
+    - name: range
+      value: 1d
+      type: query
+      enabled: true
+  headers:
+    - name: Accept
+      value: application/json
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: isArray
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+docs: |
+  # Grafik Sensor
+
+  Mengambil data sensor yang sudah diagregasi per rentang waktu untuk chart
+  realtime halaman detail kolam. Nilai merupakan rata-rata per bucket waktu,
+  per parameter, dan per zona. Data mengikuti **waktu virtual sandbox**.
+
+  ## Request
+
+  ```http
+  GET {{baseUrl}}/api/kolam/{{kolamId}}/sensor/grafik?range=1d
+  Accept: application/json
+  ```
+
+  | Query | Tipe | Wajib | Keterangan |
+  |---|---|---|---|
+  | range | string | tidak | `1m`, `1h`, `1d`, `1w`, `1mo`, atau `1y`; default `1d` |
+
+  ## Bucket agregasi
+
+  | Range | Rentang | Bucket |
+  |---|---|---|
+  | `1m` | 1 menit | 10 detik |
+  | `1h` | 1 jam | 5 menit |
+  | `1d` | 1 hari | 1 jam |
+  | `1w` | 7 hari | 1 hari |
+  | `1mo` | 30 hari | 1 hari |
+  | `1y` | 365 hari | 30 hari |
+
+  ## Response 200
+
+  ```json
+  [
+    {
+      "waktu": "2026-11-06 06:00:00",
+      "zona": "atas",
+      "parameter": "suhu",
+      "nilai": 28.4
+    },
+    {
+      "waktu": "2026-11-06 06:00:00",
+      "zona": "bawah",
+      "parameter": "suhu",
+      "nilai": 27.1
+    },
+    {
+      "waktu": "2026-11-06 06:00:00",
+      "zona": null,
+      "parameter": "level",
+      "nilai": 96.2
+    }
+  ]
+  ```
+
+  `waktu` adalah awal bucket dan bisa memiliki komponen menit/detik untuk
+  range pendek. Nilai `waktu` disimpan/dikirim dalam **UTC** (zona aplikasi),
+  sedangkan UI menampilkannya dalam zona waktu browser. `zona` bernilai `null`
+  untuk sensor tingkat kolam seperti sensor level. Range `1m` dapat kosong bila
+  belum ada pembacaan baru dalam satu menit terakhir, karena interval perangkat
+  simulasi umumnya 10 menit. UI menampilkan pembacaan terakhir dan status
+  sampel untuk kondisi ini. Endpoint ini hanya memakai pembacaan dengan kualitas
+  `normal` atau `outlier`.
