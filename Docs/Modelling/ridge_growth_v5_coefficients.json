@@ -1,0 +1,78 @@
+{
+  "model": "Ridge regression",
+  "alpha": 1.0,
+  "target": "bobot sampling berikutnya (g)",
+  "features": {
+    "bobot_awal_g": {
+      "mean": 53.45565459610028,
+      "std": 25.074046932743656,
+      "coefficient": 20.119589534440603
+    },
+    "umur_awal_hari": {
+      "mean": 52.56824512534819,
+      "std": 24.416196163243256,
+      "coefficient": 4.547098144121282
+    },
+    "lama_interval_hari": {
+      "mean": 7.0,
+      "std": 1.0,
+      "coefficient": 0.0
+    },
+    "pakan_interval_g": {
+      "mean": 15406.489108635096,
+      "std": 8152.158455556318,
+      "coefficient": 0.9756968828232224
+    },
+    "mortalitas_interval_ekor": {
+      "mean": 2.2395543175487465,
+      "std": 1.6634681432966174,
+      "coefficient": -0.041962751568836484
+    },
+    "suhu_rerata_c": {
+      "mean": 28.92442200557103,
+      "std": 0.6165848704813383,
+      "coefficient": 0.011038651558102701
+    },
+    "do_rerata_mgl": {
+      "mean": 4.759787107043374,
+      "std": 1.1924058982108845,
+      "coefficient": -0.29286527036559956
+    },
+    "ph_rerata": {
+      "mean": 7.674392160764027,
+      "std": 0.475148931077339,
+      "coefficient": -0.27096024742243513
+    },
+    "tan_n_rerata_mgL": {
+      "mean": 1.8420104456824509,
+      "std": 1.7491895458004638,
+      "coefficient": -1.3341056352318463
+    },
+    "proporsi_do_di_bawah_4": {
+      "mean": 0.2990449661758854,
+      "std": 0.33170438009222863,
+      "coefficient": -0.5605734745897623
+    }
+  },
+  "intercept": 60.11793871866294,
+  "validation": {
+    "method": "holdout 6 siklus utuh",
+    "held_out_cycles": [
+      "K01-S13",
+      "K01-S14",
+      "K01-S15",
+      "K02-S13",
+      "K02-S14",
+      "K02-S15"
+    ],
+    "baseline_persistence": {
+      "MAE_g": 7.0827397260273965,
+      "RMSE_g": 7.316938501934801
+    },
+    "ridge": {
+      "MAE_g": 1.2335570572227295,
+      "RMSE_g": 1.5617618468478176
+    }
+  },
+  "warning": "Dilatih pada data sintetis v5; validasi lapangan belum dilakukan."
+}
