@@ -44,6 +44,12 @@ class SandboxTuiCommand extends Command
 
     private float $initialEtaAt = 0.0;
 
+    private ?float $singleEta = null;
+
+    private float $singleEtaAt = 0.0;
+
+    private float $singleLogAt = 0.0;
+
     private ?float $deadlineAt = null;
 
     /** @var array<int, string> */
@@ -272,6 +278,9 @@ class SandboxTuiCommand extends Command
         $lastRender = 0.0;
         $iteration = 0;
 
+        $this->pushWorkerLog('Simulasi dimulai · '.$kolam->kode.' · '.count($config['cycles']).' siklus');
+        $this->singleLogAt = microtime(true);
+
         while (true) {
             if (++$iteration > 1000000) {
                 throw new \RuntimeException('Batas iterasi TUI tercapai.');
@@ -349,6 +358,19 @@ class SandboxTuiCommand extends Command
             }
 
             if ($payload['target_tercapai'] ?? false) {
+                $finishedCycle = SiklusKolam::query()
+                    ->where('kolam_id', $kolam->id)
+                    ->where('status', 'aktif')
+                    ->orderByDesc('urutan')
+                    ->first();
+
+                if ($finishedCycle instanceof SiklusKolam) {
+                    $this->pushWorkerLog(
+                        'Siklus #'.$finishedCycle->urutan.' selesai · '
+                        .($average === null ? '—' : number_format($average, 2).' g'),
+                    );
+                }
+
                 $cycleResponse = app(SiklusController::class)->next($kolam->id);
                 $cyclePayload = json_decode((string) $cycleResponse->getContent(), true);
 
@@ -357,6 +379,8 @@ class SandboxTuiCommand extends Command
                 }
 
                 if ($cyclePayload['selesai'] ?? false) {
+                    $this->pushWorkerLog('Semua siklus selesai');
+
                     $this->renderDashboard(
                         $kolam,
                         $current,
@@ -376,6 +400,18 @@ class SandboxTuiCommand extends Command
                 $cycleStartAverage = null;
                 $cycleStartedAt = microtime(true);
                 $nextSample = $this->nextSampleTime($current, $sampleHour);
+                $nextCycle = SiklusKolam::query()
+                    ->where('kolam_id', $kolam->id)
+                    ->where('status', 'aktif')
+                    ->orderByDesc('urutan')
+                    ->first();
+
+                if ($nextCycle instanceof SiklusKolam) {
+                    $this->pushWorkerLog(
+                        'Mulai siklus #'.$nextCycle->urutan.' · target '.number_format((float) $nextCycle->target_bobot_g, 2).' g',
+                    );
+                }
+
                 info('Siklus berikutnya dimulai: '.$kolam->jumlah_ikan_awal.' ekor · target '.$kolam->bobot_target_panen_g.' g');
 
                 continue;
@@ -1263,7 +1299,7 @@ class SandboxTuiCommand extends Command
             throw new \RuntimeException($this->responseError($stored, 'Timbangan otomatis gagal disimpan.'));
         }
 
-        $this->line('  Timbang otomatis '.$waktu->toDateString().' · '.($sample['jumlah_sampel'] ?? $count).' ekor');
+        $this->pushWorkerLog('Timbang otomatis '.$waktu->toDateString().' · '.($sample['jumlah_sampel'] ?? $count).' ekor');
     }
 
     /**
@@ -1298,6 +1334,26 @@ class SandboxTuiCommand extends Command
             $cycles,
             (float) $kolam->bobot_awal_rata_g,
         );
+
+        if ($totalEstimate === null) {
+            [$cycleEstimate, $totalEstimate] = $this->estimateByVirtualClock(
+                $current,
+                $average,
+                $target,
+                $cycleStartedAt,
+                $cycles,
+                (float) $kolam->bobot_awal_rata_g,
+            );
+        }
+
+        if ($totalEstimate !== null && $this->singleEta === null) {
+            $this->singleEta = $totalEstimate;
+            $this->singleEtaAt = microtime(true);
+        }
+
+        if ($this->singleEta !== null) {
+            $totalEstimate = max(0, $this->singleEta - (microtime(true) - $this->singleEtaAt));
+        }
         $barWidth = 28;
         $filled = (int) round($overall / 100 * $barWidth);
         $bar = str_repeat('█', $filled).str_repeat('░', $barWidth - $filled);
@@ -1311,8 +1367,18 @@ class SandboxTuiCommand extends Command
         $countdown = $totalEstimate === null
             ? '—'
             : $this->formatCountdown($totalEstimate);
+        $singleInitialEtaText = $this->singleEta === null ? null : $this->formatReal($this->singleEta);
         $this->remainingEstimate = $totalEstimate;
         $this->etaText = $etaTotal;
+
+        if (microtime(true) - $this->singleLogAt >= 20) {
+            $this->pushWorkerLog(
+                ($active ? 'Siklus #'.$active->urutan : 'Siklus selesai')
+                .' · '.($average === null ? '—' : number_format($average, 2))
+                .'/'.number_format($target, 2).' g · '.$current->format('Y-m-d H:i'),
+            );
+            $this->singleLogAt = microtime(true);
+        }
 
         $this->clearScreen();
         $this->line('╔══════════════════════════════════════════════════════════════╗');
@@ -1327,12 +1393,26 @@ class SandboxTuiCommand extends Command
         $this->line('  Progress     : ['.$bar.'] '.round($overall).'% total');
         $this->line('<fg=yellow;options=bold>  Dunia nyata  : selesai di jam '.$etaTotal.'</>');
         $this->line('<fg=yellow;options=bold>  Hitung mundur: '.$countdown.' lagi (estimasi)</>');
+        if ($singleInitialEtaText !== null) {
+            $this->line('  Estimasi awal: '.$singleInitialEtaText.' (dikunci, tidak naik)');
+        }
         $this->line('  Estimasi     : siklus ini '.($cycleEstimate === null ? '—' : $this->formatReal($cycleEstimate)).' · ETA siklus '.$etaCycle);
         $this->line('  Pakan        : '.implode(', ', $config['feed_times']));
         $this->line('  Timbang      : setiap 7 hari pukul '.$config['sample_hour'].' · '.$config['sample_count'].' ekor');
         $this->line('  Sample next  : '.($nextSample?->format('Y-m-d H:i') ?? '—'));
         $this->line('───────────────────────────────────────────────────────────────');
-        $this->line('  Siklus: '.$cycles->map(fn (SiklusKolam $cycle): string => '#'.$cycle->urutan.' '.$cycle->status.' ('.$cycle->jumlah_tebar.' ekor → '.number_format((float) $cycle->target_bobot_g, 1).' g)')->implode(' · '));
+        $this->line('  Siklus        : '.$cycles->map(fn (SiklusKolam $cycle): string => '#'.$cycle->urutan.' '.$cycle->status.' ('.$cycle->jumlah_tebar.' ekor → '.number_format((float) $cycle->target_bobot_g, 1).' g)')->implode(' · '));
+        $this->line('');
+        $this->line('  Log berjalan (otomatis, 8 event terakhir):');
+
+        if ($this->workerLogs === []) {
+            $this->line('  menunggu event...');
+        } else {
+            foreach (array_slice($this->workerLogs, -8) as $log) {
+                $this->line('  '.$log);
+            }
+        }
+
         $this->line('');
     }
 
@@ -1366,6 +1446,60 @@ class SandboxTuiCommand extends Command
             ->sum(fn (SiklusKolam $cycle): float => max(0, (float) $cycle->target_bobot_g - $initialAverage) / $rate);
 
         return [$currentSeconds, $currentSeconds + (float) $futureSeconds];
+    }
+
+    /**
+     * Estimasi cadangan saat pertumbuhan belum terukur (gain masih nol).
+     * Menggunakan laju jam virtual nyata dan aturan SGR yang sudah ada.
+     *
+     * @param  Collection<int, SiklusKolam>  $cycles
+     * @return array{0: float|null, 1: float|null}
+     */
+    private function estimateByVirtualClock(
+        Carbon $current,
+        ?float $average,
+        float $target,
+        float $cycleStartedAt,
+        $cycles,
+        float $initialAverage,
+    ): array {
+        $active = $cycles->firstWhere('status', 'aktif');
+
+        if (! $active instanceof SiklusKolam || $active->tanggal_mulai === null) {
+            return [null, null];
+        }
+
+        $virtualStart = Carbon::parse($active->tanggal_mulai);
+        $virtualDays = max(0.0, $virtualStart->diffInSeconds($current) / 86400);
+        $realDays = max(0.00001, (microtime(true) - $cycleStartedAt) / 86400);
+
+        if ($virtualDays <= 0) {
+            return [null, null];
+        }
+
+        $virtualDaysPerRealDay = $virtualDays / $realDays;
+        $growth = max(0.001, (float) config('sandbox.ikan.sgr_ref', 7) / 100);
+        $currentAverage = max(0.01, $average ?? $initialAverage);
+        $target = max(0.01, $target);
+        $logGrowth = log(1 + $growth);
+        $secondsPerVirtualDay = 86400 / $virtualDaysPerRealDay;
+        $currentDays = $currentAverage < $target
+            ? log($target / $currentAverage) / $logGrowth
+            : 0.0;
+        $futureDays = $cycles
+            ->where('status', 'pending')
+            ->sum(function (SiklusKolam $cycle) use ($initialAverage, $logGrowth): float {
+                return max(0, (float) $cycle->target_bobot_g - $initialAverage) > 0
+                    ? log(max(0.01, (float) $cycle->target_bobot_g) / max(0.01, $initialAverage)) / $logGrowth
+                    : 0.0;
+            });
+
+        $currentSeconds = $currentDays * $secondsPerVirtualDay;
+
+        return [
+            $currentSeconds,
+            $currentSeconds + ((float) $futureDays * $secondsPerVirtualDay),
+        ];
     }
 
     private function formatReal(float $seconds): string
