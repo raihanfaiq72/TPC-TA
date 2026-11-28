@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Support\CountdownSpinner;
 use App\Http\Controllers\Api\KolamController;
 use App\Http\Controllers\Api\PakanController;
 use App\Http\Controllers\Api\SamplingController;
@@ -14,14 +15,15 @@ use Illuminate\Console\Command;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use Symfony\Component\Process\Process;
 use Throwable;
 
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\number;
-use function Laravel\Prompts\spin;
 use function Laravel\Prompts\table;
 use function Laravel\Prompts\text;
 
@@ -29,11 +31,13 @@ class SandboxTuiCommand extends Command
 {
     protected $signature = 'aqua:simulate';
 
-    protected $description = 'TUI simulasi lengkap SmartAqua: siklus, pakan, sampling, percepatan, dan estimasi selesai';
+    protected $description = 'TUI simulasi lengkap SmartAqua: siklus, pakan, sampling, percepatan, worker paralel, dan estimasi selesai';
 
     private float $startedAt = 0.0;
 
     private string $etaText = '—';
+
+    private ?float $remainingEstimate = null;
 
     public function handle(): int
     {
@@ -44,6 +48,13 @@ class SandboxTuiCommand extends Command
 
         try {
             $config = $this->askConfiguration();
+
+            if ((int) ($config['workers'] ?? 1) > 1) {
+                $this->runParallel($config);
+
+                return self::SUCCESS;
+            }
+
             $kolam = $this->createPond($config);
             $this->configureFeed($kolam, $config['feed_times']);
             $this->startAutoPilot($kolam);
@@ -67,15 +78,24 @@ class SandboxTuiCommand extends Command
         $length = (float) text('Panjang kolam (m)', default: '3', required: true, validate: fn (string $value): ?string => $this->positiveNumber($value));
         $width = (float) text('Lebar kolam (m)', default: '2', required: true, validate: fn (string $value): ?string => $this->positiveNumber($value));
         $depth = (float) text('Kedalaman air (m)', default: '1.2', required: true, validate: fn (string $value): ?string => $this->positiveNumber($value));
-        $population = (int) number('Populasi awal (ekor)', default: 100, min: 1, max: 20000, required: true);
+        $population = (int) number('Populasi awal (ekor)', default: '100', min: 1, max: 20000, required: true);
         $initialWeight = (float) text('Bobot awal rata-rata (g)', default: '1.2', required: true, validate: fn (string $value): ?string => $this->positiveNumber($value));
         $initialLength = (float) text('Panjang awal rata-rata (cm)', default: '3.5', required: true, validate: fn (string $value): ?string => $this->positiveNumber($value));
         $target = (float) text('Target panen siklus 1 (g/ekor)', default: '10', required: true, validate: fn (string $value): ?string => $this->positiveNumber($value));
-        $kecepatanWaktu = (int) number('Kecepatan waktu (menit virtual/detik nyata)', default: 60, min: 1, max: 10000, required: true);
-        $speed = (int) number('Percepatan proses (x)', default: 10, min: 1, max: 10000, required: true, hint: 'Semakin besar, semakin banyak menit virtual per request');
-        $cycleCount = (int) number('Jumlah siklus', default: 2, min: 1, max: 200, required: true);
+        $kecepatanWaktu = (int) number('Kecepatan waktu (menit virtual/detik nyata)', default: '60', min: 1, max: 10000, required: true);
+        $speed = (int) number('Percepatan proses (x)', default: '1000', min: 1, max: 10000, required: true, hint: 'Untuk 100 siklus, gunakan 1000 atau lebih; worker paralel akan membagi siklus');
+        $cycleCount = (int) number('Jumlah siklus', default: '2', min: 1, max: 200, required: true);
+        $maxWorkers = max(1, min(16, $cycleCount));
+        $workerCount = (int) number(
+            'Jumlah worker paralel',
+            default: (string) ($cycleCount >= 10 ? min(4, $maxWorkers) : 1),
+            min: 1,
+            max: $maxWorkers,
+            required: true,
+            hint: '1 = satu kolam berurutan; >1 = siklus dibagi ke beberapa kolam worker dan dijalankan paralel',
+        );
         $sampleHour = text('Jam timbang otomatis (HH:MM)', default: '08:00', required: true, validate: fn (string $value): ?string => $this->timeValidation($value));
-        $sampleCount = (int) number('Sampel per timbang (ekor)', default: 25, min: 1, max: 200, required: true);
+        $sampleCount = (int) number('Sampel per timbang (ekor)', default: '25', min: 1, max: 200, required: true);
         $feedInput = text('Jam pakan otomatis (pisahkan koma)', default: '07:00,12:00,19:00', required: true);
         $feedTimes = $this->parseFeedTimes($feedInput);
 
@@ -97,8 +117,8 @@ class SandboxTuiCommand extends Command
         }
 
         if ($autoCycles) {
-            $minPopulation = (int) number('Jumlah tebar minimum siklus berikutnya', default: max(1, (int) round($population * 0.8)), min: 1, max: 20000, required: true);
-            $maxPopulation = (int) number('Jumlah tebar maksimum siklus berikutnya', default: $population, min: 1, max: 20000, required: true);
+            $minPopulation = (int) number('Jumlah tebar minimum siklus berikutnya', default: (string) max(1, (int) round($population * 0.8)), min: 1, max: 20000, required: true);
+            $maxPopulation = (int) number('Jumlah tebar maksimum siklus berikutnya', default: (string) $population, min: 1, max: 20000, required: true);
             $minTarget = (float) text('Target bobot minimum siklus berikutnya (g/ekor)', default: (string) max(0.1, $target + 5), required: true, validate: fn (string $value): ?string => $this->positiveNumber($value));
             $maxTarget = (float) text('Target bobot maksimum siklus berikutnya (g/ekor)', default: (string) max($minTarget, $target + 20), required: true, validate: fn (string $value): ?string => $this->positiveNumber($value));
 
@@ -120,7 +140,7 @@ class SandboxTuiCommand extends Command
             info('Siklus berikutnya dibuat otomatis: '.($cycleCount - 1).' siklus.');
         } else {
             for ($index = 2; $index <= $cycleCount; $index++) {
-                $cyclePopulation = (int) number("Siklus {$index} — jumlah tebar", default: $population, min: 1, max: 20000, required: true);
+                $cyclePopulation = (int) number("Siklus {$index} — jumlah tebar", default: (string) $population, min: 1, max: 20000, required: true);
                 $cycleTarget = (float) text("Siklus {$index} — target bobot (g/ekor)", default: (string) ($target + ($index - 1) * 5), required: true, validate: fn (string $value): ?string => $this->positiveNumber($value));
 
                 $cycles[] = [
@@ -141,6 +161,7 @@ class SandboxTuiCommand extends Command
             'target' => $target,
             'kecepatan_waktu' => $kecepatanWaktu,
             'speed' => $speed,
+            'workers' => $workerCount,
             'cycles' => $cycles,
             'sample_hour' => $sampleHour,
             'sample_count' => $sampleCount,
@@ -246,14 +267,14 @@ class SandboxTuiCommand extends Command
             $kolam->refresh();
             $current = Carbon::parse($kolam->waktu_sandbox_sekarang);
 
-            if ($nextSample !== null && $current->greaterThanOrEqualTo($nextSample)) {
+            if ($current->greaterThanOrEqualTo($nextSample)) {
                 $this->takeAutomaticSample($kolam, $nextSample, $sampleCount);
                 $nextSample = $nextSample->copy()->addDays(7);
             }
 
             $minutes = $chunkMenit;
 
-            if ($nextSample !== null && $nextSample->greaterThan($current)) {
+            if ($nextSample->greaterThan($current)) {
                 $minutesToSample = (int) $current->diffInMinutes($nextSample);
 
                 if ($minutesToSample > 0 && $minutesToSample < $minutes) {
@@ -261,12 +282,18 @@ class SandboxTuiCommand extends Command
                 }
             }
 
-            $response = spin(
+            $spinner = new CountdownSpinner(
+                'Menjalankan simulasi · '.$current->format('Y-m-d H:i').' · '.$minutes.' menit virtual · ETA '.$this->etaText,
+                $this->remainingEstimate === null
+                    ? null
+                    : Carbon::now('Asia/Jakarta')->getTimestamp() + (int) round($this->remainingEstimate),
+            );
+
+            $response = $spinner->spin(
                 fn () => app(SimulasiController::class)->tick(
                     Request::create('/api/kolam/'.$kolam->id.'/simulasi/tick', 'POST', ['menit' => $minutes]),
                     $kolam->id,
                 ),
-                'Menjalankan simulasi · '.$current->format('Y-m-d H:i').' · '.$minutes.' menit virtual · ETA '.$this->etaText,
             );
             $payload = json_decode((string) $response->getContent(), true);
 
@@ -341,7 +368,7 @@ class SandboxTuiCommand extends Command
                 continue;
             }
 
-            if ($nextSample !== null && $current->greaterThanOrEqualTo($nextSample)) {
+            if ($current->greaterThanOrEqualTo($nextSample)) {
                 $this->takeAutomaticSample($kolam, $nextSample, $sampleCount);
                 $nextSample = $nextSample->copy()->addDays(7);
             }
@@ -353,11 +380,318 @@ class SandboxTuiCommand extends Command
         $this->renderSummary($kolam);
     }
 
+    /**
+     * Mode paralel: setiap worker mendapat satu kolam dan sebagian siklus.
+     * Worker dijalankan sebagai proses PHP terpisah agar tick benar-benar paralel.
+     *
+     * @param  array<string, mixed>  $config
+     */
+    private function runParallel(array $config): void
+    {
+        $groups = $this->splitCycles($config['cycles'], (int) $config['workers']);
+        $statusDirectory = storage_path('app/sandbox-workers');
+        File::ensureDirectoryExists($statusDirectory);
+
+        info('Mode paralel: '.count($groups).' worker. Setiap worker memakai kolam sendiri.');
+
+        /** @var array<int, array{pond: Kolam, group: array<int, array{jumlah_tebar: int, target_bobot_g: float}>, label: string, status_path: string}> $prepared */
+        $prepared = [];
+
+        foreach ($groups as $index => $group) {
+            $groupConfig = $config;
+            $groupConfig['name'] = $config['name'].' — Worker '.($index + 1);
+            $groupConfig['population'] = (int) $group[0]['jumlah_tebar'];
+            $groupConfig['target'] = (float) $group[0]['target_bobot_g'];
+            $groupConfig['cycles'] = $group;
+
+            $pond = $this->createPond($groupConfig);
+            $this->configureFeed($pond, $config['feed_times']);
+            $this->startAutoPilot($pond);
+
+            $prepared[] = [
+                'pond' => $pond,
+                'group' => $group,
+                'label' => 'W'.($index + 1),
+                'status_path' => $statusDirectory.'/worker-'.($index + 1).'-'.$pond->id.'.json',
+            ];
+        }
+
+        /** @var array<int, array{process: Process, pond: Kolam, group: array<int, array{jumlah_tebar: int, target_bobot_g: float}>, label: string, status_path: string, total: int, done: bool, exit_code: int|null, error: string|null}> $workers */
+        $workers = [];
+
+        try {
+            foreach ($prepared as $item) {
+                $process = new Process([
+                    PHP_BINARY,
+                    base_path('artisan'),
+                    'aqua:simulate:worker',
+                    '--pond='.$item['pond']->id,
+                    '--sample-hour='.$config['sample_hour'],
+                    '--sample-count='.$config['sample_count'],
+                    '--speed='.$config['speed'],
+                    '--status='.$item['status_path'],
+                ], base_path());
+                $process->setTimeout(null);
+                $process->start();
+
+                $workers[] = [
+                    'process' => $process,
+                    'pond' => $item['pond'],
+                    'group' => $item['group'],
+                    'label' => $item['label'],
+                    'status_path' => $item['status_path'],
+                    'total' => count($item['group']),
+                    'done' => false,
+                    'exit_code' => null,
+                    'error' => null,
+                ];
+            }
+
+            $this->monitorWorkers($workers);
+        } finally {
+            foreach ($workers as $worker) {
+                if ($worker['process']->isRunning()) {
+                    $worker['process']->stop(1);
+                }
+
+                if (is_file($worker['status_path'])) {
+                    @unlink($worker['status_path']);
+                }
+            }
+        }
+    }
+
+    /**
+     * @param  array<int, array{jumlah_tebar: int, target_bobot_g: float}>  $cycles
+     * @return array<int, array<int, array{jumlah_tebar: int, target_bobot_g: float}>>
+     */
+    private function splitCycles(array $cycles, int $workers): array
+    {
+        $groups = [];
+        $total = count($cycles);
+        $workers = max(1, min($workers, $total));
+        $base = intdiv($total, $workers);
+        $remainder = $total % $workers;
+        $offset = 0;
+
+        for ($index = 0; $index < $workers; $index++) {
+            $size = $base + ($index < $remainder ? 1 : 0);
+
+            if ($size <= 0) {
+                continue;
+            }
+
+            $groups[] = array_slice($cycles, $offset, $size);
+            $offset += $size;
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $workers
+     */
+    private function monitorWorkers(array $workers): void
+    {
+        $lastRender = 0.0;
+
+        while (true) {
+            $anyRunning = false;
+
+            foreach ($workers as $index => $worker) {
+                if ($worker['done']) {
+                    continue;
+                }
+
+                if ($worker['process']->isRunning()) {
+                    $anyRunning = true;
+
+                    continue;
+                }
+
+                $workers[$index]['done'] = true;
+                $workers[$index]['exit_code'] = $worker['process']->getExitCode();
+
+                if ($workers[$index]['exit_code'] !== 0) {
+                    $status = $this->readWorkerStatus($worker['status_path']);
+                    $workers[$index]['error'] = (string) ($status['error'] ?? 'Worker berhenti dengan kode '.$workers[$index]['exit_code'].'.');
+                }
+            }
+
+            $now = microtime(true);
+
+            if ($now - $lastRender >= 0.25) {
+                $this->renderWorkersDashboard($workers);
+                $lastRender = $now;
+            }
+
+            if (! $anyRunning) {
+                break;
+            }
+
+            usleep(200000);
+        }
+
+        $this->renderWorkerSummary($workers);
+    }
+
+    /**
+     * @param  array<string, mixed>  $worker
+     * @return array<string, mixed>
+     */
+    private function workerSnapshot(array $worker): array
+    {
+        $pond = Kolam::query()->find($worker['pond']->id);
+
+        if (! $pond instanceof Kolam) {
+            throw new \RuntimeException('Kolam worker tidak ditemukan.');
+        }
+
+        $cycles = SiklusKolam::query()
+            ->where('kolam_id', $pond->id)
+            ->orderBy('urutan')
+            ->get();
+        $completed = $cycles->where('status', 'selesai')->count();
+        $active = $cycles->firstWhere('status', 'aktif');
+        $target = $active instanceof SiklusKolam
+            ? (float) $active->target_bobot_g
+            : (float) $pond->bobot_target_panen_g;
+        $average = Ikan::query()
+            ->where('kolam_id', $pond->id)
+            ->where('status', 'hidup')
+            ->avg('bobot_g');
+        $average = $average === null ? null : (float) $average;
+        $ratio = $active instanceof SiklusKolam && $target > 0 && $average !== null
+            ? min(1, max(0, $average / $target))
+            : 0.0;
+        $total = max(1, $cycles->count());
+
+        return [
+            'label' => $worker['label'],
+            'pond' => $pond,
+            'total' => $total,
+            'completed' => $completed,
+            'active' => $active,
+            'average' => $average,
+            'target' => $target,
+            'ratio' => $ratio,
+            'progress' => min(100, (($completed + $ratio) / $total) * 100),
+            'virtual' => Carbon::parse($pond->waktu_sandbox_sekarang),
+            'fish' => Ikan::query()->where('kolam_id', $pond->id)->where('status', 'hidup')->count(),
+            'done' => $worker['done'],
+            'error' => $worker['error'],
+        ];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $workers
+     */
+    private function renderWorkersDashboard(array $workers): void
+    {
+        $snapshots = array_map(fn (array $worker): array => $this->workerSnapshot($worker), $workers);
+        $totalCycles = (int) array_sum(array_column($snapshots, 'total'));
+        $completed = (int) array_sum(array_column($snapshots, 'completed'));
+        $activeRatio = (float) array_sum(array_column($snapshots, 'ratio'));
+        $overall = $totalCycles > 0
+            ? min(100, (($completed + $activeRatio) / $totalCycles) * 100)
+            : 0;
+        $barWidth = 28;
+        $filled = (int) round($overall / 100 * $barWidth);
+        $bar = str_repeat('█', $filled).str_repeat('░', $barWidth - $filled);
+        $realNow = Carbon::now('Asia/Jakarta');
+        $elapsed = max(0.1, microtime(true) - $this->startedAt);
+        $eta = $overall > 0 ? $elapsed * (100 - $overall) / $overall : null;
+        $etaText = $eta === null
+            ? '—'
+            : $realNow->copy()->addSeconds((int) round($eta))->format('H:i:s').' WIB';
+        $countdown = $eta === null ? '—' : $this->formatCountdown($eta);
+
+        $this->clearScreen();
+        $this->line('╔══════════════════════════════════════════════════════════════╗');
+        $this->line('║           SMARTAQUA — SANDBOX AUTO PILOT TUI (WORKER)          ║');
+        $this->line('╚══════════════════════════════════════════════════════════════╝');
+        $this->line('<fg=cyan;options=bold>  Jam nyata    : '.$realNow->format('H:i:s').' WIB</>');
+        $this->line('  Mode         : '.count($workers).' worker paralel');
+        $this->line('  Siklus       : '.$completed.' / '.$totalCycles.' selesai');
+        $this->line('  Progress     : ['.$bar.'] '.round($overall).'% total');
+        $this->line('<fg=yellow;options=bold>  Dunia nyata  : selesai di jam '.$etaText.'</>');
+        $this->line('<fg=yellow;options=bold>  Hitung mundur: '.$countdown.' lagi (estimasi)</>');
+        $this->line('  Durasi nyata : '.$this->formatReal($elapsed));
+        $this->line('───────────────────────────────────────────────────────────────');
+
+        foreach ($snapshots as $snapshot) {
+            $width = 18;
+            $fill = (int) round($snapshot['progress'] / 100 * $width);
+            $workerBar = str_repeat('█', $fill).str_repeat('░', $width - $fill);
+            $status = $snapshot['error'] !== null
+                ? '<fg=red;options=bold>ERROR</>'
+                : ($snapshot['done'] ? 'selesai' : 'jalan');
+            $active = $snapshot['active'] instanceof SiklusKolam
+                ? '#'.$snapshot['active']->urutan
+                : '—';
+            $average = $snapshot['average'] === null
+                ? '—'
+                : number_format($snapshot['average'], 2);
+            $this->line(
+                '  '.str_pad($snapshot['label'], 4).' '.str_pad($snapshot['pond']->nama, 28)
+                .' ['.$workerBar.'] '.str_pad((string) round($snapshot['progress']).'%', 4)
+                .' '.$snapshot['completed'].'/'.$snapshot['total'].' · aktif '.$active
+                .' · '.$average.'/'.number_format($snapshot['target'], 2).' g'
+                .' · '.$snapshot['fish'].' ikan · '.($snapshot['virtual']?->format('Y-m-d H:i') ?? '—')
+                .' · '.$status
+            );
+        }
+
+        $this->line('───────────────────────────────────────────────────────────────');
+        $this->line('  Setiap worker memakai kolam dan riwayat siklus sendiri.');
+        $this->line('');
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $workers
+     */
+    private function renderWorkerSummary(array $workers): void
+    {
+        $snapshots = array_map(fn (array $worker): array => $this->workerSnapshot($worker), $workers);
+        $rows = array_map(fn (array $snapshot): array => [
+            $snapshot['label'],
+            $snapshot['pond']->kode,
+            $snapshot['completed'].' / '.$snapshot['total'],
+            $snapshot['average'] === null ? '—' : number_format($snapshot['average'], 2),
+            number_format($snapshot['target'], 2),
+            $snapshot['error'] ?? ($snapshot['done'] ? 'selesai' : 'berhenti'),
+        ], $snapshots);
+
+        $this->clearScreen();
+        info('SmartAqua TUI — ringkasan worker paralel');
+        $this->line('  Total waktu nyata proses: '.$this->formatReal(microtime(true) - $this->startedAt));
+        $this->line('  Setiap worker memiliki kolam dan riwayat siklus sendiri.');
+        $this->line('');
+        table(['Worker', 'Kode kolam', 'Siklus', 'Bobot akhir', 'Target', 'Status'], $rows);
+        $this->line('');
+        info('Selesai. Kolam worker dapat dibuka dari menu manajemen kolam.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readWorkerStatus(string $path): array
+    {
+        if (! is_file($path)) {
+            return [];
+        }
+
+        $decoded = json_decode((string) file_get_contents($path), true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
     private function renderWelcome(): void
     {
         $this->clearScreen();
         info('SmartAqua Sandbox TUI');
         $this->line('  Buat kolam → siklus → pakan → timbang → percepatan → panen');
+        $this->line('  Worker paralel membagi siklus ke beberapa kolam agar tidak saling mengunci.');
         $this->line('  Semua proses berjalan langsung di database, tanpa browser.');
         $this->line('');
     }
@@ -467,25 +801,29 @@ class SandboxTuiCommand extends Command
         $etaTotal = $totalEstimate === null
             ? '—'
             : $realNow->copy()->addSeconds((int) round($totalEstimate))->format('H:i:s').' WIB';
+        $countdown = $totalEstimate === null
+            ? '—'
+            : $this->formatCountdown($totalEstimate);
+        $this->remainingEstimate = $totalEstimate;
         $this->etaText = $etaTotal;
 
         $this->clearScreen();
         $this->line('╔══════════════════════════════════════════════════════════════╗');
         $this->line('║              SMARTAQUA — SANDBOX AUTO PILOT TUI               ║');
         $this->line('╚══════════════════════════════════════════════════════════════╝');
-        $this->line('<fg=cyan;options=bold>  Jam nyata   : '.$realNow->format('H:i:s').' WIB</>');
-        $this->line('  Kolam       : '.$kolam->nama.' ('.$kolam->kode.')');
-        $this->line('  Siklus      : '.($completed + ($active ? 1 : 0)).' / '.$totalCycles.' · '.($active ? 'Siklus '.$active->urutan : 'menunggu'));
-        $this->line('  Target      : '.number_format($target, 2).' g/ekor');
-        $this->line('  Rata-rata   : '.($average === null ? '—' : number_format($average, 2).' g'));
-        $this->line('  Virtual     : '.$current->format('Y-m-d H:i').' · '.Ikan::query()->where('kolam_id', $kolam->id)->where('status', 'hidup')->count().' ikan hidup');
-        $this->line('  Progress    : ['.$bar.'] '.round($overall).'% total');
-        $this->line('  Estimasi    : siklus ini '.($cycleEstimate === null ? '—' : $this->formatReal($cycleEstimate)).' · total '.($totalEstimate === null ? '—' : $this->formatReal($totalEstimate)));
-        $this->line('<fg=yellow;options=bold>  ETA siklus  : '.$etaCycle.'</>');
-        $this->line('<fg=yellow;options=bold>  ETA total   : '.$etaTotal.'</>');
-        $this->line('  Pakan       : '.implode(', ', $config['feed_times']));
-        $this->line('  Timbang     : setiap 7 hari pukul '.$config['sample_hour'].' · '.$config['sample_count'].' ekor');
-        $this->line('  Sample next : '.($nextSample?->format('Y-m-d H:i') ?? '—'));
+        $this->line('<fg=cyan;options=bold>  Jam nyata    : '.$realNow->format('H:i:s').' WIB</>');
+        $this->line('  Kolam        : '.$kolam->nama.' ('.$kolam->kode.')');
+        $this->line('  Siklus       : '.($completed + ($active ? 1 : 0)).' / '.$totalCycles.' · '.($active ? 'Siklus '.$active->urutan : 'menunggu'));
+        $this->line('  Target       : '.number_format($target, 2).' g/ekor');
+        $this->line('  Rata-rata    : '.($average === null ? '—' : number_format($average, 2).' g'));
+        $this->line('  Virtual      : '.$current->format('Y-m-d H:i').' · '.Ikan::query()->where('kolam_id', $kolam->id)->where('status', 'hidup')->count().' ikan hidup');
+        $this->line('  Progress     : ['.$bar.'] '.round($overall).'% total');
+        $this->line('<fg=yellow;options=bold>  Dunia nyata  : selesai di jam '.$etaTotal.'</>');
+        $this->line('<fg=yellow;options=bold>  Hitung mundur: '.$countdown.' lagi (estimasi)</>');
+        $this->line('  Estimasi     : siklus ini '.($cycleEstimate === null ? '—' : $this->formatReal($cycleEstimate)).' · ETA siklus '.$etaCycle);
+        $this->line('  Pakan        : '.implode(', ', $config['feed_times']));
+        $this->line('  Timbang      : setiap 7 hari pukul '.$config['sample_hour'].' · '.$config['sample_count'].' ekor');
+        $this->line('  Sample next  : '.($nextSample?->format('Y-m-d H:i') ?? '—'));
         $this->line('───────────────────────────────────────────────────────────────');
         $this->line('  Siklus: '.$cycles->map(fn (SiklusKolam $cycle): string => '#'.$cycle->urutan.' '.$cycle->status.' ('.$cycle->jumlah_tebar.' ekor → '.number_format((float) $cycle->target_bobot_g, 1).' g)')->implode(' · '));
         $this->line('');
@@ -540,6 +878,18 @@ class SandboxTuiCommand extends Command
         return number_format($seconds / 86400, 1, ',', '.').' hari';
     }
 
+    private function formatCountdown(float $seconds): string
+    {
+        $total = max(0, (int) ceil($seconds));
+        $hours = intdiv($total, 3600);
+        $minutes = intdiv($total % 3600, 60);
+        $remainingSeconds = $total % 60;
+
+        return str_pad((string) $hours, 2, '0', STR_PAD_LEFT)
+            .':'.str_pad((string) $minutes, 2, '0', STR_PAD_LEFT)
+            .':'.str_pad((string) $remainingSeconds, 2, '0', STR_PAD_LEFT);
+    }
+
     /**
      * @param  array<string, mixed>|null  $body
      */
@@ -569,15 +919,15 @@ class SandboxTuiCommand extends Command
             ->orderBy('urutan')
             ->get();
         $rows = $cycles->map(fn (SiklusKolam $cycle): array => [
-            $cycle->urutan,
-            $cycle->jumlah_tebar,
+            (string) $cycle->urutan,
+            (string) $cycle->jumlah_tebar,
             number_format((float) $cycle->target_bobot_g, 2),
             $cycle->status,
             $cycle->tanggal_mulai?->format('Y-m-d H:i') ?? '—',
             $cycle->tanggal_selesai?->format('Y-m-d H:i') ?? '—',
             $cycle->bobot_akhir_g === null ? '—' : number_format((float) $cycle->bobot_akhir_g, 2),
             $cycle->biomassa_akhir_g === null ? '—' : number_format((float) $cycle->biomassa_akhir_g, 1),
-            $cycle->jumlah_mati,
+            (string) $cycle->jumlah_mati,
         ])->all();
 
         $this->clearScreen();
