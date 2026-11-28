@@ -274,6 +274,9 @@ class KolamCycleService
         // Reset yang sudah ada menangani ikan, lingkungan, sensor, dan perangkat.
         app(KolamController::class)->reset($kolam->id);
 
+        // Ambil state terbaru karena reset mengubah auto_pilot_aktif menjadi false.
+        $kolam->refresh();
+
         // Data milik siklus lama tidak boleh tercampur ke siklus baru.
         SamplingPertumbuhan::query()->where('kolam_id', $kolam->id)->delete();
         LogPakan::query()->where('kolam_id', $kolam->id)->delete();

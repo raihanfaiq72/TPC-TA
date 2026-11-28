@@ -17,9 +17,11 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Throwable;
 
+use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\number;
+use function Laravel\Prompts\spin;
 use function Laravel\Prompts\table;
 use function Laravel\Prompts\text;
 
@@ -69,7 +71,7 @@ class SandboxTuiCommand extends Command
         $target = (float) text('Target panen siklus 1 (g/ekor)', default: '10', required: true, validate: fn (string $value): ?string => $this->positiveNumber($value));
         $kecepatanWaktu = (int) number('Kecepatan waktu (menit virtual/detik nyata)', default: 60, min: 1, max: 10000, required: true);
         $speed = (int) number('Percepatan proses (x)', default: 10, min: 1, max: 10000, required: true, hint: 'Semakin besar, semakin banyak menit virtual per request');
-        $cycleCount = (int) number('Jumlah siklus', default: 2, min: 1, max: 20, required: true);
+        $cycleCount = (int) number('Jumlah siklus', default: 2, min: 1, max: 200, required: true);
         $sampleHour = text('Jam timbang otomatis (HH:MM)', default: '08:00', required: true, validate: fn (string $value): ?string => $this->timeValidation($value));
         $sampleCount = (int) number('Sampel per timbang (ekor)', default: 25, min: 1, max: 200, required: true);
         $feedInput = text('Jam pakan otomatis (pisahkan koma)', default: '07:00,12:00,19:00', required: true);
@@ -82,14 +84,48 @@ class SandboxTuiCommand extends Command
         $cycles = [];
         $cycles[] = ['jumlah_tebar' => $population, 'target_bobot_g' => $target];
 
-        for ($index = 2; $index <= $cycleCount; $index++) {
-            $cyclePopulation = (int) number("Siklus {$index} — jumlah tebar", default: $population, min: 1, max: 20000, required: true);
-            $cycleTarget = (float) text("Siklus {$index} — target bobot (g/ekor)", default: (string) ($target + ($index - 1) * 5), required: true, validate: fn (string $value): ?string => $this->positiveNumber($value));
+        $autoCycles = false;
 
-            $cycles[] = [
-                'jumlah_tebar' => $cyclePopulation,
-                'target_bobot_g' => $cycleTarget,
-            ];
+        if ($cycleCount > 1) {
+            $autoCycles = confirm(
+                'Generate siklus berikutnya otomatis dari rentang?',
+                default: true,
+                hint: 'Pilih Ya agar tidak memasukkan 100 siklus satu per satu.',
+            );
+        }
+
+        if ($autoCycles) {
+            $minPopulation = (int) number('Jumlah tebar minimum siklus berikutnya', default: max(1, (int) round($population * 0.8)), min: 1, max: 20000, required: true);
+            $maxPopulation = (int) number('Jumlah tebar maksimum siklus berikutnya', default: $population, min: 1, max: 20000, required: true);
+            $minTarget = (float) text('Target bobot minimum siklus berikutnya (g/ekor)', default: (string) max(0.1, $target + 5), required: true, validate: fn (string $value): ?string => $this->positiveNumber($value));
+            $maxTarget = (float) text('Target bobot maksimum siklus berikutnya (g/ekor)', default: (string) max($minTarget, $target + 20), required: true, validate: fn (string $value): ?string => $this->positiveNumber($value));
+
+            if ($minPopulation > $maxPopulation) {
+                [$minPopulation, $maxPopulation] = [$maxPopulation, $minPopulation];
+            }
+
+            if ($minTarget > $maxTarget) {
+                [$minTarget, $maxTarget] = [$maxTarget, $minTarget];
+            }
+
+            for ($index = 2; $index <= $cycleCount; $index++) {
+                $cycles[] = [
+                    'jumlah_tebar' => random_int($minPopulation, $maxPopulation),
+                    'target_bobot_g' => round($minTarget + (mt_rand() / mt_getrandmax()) * ($maxTarget - $minTarget), 1),
+                ];
+            }
+
+            info('Siklus berikutnya dibuat otomatis: '.($cycleCount - 1).' siklus.');
+        } else {
+            for ($index = 2; $index <= $cycleCount; $index++) {
+                $cyclePopulation = (int) number("Siklus {$index} — jumlah tebar", default: $population, min: 1, max: 20000, required: true);
+                $cycleTarget = (float) text("Siklus {$index} — target bobot (g/ekor)", default: (string) ($target + ($index - 1) * 5), required: true, validate: fn (string $value): ?string => $this->positiveNumber($value));
+
+                $cycles[] = [
+                    'jumlah_tebar' => $cyclePopulation,
+                    'target_bobot_g' => $cycleTarget,
+                ];
+            }
         }
 
         return [
@@ -223,9 +259,12 @@ class SandboxTuiCommand extends Command
                 }
             }
 
-            $response = app(SimulasiController::class)->tick(
-                Request::create('/api/kolam/'.$kolam->id.'/simulasi/tick', 'POST', ['menit' => $minutes]),
-                $kolam->id,
+            $response = spin(
+                fn () => app(SimulasiController::class)->tick(
+                    Request::create('/api/kolam/'.$kolam->id.'/simulasi/tick', 'POST', ['menit' => $minutes]),
+                    $kolam->id,
+                ),
+                'Menjalankan simulasi · '.$current->format('Y-m-d H:i').' · '.$minutes.' menit virtual',
             );
             $payload = json_decode((string) $response->getContent(), true);
 

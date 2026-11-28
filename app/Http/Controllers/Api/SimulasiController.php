@@ -231,7 +231,7 @@ class SimulasiController extends Controller
     public function startAutoPilot(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'siklus' => ['sometimes', 'array', 'min:1', 'max:20'],
+            'siklus' => ['sometimes', 'array', 'min:1', 'max:200'],
             'siklus.*.jumlah_tebar' => ['required', 'integer', 'min:1', 'max:20000'],
             'siklus.*.target_bobot_g' => ['required', 'numeric', 'gt:0'],
         ]);

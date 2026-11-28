@@ -58,7 +58,7 @@ class KolamController extends Controller
             'waktu_mulai' => 'nullable|date',
             'dosis_harian_persen' => 'nullable|numeric|gt:0',
             'bobot_target_panen_g' => 'nullable|numeric|gt:0',
-            'siklus' => 'nullable|array|min:1|max:20',
+            'siklus' => 'nullable|array|min:1|max:200',
             'siklus.*.jumlah_tebar' => 'required|integer|min:1|max:20000',
             'siklus.*.target_bobot_g' => 'required|numeric|gt:0',
         ]);
@@ -298,7 +298,7 @@ class KolamController extends Controller
             'tinggi_air_m' => ['sometimes', 'required', 'numeric', 'gt:0'],
             'kecepatan_waktu' => ['sometimes', 'required', 'numeric', 'gt:0'],
             'bobot_target_panen_g' => ['sometimes', 'required', 'numeric', 'gt:0'],
-            'siklus' => ['sometimes', 'array', 'min:1', 'max:20'],
+            'siklus' => ['sometimes', 'array', 'min:1', 'max:200'],
             'siklus.*.jumlah_tebar' => ['required', 'integer', 'min:1', 'max:20000'],
             'siklus.*.target_bobot_g' => ['required', 'numeric', 'gt:0'],
         ]);

@@ -194,6 +194,7 @@ test('auto pilot creates and advances pond cycles with different stock and targe
 
     expect($kolam->jumlah_ikan_awal)->toBe(80)
         ->and($kolam->bobot_target_panen_g)->toBe(25.0)
+        ->and($kolam->auto_pilot_aktif)->toBeTrue()
         ->and(SiklusKolam::query()->where('kolam_id', $kolam->id)->where('status', 'selesai')->count())->toBe(1)
         ->and(SiklusKolam::query()->where('kolam_id', $kolam->id)->where('status', 'aktif')->value('urutan'))->toBe(2);
 });
