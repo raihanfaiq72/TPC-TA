@@ -43,6 +43,12 @@ class SandboxTuiCommand extends Command
 
     private float $initialEtaAt = 0.0;
 
+    /** @var array<int, string> */
+    private array $workerLogs = [];
+
+    /** @var array<string, array<string, mixed>> */
+    private array $workerLogState = [];
+
     public function handle(): int
     {
         set_time_limit(0);
@@ -444,11 +450,13 @@ class SandboxTuiCommand extends Command
                     'total' => count($item['group']),
                     'done' => false,
                     'attempts' => 0,
-                    'max_attempts' => 20,
+                    'max_attempts' => 0,
                     'failures' => 0,
-                    'max_failures' => 5,
+                    'max_failures' => 0,
                     'last_heartbeat_at' => microtime(true),
                     'last_status_mtime' => 0,
+                    'last_progress_key' => '',
+                    'retry_at' => null,
                     'exit_code' => null,
                     'error' => null,
                     'last_error' => null,
@@ -518,7 +526,7 @@ class SandboxTuiCommand extends Command
     private function monitorWorkers(array $workers): void
     {
         $lastRender = 0.0;
-        $stallSeconds = 180;
+        $stallSeconds = 90;
 
         while (true) {
             $anyRunning = false;
@@ -528,15 +536,49 @@ class SandboxTuiCommand extends Command
                     continue;
                 }
 
+                if ($worker['retry_at'] !== null) {
+                    if (microtime(true) < (float) $worker['retry_at']) {
+                        $anyRunning = true;
+
+                        continue;
+                    }
+
+                    try {
+                        if (is_file($worker['status_path'])) {
+                            @unlink($worker['status_path']);
+                        }
+
+                        $workers[$index]['process'] = $this->startWorkerProcess($worker);
+                        $workers[$index]['retry_at'] = null;
+                        $workers[$index]['retrying'] = true;
+                        $workers[$index]['last_status_mtime'] = 0;
+                        $workers[$index]['last_progress_key'] = '0|';
+                        $workers[$index]['last_heartbeat_at'] = microtime(true);
+                        $anyRunning = true;
+                    } catch (Throwable $exception) {
+                        $workers[$index]['last_error'] = 'Gagal restart worker: '.$exception->getMessage();
+                        $this->restartWorker($workers, $index, 0);
+                    }
+
+                    continue;
+                }
+
                 $statusMtime = is_file($worker['status_path']) ? (int) filemtime($worker['status_path']) : 0;
+                $statusData = $this->readWorkerStatus($worker['status_path']);
+                $progressKey = implode('|', [
+                    (string) ($statusData['completed'] ?? 0),
+                    (string) ($statusData['virtual_time'] ?? ''),
+                ]);
+
+                if ($progressKey !== (string) $worker['last_progress_key'] && $worker['process']->isRunning()) {
+                    $workers[$index]['last_progress_key'] = $progressKey;
+                    $workers[$index]['last_heartbeat_at'] = microtime(true);
+                    $workers[$index]['failures'] = 0;
+                }
 
                 if ($statusMtime > $worker['last_status_mtime']) {
                     $workers[$index]['last_status_mtime'] = $statusMtime;
                     $workers[$index]['last_heartbeat_at'] = microtime(true);
-
-                    if ($worker['process']->isRunning()) {
-                        $workers[$index]['failures'] = 0;
-                    }
                 }
 
                 if ($worker['process']->isRunning()) {
@@ -609,8 +651,10 @@ class SandboxTuiCommand extends Command
     private function restartWorker(array &$workers, int $index, int $exitCode): void
     {
         $worker = $workers[$index];
+        $exhausted = ($worker['max_failures'] > 0 && $worker['failures'] >= $worker['max_failures'])
+            || ($worker['max_attempts'] > 0 && $worker['attempts'] >= $worker['max_attempts']);
 
-        if ($worker['failures'] >= $worker['max_failures'] || $worker['attempts'] >= $worker['max_attempts']) {
+        if ($exhausted) {
             $workers[$index]['done'] = true;
             $workers[$index]['exit_code'] = $exitCode;
             $workers[$index]['error'] = $worker['last_error'] ?? 'Worker gagal setelah beberapa percobaan.';
@@ -623,16 +667,14 @@ class SandboxTuiCommand extends Command
             $workers[$index]['attempts']++;
             $workers[$index]['failures']++;
             $workers[$index]['retrying'] = true;
+            $workers[$index]['retry_at'] = microtime(true) + min(0.3 * max(1, $workers[$index]['failures']), 30.0);
             $workers[$index]['last_status_mtime'] = 0;
+            $workers[$index]['last_progress_key'] = '0|';
             $workers[$index]['last_heartbeat_at'] = microtime(true);
 
             if (is_file($worker['status_path'])) {
                 @unlink($worker['status_path']);
             }
-
-            // Beri jeda bertahap agar koneksi database / resource sempat pulih.
-            usleep(300000 * $workers[$index]['failures']);
-            $workers[$index]['process'] = $this->startWorkerProcess($worker);
         } catch (Throwable $exception) {
             $workers[$index]['done'] = true;
             $workers[$index]['error'] = 'Gagal restart worker: '.$exception->getMessage();
@@ -684,6 +726,7 @@ class SandboxTuiCommand extends Command
                 'progress' => 0.0,
                 'virtual' => null,
                 'fish' => 0,
+                'last_completed' => null,
                 'done' => true,
                 'attempts' => $worker['attempts'],
                 'max_attempts' => $worker['max_attempts'],
@@ -724,6 +767,7 @@ class SandboxTuiCommand extends Command
             'progress' => min(100, (($completed + $ratio) / $total) * 100),
             'virtual' => Carbon::parse($pond->waktu_sandbox_sekarang),
             'fish' => Ikan::query()->where('kolam_id', $pond->id)->where('status', 'hidup')->count(),
+            'last_completed' => $cycles->where('status', 'selesai')->sortByDesc('urutan')->first(),
             'done' => $worker['done'],
             'attempts' => $worker['attempts'],
             'max_attempts' => $worker['max_attempts'],
@@ -736,9 +780,136 @@ class SandboxTuiCommand extends Command
     /**
      * @param  array<int, array<string, mixed>>  $workers
      */
+    /**
+     * @param  array<int, array<string, mixed>>  $snapshots
+     */
+    private function syncWorkerLogs(array $snapshots): void
+    {
+        foreach ($snapshots as $snapshot) {
+            $key = (string) $snapshot['label'];
+            $previous = $this->workerLogState[$key] ?? null;
+            $activeUrutan = $snapshot['active'] instanceof SiklusKolam
+                ? $snapshot['active']->urutan
+                : null;
+            $now = microtime(true);
+            $lastPeriodic = (float) ($previous['last_periodic'] ?? 0);
+            $loggedEvent = false;
+
+            if ($previous === null) {
+                $this->pushWorkerLog(
+                    $snapshot['label'].' mulai · '.$snapshot['pond']->kode.' · '.$snapshot['total'].' siklus',
+                );
+
+                if ($snapshot['error'] !== null) {
+                    $this->pushWorkerLog(
+                        $snapshot['label'].' ERROR · '.mb_substr((string) $snapshot['error'], 0, 120),
+                    );
+                } elseif ($snapshot['done']) {
+                    $this->pushWorkerLog(
+                        $snapshot['label'].' selesai semua siklus ('.$snapshot['completed'].'/'.$snapshot['total'].')',
+                    );
+                }
+
+                $lastPeriodic = $now;
+                $loggedEvent = true;
+            } else {
+                if ($snapshot['attempts'] > (int) ($previous['attempts'] ?? 0)) {
+                    $reason = $snapshot['last_error'] === null
+                        ? ''
+                        : ' · '.mb_substr((string) $snapshot['last_error'], 0, 100);
+
+                    $this->pushWorkerLog(
+                        $snapshot['label'].' restart #'.$snapshot['attempts'].$reason,
+                    );
+                    $loggedEvent = true;
+                }
+
+                if ($snapshot['error'] !== null && ($previous['error'] ?? null) === null) {
+                    $this->pushWorkerLog(
+                        $snapshot['label'].' ERROR · '.mb_substr((string) $snapshot['error'], 0, 120),
+                    );
+                    $loggedEvent = true;
+                }
+
+                if ($snapshot['completed'] > (int) ($previous['completed'] ?? 0)) {
+                    $delta = $snapshot['completed'] - (int) ($previous['completed'] ?? 0);
+                    $lastCompleted = $snapshot['last_completed'];
+                    $detail = $lastCompleted instanceof SiklusKolam
+                        ? 'siklus #'.$lastCompleted->urutan.' · '.($lastCompleted->bobot_akhir_g === null
+                            ? '—'
+                            : number_format((float) $lastCompleted->bobot_akhir_g, 2).' g')
+                        : $delta.' siklus';
+
+                    $this->pushWorkerLog(
+                        $snapshot['label'].' selesai '.$detail
+                        .($delta > 1 ? ' (+'.$delta.' siklus)' : ''),
+                    );
+                    $loggedEvent = true;
+                }
+
+                if ($activeUrutan !== null && $activeUrutan !== ($previous['active'] ?? null)) {
+                    $this->pushWorkerLog(
+                        $snapshot['label'].' mulai siklus #'.$activeUrutan
+                        .' · target '.number_format((float) $snapshot['target'], 2).' g',
+                    );
+                    $loggedEvent = true;
+                }
+
+                if ($snapshot['done'] && ! ($previous['done'] ?? false) && $snapshot['error'] === null) {
+                    $this->pushWorkerLog(
+                        $snapshot['label'].' selesai semua siklus ('.$snapshot['completed'].'/'.$snapshot['total'].')',
+                    );
+                    $loggedEvent = true;
+                }
+
+                if (! $snapshot['done'] && $snapshot['error'] === null && $now - $lastPeriodic >= 20) {
+                    $average = $snapshot['average'] === null
+                        ? '—'
+                        : number_format((float) $snapshot['average'], 2);
+                    $active = $activeUrutan === null ? '—' : '#'.$activeUrutan;
+
+                    $this->pushWorkerLog(
+                        $snapshot['label'].' '.$snapshot['completed'].'/'.$snapshot['total']
+                        .' · aktif '.$active.' · '.$average.'/'.number_format((float) $snapshot['target'], 2).' g'
+                        .' · '.($snapshot['virtual']?->format('Y-m-d H:i') ?? '—'),
+                    );
+                    $lastPeriodic = $now;
+                    $loggedEvent = true;
+                }
+            }
+
+            if ($loggedEvent && $previous !== null) {
+                // Event lain sudah cukup; jangan langsung menambah progress periodik.
+                $lastPeriodic = $now;
+            }
+
+            $this->workerLogState[$key] = [
+                'completed' => $snapshot['completed'],
+                'active' => $activeUrutan,
+                'done' => $snapshot['done'],
+                'error' => $snapshot['error'],
+                'attempts' => $snapshot['attempts'],
+                'last_periodic' => $lastPeriodic,
+            ];
+        }
+    }
+
+    private function pushWorkerLog(string $message): void
+    {
+        $this->workerLogs[] = '['.Carbon::now('Asia/Jakarta')->format('H:i:s').'] '.$message;
+
+        if (count($this->workerLogs) > 8) {
+            array_shift($this->workerLogs);
+        }
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $workers
+     */
     private function renderWorkersDashboard(array $workers): void
     {
         $snapshots = array_map(fn (array $worker): array => $this->workerSnapshot($worker), $workers);
+        $this->syncWorkerLogs($snapshots);
         $totalCycles = (int) array_sum(array_column($snapshots, 'total'));
         $completed = (int) array_sum(array_column($snapshots, 'completed'));
         $activeRatio = (float) array_sum(array_column($snapshots, 'ratio'));
@@ -795,9 +966,11 @@ class SandboxTuiCommand extends Command
                 ? '<fg=red;options=bold>ERROR</>'
                 : ($snapshot['done']
                     ? 'selesai'
-                    : ($snapshot['retrying'] || $snapshot['attempts'] > 0
-                        ? '<fg=yellow;options=bold>retry '.$snapshot['attempts'].'/'.$snapshot['max_attempts'].'</>'
-                        : 'jalan'));
+                    : ($snapshot['retrying']
+                        ? '<fg=yellow;options=bold>memulihkan...</>'
+                        : ($snapshot['attempts'] > 0
+                            ? '<fg=cyan>jalan · pulih '.$snapshot['attempts'].'x</>'
+                            : 'jalan')));
             $active = $snapshot['active'] instanceof SiklusKolam
                 ? '#'.$snapshot['active']->urutan
                 : '—';
@@ -820,6 +993,16 @@ class SandboxTuiCommand extends Command
 
         $this->line('───────────────────────────────────────────────────────────────');
         $this->line('  Setiap worker memakai kolam dan riwayat siklus sendiri.');
+        $this->line('  Log berjalan (otomatis, 8 event terakhir):');
+
+        if ($this->workerLogs === []) {
+            $this->line('  menunggu event...');
+        } else {
+            foreach ($this->workerLogs as $log) {
+                $this->line('  '.$log);
+            }
+        }
+
         $this->line('');
     }
 
