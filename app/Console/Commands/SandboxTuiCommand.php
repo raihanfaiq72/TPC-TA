@@ -15,6 +15,7 @@ use Illuminate\Console\Command;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Symfony\Component\Process\Process;
@@ -42,6 +43,8 @@ class SandboxTuiCommand extends Command
     private ?float $initialEta = null;
 
     private float $initialEtaAt = 0.0;
+
+    private ?float $deadlineAt = null;
 
     /** @var array<int, string> */
     private array $workerLogs = [];
@@ -398,11 +401,23 @@ class SandboxTuiCommand extends Command
      */
     private function runParallel(array $config): void
     {
-        $groups = $this->splitCycles($config['cycles'], (int) $config['workers']);
+        $requestedWorkers = (int) $config['workers'];
+        $workerCount = $this->safeWorkerCount($requestedWorkers);
+
+        if ($workerCount < $requestedWorkers) {
+            info('Worker dibatasi dari '.$requestedWorkers.' menjadi '.$workerCount.' karena batas koneksi database.');
+        }
+
+        $groups = $this->splitCycles(
+            $config['cycles'],
+            $workerCount,
+            (float) $config['initial_weight'],
+        );
         $statusDirectory = storage_path('app/sandbox-workers');
         File::ensureDirectoryExists($statusDirectory);
 
         info('Mode paralel: '.count($groups).' worker. Setiap worker memakai kolam sendiri.');
+        info('Penjadwalan LPT berbobot: populasi × estimasi hari menuju target.');
 
         /** @var array<int, array{pond: Kolam, group: array<int, array{jumlah_tebar: int, target_bobot_g: float}>, label: string, status_path: string}> $prepared */
         $prepared = [];
@@ -492,30 +507,99 @@ class SandboxTuiCommand extends Command
     }
 
     /**
+     * Admission control sederhana berdasarkan max_connections MySQL.
+     * Menyisakan dua koneksi untuk parent TUI dan aplikasi lain.
+     */
+    private function safeWorkerCount(int $requested): int
+    {
+        try {
+            $maxRow = DB::selectOne("SHOW VARIABLES LIKE 'max_connections'");
+            $usedRow = DB::selectOne("SHOW STATUS LIKE 'Threads_connected'");
+            $max = (int) ($maxRow->Value ?? 0);
+            $used = (int) ($usedRow->Value ?? 0);
+
+            if ($max > 0) {
+                return max(1, min($requested, max(1, $max - $used - 2)));
+            }
+        } catch (Throwable) {
+            // Bukan MySQL atau izin SHOW dibatasi; pakai jumlah yang diminta.
+        }
+
+        return max(1, $requested);
+    }
+
+    /**
+     * LPT (Longest Processing Time first) untuk mesin paralel.
+     * Siklus diurutkan dari beban terbesar, lalu dimasukkan ke worker
+     * dengan total beban terkecil. Graham (1969): makespan <= (4/3 - 1/(3m)) OPT.
+     *
      * @param  array<int, array{jumlah_tebar: int, target_bobot_g: float}>  $cycles
      * @return array<int, array<int, array{jumlah_tebar: int, target_bobot_g: float}>>
      */
-    private function splitCycles(array $cycles, int $workers): array
+    private function splitCycles(array $cycles, int $workers, float $initialWeight): array
     {
-        $groups = [];
         $total = count($cycles);
         $workers = max(1, min($workers, $total));
-        $base = intdiv($total, $workers);
-        $remainder = $total % $workers;
-        $offset = 0;
+        $items = [];
 
-        for ($index = 0; $index < $workers; $index++) {
-            $size = $base + ($index < $remainder ? 1 : 0);
+        foreach ($cycles as $index => $cycle) {
+            $items[] = [
+                'index' => $index,
+                'cycle' => $cycle,
+                'cost' => $this->cycleCost($cycle, $initialWeight),
+            ];
+        }
 
-            if ($size <= 0) {
+        usort($items, fn (array $left, array $right): int => $right['cost'] <=> $left['cost']
+            ?: $left['index'] <=> $right['index']);
+
+        $bins = array_fill(0, $workers, ['cost' => 0.0, 'items' => []]);
+
+        foreach ($items as $item) {
+            $target = 0;
+
+            for ($index = 1; $index < $workers; $index++) {
+                if ($bins[$index]['cost'] < $bins[$target]['cost']) {
+                    $target = $index;
+                }
+            }
+
+            $bins[$target]['cost'] += $item['cost'];
+            $bins[$target]['items'][] = $item;
+        }
+
+        $groups = [];
+
+        foreach ($bins as $bin) {
+            if ($bin['items'] === []) {
                 continue;
             }
 
-            $groups[] = array_slice($cycles, $offset, $size);
-            $offset += $size;
+            usort($bin['items'], fn (array $left, array $right): int => $left['index'] <=> $right['index']);
+            $groups[] = array_map(fn (array $item): array => $item['cycle'], $bin['items']);
         }
 
         return $groups;
+    }
+
+    /**
+     * Estimasi beban satu siklus: populasi x perkiraan hari menuju target.
+     * Laju pertumbuhan memakai aturan ikan yang sudah ada di config/sandbox,
+     * bukan model simulasi baru.
+     *
+     * @param  array{jumlah_tebar: int, target_bobot_g: float}  $cycle
+     */
+    private function cycleCost(array $cycle, float $initialWeight): float
+    {
+        $population = max(1, (int) $cycle['jumlah_tebar']);
+        $target = max(0.01, (float) $cycle['target_bobot_g']);
+        $initialWeight = max(0.01, $initialWeight);
+        $dailyGrowth = max(0.001, (float) config('sandbox.ikan.sgr_ref', 7) / 100);
+        $days = $target > $initialWeight
+            ? log($target / $initialWeight) / log(1 + $dailyGrowth)
+            : 0.0;
+
+        return $population * max(1.0, $days);
     }
 
     /**
@@ -617,8 +701,22 @@ class SandboxTuiCommand extends Command
 
             $now = microtime(true);
 
-            if ($now - $lastRender >= 0.25) {
-                $this->renderWorkersDashboard($workers);
+            if ($now - $lastRender >= 0.5) {
+                try {
+                    $this->renderWorkersDashboard($workers);
+                } catch (Throwable $exception) {
+                    $this->pushWorkerLog('DB parent · '.mb_substr($exception->getMessage(), 0, 120));
+
+                    try {
+                        DB::disconnect();
+                        DB::reconnect();
+                    } catch (Throwable) {
+                        // Koneksi parent akan dicoba lagi pada render berikutnya.
+                    }
+
+                    usleep(500000);
+                }
+
                 $lastRender = $now;
             }
 
@@ -640,7 +738,11 @@ class SandboxTuiCommand extends Command
             usleep(200000);
         }
 
-        $this->renderWorkerSummary($workers);
+        try {
+            $this->renderWorkerSummary($workers);
+        } catch (Throwable $exception) {
+            error('Gagal menampilkan ringkasan worker: '.$exception->getMessage());
+        }
     }
 
     /**
@@ -653,11 +755,16 @@ class SandboxTuiCommand extends Command
         $workers[$index]['attempts']++;
         $workers[$index]['failures']++;
         $workers[$index]['retrying'] = true;
-        $workers[$index]['retry_at'] = microtime(true) + (
-            $workers[$index]['failures'] <= 1
-                ? 0.0
-                : min(0.5 * ($workers[$index]['failures'] - 1), 5.0)
-        );
+        $delay = $workers[$index]['failures'] <= 1
+            ? 0.0
+            : min(0.5 * ($workers[$index]['failures'] - 1), 5.0);
+
+        if ($this->isDatabaseErrorText($workers[$index]['last_error'])) {
+            // Jangan menyerbu MySQL serentak saat banyak worker kena SQL error.
+            $delay = max(1.0, $delay) + random_int(0, 1000) / 1000;
+        }
+
+        $workers[$index]['retry_at'] = microtime(true) + $delay;
         $workers[$index]['last_status_mtime'] = 0;
         $workers[$index]['last_progress_key'] = '0|';
         $workers[$index]['last_heartbeat_at'] = microtime(true);
@@ -665,6 +772,29 @@ class SandboxTuiCommand extends Command
         if (is_file($worker['status_path'])) {
             @unlink($worker['status_path']);
         }
+    }
+
+    private function isDatabaseErrorText(?string $error): bool
+    {
+        $message = strtolower((string) $error);
+
+        foreach ([
+            'sqlstate',
+            'database',
+            'deadlock',
+            'lock wait',
+            'too many connections',
+            'server has gone away',
+            'lost connection',
+            'connection refused',
+            'connection reset',
+        ] as $needle) {
+            if (str_contains($message, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -730,11 +860,12 @@ class SandboxTuiCommand extends Command
         $target = $active instanceof SiklusKolam
             ? (float) $active->target_bobot_g
             : (float) $pond->bobot_target_panen_g;
-        $average = Ikan::query()
+        $fishStats = DB::table('ikans')
             ->where('kolam_id', $pond->id)
             ->where('status', 'hidup')
-            ->avg('bobot_g');
-        $average = $average === null ? null : (float) $average;
+            ->selectRaw('COUNT(*) as fish_total, COALESCE(AVG(bobot_g), 0) as average_weight')
+            ->first();
+        $average = $fishStats === null ? null : (float) $fishStats->average_weight;
         $ratio = $active instanceof SiklusKolam && $target > 0 && $average !== null
             ? min(1, max(0, $average / $target))
             : 0.0;
@@ -751,7 +882,7 @@ class SandboxTuiCommand extends Command
             'ratio' => $ratio,
             'progress' => min(100, (($completed + $ratio) / $total) * 100),
             'virtual' => Carbon::parse($pond->waktu_sandbox_sekarang),
-            'fish' => Ikan::query()->where('kolam_id', $pond->id)->where('status', 'hidup')->count(),
+            'fish' => $fishStats === null ? 0 : (int) $fishStats->fish_total,
             'last_completed' => $cycles->where('status', 'selesai')->sortByDesc('urutan')->first(),
             'done' => $worker['done'],
             'attempts' => $worker['attempts'],
@@ -846,6 +977,20 @@ class SandboxTuiCommand extends Command
                     $loggedEvent = true;
                 }
 
+                $deadlineRisk = ($snapshot['deadline_slack'] ?? null) !== null
+                    && (float) $snapshot['deadline_slack'] < 0;
+
+                if ($deadlineRisk && ! ($previous['deadline_risk'] ?? false)) {
+                    $this->pushWorkerLog(
+                        $snapshot['label'].' risiko deadline · slack -'
+                        .$this->formatCountdown(abs((float) $snapshot['deadline_slack'])),
+                    );
+                    $loggedEvent = true;
+                } elseif (! $deadlineRisk && ($previous['deadline_risk'] ?? false)) {
+                    $this->pushWorkerLog($snapshot['label'].' kembali aman terhadap deadline');
+                    $loggedEvent = true;
+                }
+
                 if (! $snapshot['done'] && $snapshot['error'] === null && $now - $lastPeriodic >= 20) {
                     $average = $snapshot['average'] === null
                         ? '—'
@@ -873,6 +1018,8 @@ class SandboxTuiCommand extends Command
                 'done' => $snapshot['done'],
                 'error' => $snapshot['error'],
                 'attempts' => $snapshot['attempts'],
+                'deadline_risk' => ($snapshot['deadline_slack'] ?? null) !== null
+                    && (float) $snapshot['deadline_slack'] < 0,
                 'last_periodic' => $lastPeriodic,
             ];
         }
@@ -893,7 +1040,6 @@ class SandboxTuiCommand extends Command
     private function renderWorkersDashboard(array $workers): void
     {
         $snapshots = array_map(fn (array $worker): array => $this->workerSnapshot($worker), $workers);
-        $this->syncWorkerLogs($snapshots);
         $totalCycles = (int) array_sum(array_column($snapshots, 'total'));
         $completed = (int) array_sum(array_column($snapshots, 'completed'));
         $activeRatio = (float) array_sum(array_column($snapshots, 'ratio'));
@@ -910,7 +1056,24 @@ class SandboxTuiCommand extends Command
         if ($this->initialEta === null && $rawEta !== null && $overall >= 0.5) {
             $this->initialEta = $rawEta;
             $this->initialEtaAt = $elapsed;
+            $this->deadlineAt = $this->startedAt + $this->initialEtaAt + $this->initialEta;
         }
+
+        $remainingDeadline = $this->deadlineAt === null
+            ? null
+            : max(0, $this->deadlineAt - microtime(true));
+
+        foreach ($snapshots as $index => $snapshot) {
+            $workerRemaining = $snapshot['progress'] > 0
+                ? $elapsed * (100 - $snapshot['progress']) / $snapshot['progress']
+                : null;
+
+            $snapshots[$index]['deadline_slack'] = $remainingDeadline !== null && $workerRemaining !== null
+                ? $remainingDeadline - $workerRemaining
+                : null;
+        }
+
+        $this->syncWorkerLogs($snapshots);
 
         $eta = $this->initialEta !== null
             ? max(0, $this->initialEta - ($elapsed - $this->initialEtaAt))
@@ -932,6 +1095,7 @@ class SandboxTuiCommand extends Command
         $this->line('╚══════════════════════════════════════════════════════════════╝');
         $this->line('<fg=cyan;options=bold>  Jam nyata    : '.$realNow->format('H:i:s').' WIB</>');
         $this->line('  Mode         : '.count($workers).' worker paralel');
+        $this->line('  Penjadwalan  : LPT berbobot + least laxity (deadline)');
         $this->line('  Siklus       : '.$completed.' / '.$totalCycles.' selesai');
         $this->line('  Progress     : ['.$bar.'] '.round($overall).'% total');
         $this->line('<fg=yellow;options=bold>  Dunia nyata  : selesai di jam '.$etaText.'</>');
@@ -953,6 +1117,8 @@ class SandboxTuiCommand extends Command
                     : ($snapshot['retrying']
                         ? '<fg=yellow;options=bold>memulihkan...</>'
                         : 'jalan'));
+            $deadlineRisk = ($snapshot['deadline_slack'] ?? null) !== null
+                && (float) $snapshot['deadline_slack'] < 0;
             $active = $snapshot['active'] instanceof SiklusKolam
                 ? '#'.$snapshot['active']->urutan
                 : '—';
@@ -965,7 +1131,7 @@ class SandboxTuiCommand extends Command
                 .' '.$snapshot['completed'].'/'.$snapshot['total'].' · aktif '.$active
                 .' · '.$average.'/'.number_format($snapshot['target'], 2).' g'
                 .' · '.$snapshot['fish'].' ikan · '.($snapshot['virtual']?->format('Y-m-d H:i') ?? '—')
-                .' · '.$status
+                .' · '.$status.($deadlineRisk ? ' · <fg=red>deadline risk</>' : '')
             );
 
             if ($snapshot['last_error'] !== null && $snapshot['retrying']) {

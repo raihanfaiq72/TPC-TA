@@ -11,6 +11,7 @@ use App\Models\SiklusKolam;
 use Illuminate\Console\Command;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class SandboxWorkerCommand extends Command
@@ -96,10 +97,10 @@ class SandboxWorkerCommand extends Command
                 }
             }
 
-            $response = app(SimulasiController::class)->tick(
+            $response = $this->databaseRetry(fn () => app(SimulasiController::class)->tick(
                 Request::create('/api/kolam/'.$kolam->id.'/simulasi/tick', 'POST', ['menit' => $minutes]),
                 $kolam->id,
-            );
+            ));
             $payload = json_decode((string) $response->getContent(), true);
 
             if ($response->getStatusCode() >= 400 || ! is_array($payload)) {
@@ -136,6 +137,62 @@ class SandboxWorkerCommand extends Command
         }
 
         $this->writeStatus($kolam->refresh(), 'finished');
+    }
+
+    /**
+     * Retry transien SQL/connection errors tanpa mengulang tick yang bukan error DB.
+     * Database yang disconnect membuat koneksi baru, sehingga worker tidak mati.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $callback
+     * @return T
+     */
+    private function databaseRetry(callable $callback, int $attempts = 4): mixed
+    {
+        for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+            try {
+                return $callback();
+            } catch (Throwable $exception) {
+                if (! $this->isDatabaseException($exception) || $attempt >= $attempts) {
+                    throw $exception;
+                }
+
+                try {
+                    DB::disconnect();
+                    DB::reconnect();
+                } catch (Throwable) {
+                    // Koneksi dicoba lagi pada iterasi berikutnya.
+                }
+
+                usleep(min(500000 * (2 ** ($attempt - 1)), 4000000));
+            }
+        }
+
+        throw new \RuntimeException('Retry database worker gagal.');
+    }
+
+    private function isDatabaseException(Throwable $exception): bool
+    {
+        $message = strtolower($exception->getMessage());
+
+        foreach ([
+            'sqlstate',
+            'database',
+            'deadlock',
+            'lock wait',
+            'too many connections',
+            'server has gone away',
+            'lost connection',
+            'connection refused',
+            'connection reset',
+        ] as $needle) {
+            if (str_contains($message, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function takeAutomaticSample(Kolam $kolam, Carbon $waktu, int $count): void
