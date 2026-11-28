@@ -18,6 +18,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use Symfony\Component\Console\Terminal;
 use Symfony\Component\Process\Process;
 use Throwable;
 
@@ -960,42 +961,47 @@ class SandboxTuiCommand extends Command
         $this->line('  Durasi nyata : '.$this->formatReal($elapsed));
         $this->line('───────────────────────────────────────────────────────────────');
 
+        $workerLines = [];
+
         foreach ($snapshots as $snapshot) {
-            $width = 18;
+            $width = 6;
             $fill = (int) round($snapshot['progress'] / 100 * $width);
             $workerBar = str_repeat('█', $fill).str_repeat('░', $width - $fill);
             $status = $snapshot['error'] !== null
-                ? '<fg=red;options=bold>ERROR</>'
-                : ($snapshot['done']
-                    ? 'selesai'
-                    : ($snapshot['retrying']
-                        ? '<fg=yellow;options=bold>memulihkan...</>'
-                        : 'jalan'));
+                ? '!'
+                : ($snapshot['done'] ? '✓' : ($snapshot['retrying'] ? 'R' : 'J'));
             $deadlineRisk = ($snapshot['deadline_slack'] ?? null) !== null
                 && (float) $snapshot['deadline_slack'] < 0;
             $active = $snapshot['active'] instanceof SiklusKolam
                 ? '#'.$snapshot['active']->urutan
                 : '—';
-            $average = $snapshot['average'] === null
-                ? '—'
-                : number_format($snapshot['average'], 2);
-            $this->line(
-                '  '.str_pad($snapshot['label'], 4).' '.str_pad($snapshot['pond']->nama, 28)
+            $average = $snapshot['average'] === null ? '—' : (string) round($snapshot['average']);
+            $workerLines[] = str_pad($snapshot['label'], 3)
                 .' ['.$workerBar.'] '.str_pad((string) round($snapshot['progress']).'%', 4)
-                .' '.$snapshot['completed'].'/'.$snapshot['total'].' · aktif '.$active
-                .' · '.$average.'/'.number_format($snapshot['target'], 2).' g'
-                .' · '.$snapshot['fish'].' ikan · '.($snapshot['virtual']?->format('Y-m-d H:i') ?? '—')
-                .' · '.$status.($deadlineRisk ? ' · <fg=red>deadline risk</>' : '')
-            );
+                .' '.$snapshot['completed'].'/'.$snapshot['total']
+                .' '.$active.' '.$average.'/'.round((float) $snapshot['target'])
+                .' '.$status.($deadlineRisk ? 'D' : '');
+        }
 
-            if ($snapshot['last_error'] !== null && $snapshot['retrying']) {
-                $this->line('      <fg=yellow>↳ '.$snapshot['last_error'].'</>');
+        $terminalWidth = max(60, (new Terminal)->getWidth());
+        $columns = count($workerLines) > 3 && $terminalWidth >= 72 ? 2 : 1;
+
+        if ($columns === 2) {
+            $columnWidth = max(30, (int) floor(($terminalWidth - 4) / 2));
+
+            foreach (array_chunk($workerLines, 2) as $chunk) {
+                $left = str_pad(mb_substr($chunk[0], 0, $columnWidth), $columnWidth);
+                $right = isset($chunk[1]) ? mb_substr($chunk[1], 0, $columnWidth) : '';
+                $this->line('  '.$left.'  '.$right);
+            }
+        } else {
+            foreach ($workerLines as $workerLine) {
+                $this->line('  '.$workerLine);
             }
         }
 
         $this->line('───────────────────────────────────────────────────────────────');
-        $this->line('  Setiap worker memakai kolam dan riwayat siklus sendiri.');
-        $this->line('');
+        $this->line('  J=jalan R=restart !=error ✓=selesai D=deadline risk');
     }
 
     /**
@@ -1201,7 +1207,6 @@ class SandboxTuiCommand extends Command
         $this->line('  Sample next  : '.($nextSample?->format('Y-m-d H:i') ?? '—'));
         $this->line('───────────────────────────────────────────────────────────────');
         $this->line('  Siklus        : '.$cycles->map(fn (SiklusKolam $cycle): string => '#'.$cycle->urutan.' '.$cycle->status.' ('.$cycle->jumlah_tebar.' ekor → '.number_format((float) $cycle->target_bobot_g, 1).' g)')->implode(' · '));
-        $this->line('');
     }
 
     /**
@@ -1336,7 +1341,10 @@ class SandboxTuiCommand extends Command
 
     private function clearScreen(): void
     {
-        if (stream_isatty(STDOUT)) {
+        // Jangan bergantung hanya pada stream_isatty(); beberapa terminal/IDE
+        // melaporkan false padahal mendukung ANSI. Tanpa ini dashboard menumpuk
+        // ke bawah dan terminal terus scroll.
+        if (stream_isatty(STDOUT) || getenv('TERM') !== false || getenv('WT_SESSION') !== false) {
             $this->output->write("\033[2J\033[H");
         }
     }
