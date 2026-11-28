@@ -116,6 +116,18 @@
         cells: Array<CalendarDay | null>;
         samples: SamplingRow[];
     };
+    type SiklusRow = {
+        id: number;
+        urutan: number;
+        jumlah_tebar: number;
+        target_bobot_g: number;
+        status: 'pending' | 'aktif' | 'selesai';
+        tanggal_mulai: string | null;
+        tanggal_selesai: string | null;
+        bobot_akhir_g: number | null;
+        biomassa_akhir_g: number | null;
+        jumlah_mati: number;
+    };
     type SimulationStatus = {
         kolam: {
             waktu_sandbox_sekarang: string;
@@ -217,13 +229,23 @@
     let autoPilotProgress = $state(0);
     let autoPilotAverage = $state<number | null>(null);
     let autoPilotTarget = $state(0);
+    let autoPilotCountdown = $state('—');
+    let autoPilotEstimateStarted = 0;
+    let autoPilotEstimateStartAverage: number | null = null;
     let autoPilotStopRequested = false;
     let autoPilotFeedTimes = $state<string[]>(['07:00', '12:00', '19:00']);
     let autoPilotForm = $state({ durationValue: 1, durationUnit: 'days', sampleHour: '08:00', sampleCount: 25 });
+    let autoPilotCycles = $state<Array<{ jumlah_tebar: number; target_bobot_g: number }>>([]);
     let calendarMonth = $state('');
     let calendarExplicit = $state(false);
     let calendarDay = $state<CalendarDay | null>(null);
-    let editForm = $state({ nama: '', kecepatan_waktu: 60, bobot_target_panen_g: 100 });
+    let cycles = $state<SiklusRow[]>([]);
+    let editForm = $state({
+        nama: '',
+        kecepatan_waktu: 60,
+        bobot_target_panen_g: 100,
+        siklus: [] as Array<{ jumlah_tebar: number; target_bobot_g: number }>,
+    });
     let playTimer: ReturnType<typeof setInterval> | undefined;
     let clockTimer: ReturnType<typeof setInterval> | undefined;
     let fishCanvas = $state<HTMLCanvasElement>();
@@ -438,6 +460,21 @@
         // Akhiri jendela chart pada sampel sensor terakhir, bukan jam yang
         // bergerak tiap detik. Chart baru bergeser saat ada data baru.
         chartTime = latestSensorTime ?? latestReading ?? virtualTimeValue;
+    }
+
+    async function loadCycles(): Promise<void> {
+        try {
+            const response = await fetch(`/api/kolam/${id}/siklus`, { headers: { Accept: 'application/json' } });
+
+            if (!response.ok) {
+                cycles = [];
+                return;
+            }
+
+            cycles = (await response.json()) as SiklusRow[];
+        } catch {
+            cycles = [];
+        }
     }
 
     async function loadSampling(): Promise<void> {
@@ -722,6 +759,7 @@
             window.localStorage.setItem(autoPilotStorageKey(), JSON.stringify({
                 feedTimes: autoPilotFeedTimes,
                 form: autoPilotForm,
+                cycles: autoPilotCycles,
             }));
         } catch {
             // localStorage bisa diblokir; auto pilot tetap berjalan di tab ini.
@@ -737,6 +775,7 @@
             const saved = JSON.parse(raw) as {
                 feedTimes?: string[];
                 form?: typeof autoPilotForm;
+                cycles?: Array<{ jumlah_tebar: number; target_bobot_g: number }>;
             };
 
             if (Array.isArray(saved.feedTimes) && saved.feedTimes.length > 0) {
@@ -745,6 +784,10 @@
 
             if (saved.form) {
                 autoPilotForm = { ...autoPilotForm, ...saved.form };
+            }
+
+            if (Array.isArray(saved.cycles) && saved.cycles.length > 0) {
+                autoPilotCycles = saved.cycles.slice(0, 20);
             }
         } catch {
             // Gunakan pengaturan default jika data lokal tidak valid.
@@ -782,7 +825,7 @@
         restoreAutoPilotConfig();
         autoPilotOpen = false;
         autoPilotMessage = 'Melanjutkan auto pilot...';
-        await runAutoPilot();
+        await runAutoPilot(true);
     }
 
     function openAutoPilot(): void {
@@ -795,6 +838,10 @@
 
         autoPilotFeedTimes = times.length > 0 ? times.slice(0, 6) : ['07:00', '12:00', '19:00'];
         autoPilotForm = { durationValue: 1, durationUnit: 'days', sampleHour: '08:00', sampleCount: 25 };
+        autoPilotCycles = [{
+            jumlah_tebar: Math.max(1, Number(detail?.kolam.jumlah_ikan_awal ?? 100)),
+            target_bobot_g: Math.max(0.1, Number(detail?.kolam.bobot_target_panen_g ?? 100)),
+        }];
         autoPilotError = '';
         autoPilotMessage = '';
         autoPilotProgress = 0;
@@ -841,10 +888,57 @@
         autoPilotMessage = `Timbang otomatis ${tanggal} selesai.`;
     }
 
+    function formatRealCountdown(seconds: number): string {
+        if (!Number.isFinite(seconds) || seconds <= 0) return '0 menit';
+        if (seconds < 3600) return `${Math.max(1, Math.ceil(seconds / 60))} menit`;
+        if (seconds < 86400) return `${(seconds / 3600).toFixed(1)} jam`;
+
+        return `${(seconds / 86400).toFixed(1)} hari`;
+    }
+
+    function updateAutoPilotEstimate(average: number, target: number): void {
+        if (autoPilotEstimateStartAverage === null) {
+            autoPilotEstimateStartAverage = average;
+            autoPilotEstimateStarted = Date.now();
+            autoPilotCountdown = 'menghitung...';
+            return;
+        }
+
+        const elapsedSeconds = Math.max(0.001, (Date.now() - autoPilotEstimateStarted) / 1000);
+        const gained = average - autoPilotEstimateStartAverage;
+
+        if (gained <= 0) {
+            autoPilotCountdown = 'menghitung...';
+            return;
+        }
+
+        autoPilotCountdown = formatRealCountdown(
+            Math.max(1, (target - average) / (gained / elapsedSeconds)),
+        );
+    }
+
     function addAutoPilotFeedTime(): void {
         if (autoPilotFeedTimes.length >= 6) return;
 
         autoPilotFeedTimes = [...autoPilotFeedTimes, '12:00'];
+    }
+
+    function addAutoPilotCycle(): void {
+        if (autoPilotCycles.length >= 20) return;
+
+        autoPilotCycles = [
+            ...autoPilotCycles,
+            {
+                jumlah_tebar: autoPilotCycles.at(-1)?.jumlah_tebar ?? 100,
+                target_bobot_g: autoPilotCycles.at(-1)?.target_bobot_g ?? 100,
+            },
+        ];
+    }
+
+    function removeAutoPilotCycle(index: number): void {
+        if (autoPilotCycles.length <= 1) return;
+
+        autoPilotCycles = autoPilotCycles.filter((_, itemIndex) => itemIndex !== index);
     }
 
     function removeAutoPilotFeedTime(index: number): void {
@@ -853,10 +947,10 @@
         autoPilotFeedTimes = autoPilotFeedTimes.filter((_, itemIndex) => itemIndex !== index);
     }
 
-    async function runAutoPilot(): Promise<void> {
+    async function runAutoPilot(resuming = false): Promise<void> {
         if (autoPilotBusy || simulasiSelesai) return;
 
-        const targetBobot = Number(detail?.kolam.bobot_target_panen_g ?? 0);
+        let targetBobot = Number(detail?.kolam.bobot_target_panen_g ?? 0);
         const feedTimes = autoPilotFeedTimes
             .map((jam) => jam.trim())
             .filter((jam) => jam !== '');
@@ -878,6 +972,9 @@
         autoPilotProgress = 0;
         autoPilotAverage = null;
         autoPilotTarget = targetBobot;
+        autoPilotCountdown = 'menghitung...';
+        autoPilotEstimateStartAverage = null;
+        autoPilotEstimateStarted = Date.now();
         stopPlayback();
 
         try {
@@ -896,7 +993,8 @@
 
             const startResponse = await fetch(`/api/kolam/${id}/simulasi/auto-pilot/start`, {
                 method: 'POST',
-                headers: { Accept: 'application/json' },
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
             });
 
             if (!startResponse.ok) {
@@ -904,8 +1002,21 @@
                 throw new Error(payload?.message ?? 'Auto pilot tidak dapat dimulai.');
             }
 
+            const startPayload = (await startResponse.json()) as { bobot_target_panen_g?: number };
+            targetBobot = Number(startPayload.bobot_target_panen_g ?? targetBobot) || targetBobot;
+            autoPilotTarget = targetBobot;
             autoPilotStopRequested = false;
             persistAutoPilotConfig();
+
+            // Muat ulang setelah rencana siklus pertama direset di server.
+            await Promise.all([
+                loadDetail(),
+                loadSimulation(),
+                loadSampling(),
+                loadReadings(),
+                loadFish(),
+                loadCycles(),
+            ]);
 
             // Modal langsung ditutup; proses berjalan di latar UI.
             autoPilotOpen = false;
@@ -918,6 +1029,7 @@
             let sampleCount = 0;
             let passes = 0;
             let endedEarly = false;
+            let allCyclesDone = false;
 
             while (!targetReached && !autoPilotStopRequested && passes < 100000) {
                 if (nextSample !== null && current.getTime() >= nextSample.getTime()) {
@@ -965,7 +1077,8 @@
                 if (averageNow !== null && Number.isFinite(averageNow)) {
                     autoPilotAverage = averageNow;
                     autoPilotProgress = Math.min(99, Math.max(0, Math.round((averageNow / targetNow) * 100)));
-                    autoPilotMessage = `Auto pilot ${autoPilotProgress}% · rata-rata ${averageNow.toFixed(1)} / ${targetNow.toFixed(0)} g`;
+                    updateAutoPilotEstimate(averageNow, targetNow);
+                    autoPilotMessage = `Auto pilot ${autoPilotProgress}% · rata-rata ${averageNow.toFixed(1)} / ${targetNow.toFixed(0)} g · estimasi ${autoPilotCountdown}`;
                 } else {
                     autoPilotMessage = `Auto pilot berjalan · ${formatVirtualTime(payload.waktu_sekarang)}`;
                 }
@@ -1000,10 +1113,52 @@
                 await loadSimulation();
 
                 if (payload.target_tercapai || simulasiSelesai) {
-                    targetReached = true;
-                    autoPilotProgress = 100;
-                    autoPilotMessage = 'Target panen tercapai. Kolam selesai dan siap panen.';
-                    break;
+                    const cycleResponse = await fetch(`/api/kolam/${id}/siklus/next`, {
+                        method: 'POST',
+                        headers: { Accept: 'application/json' },
+                    });
+
+                    if (!cycleResponse.ok) {
+                        throw new Error('Siklus berikutnya tidak dapat disiapkan.');
+                    }
+
+                    const cyclePayload = (await cycleResponse.json()) as {
+                        selesai?: boolean;
+                        siklus?: SiklusRow | null;
+                        bobot_target_panen_g?: number | null;
+                    };
+
+                    if (cyclePayload.selesai) {
+                        targetReached = true;
+                        allCyclesDone = true;
+                        autoPilotProgress = 100;
+                        autoPilotMessage = 'Semua siklus selesai. Kolam siap panen.';
+                        break;
+                    }
+
+                    targetBobot = Number(cyclePayload.bobot_target_panen_g ?? targetBobot) || targetBobot;
+                    autoPilotTarget = targetBobot;
+                    autoPilotAverage = null;
+                    autoPilotProgress = 0;
+                    autoPilotCountdown = 'menghitung...';
+                    autoPilotEstimateStartAverage = null;
+                    autoPilotEstimateStarted = Date.now();
+                    autoPilotMessage = `Siklus ${cyclePayload.siklus?.urutan ?? ''} dimulai · target ${targetBobot.toFixed(0)} g`;
+
+                    await Promise.all([
+                        loadDetail(),
+                        loadSimulation(),
+                        loadSampling(),
+                        loadReadings(),
+                        loadHistory(),
+                        loadFish(),
+                        loadCycles(),
+                    ]);
+
+                    current = parseVirtualDate(virtualTimeValue) ?? current;
+                    lastSampleDate = null;
+                    nextSample = nextSamplingAt(current, null);
+                    continue;
                 }
 
                 if (autoPilotStopRequested || payload.auto_pilot_aktif === false || simulation?.kolam.auto_pilot_aktif === false) {
@@ -1026,7 +1181,10 @@
 
             if (targetReached || simulasiSelesai) {
                 autoPilotProgress = 100;
-                autoPilotMessage = 'Target panen tercapai. Kolam selesai dan siap panen.';
+                autoPilotCountdown = '0 menit';
+                autoPilotMessage = allCyclesDone
+                    ? 'Semua siklus selesai. Kolam siap panen.'
+                    : 'Target panen tercapai. Kolam selesai dan siap panen.';
                 say(autoPilotMessage);
 
                 try {
@@ -1054,6 +1212,24 @@
         }
     }
 
+    function addEditCycle(): void {
+        if (editForm.siklus.length >= 20) return;
+
+        editForm.siklus = [
+            ...editForm.siklus,
+            {
+                jumlah_tebar: editForm.siklus.at(-1)?.jumlah_tebar ?? 100,
+                target_bobot_g: editForm.siklus.at(-1)?.target_bobot_g ?? 100,
+            },
+        ];
+    }
+
+    function removeEditCycle(index: number): void {
+        if (editForm.siklus.length <= 1) return;
+
+        editForm.siklus = editForm.siklus.filter((_, itemIndex) => itemIndex !== index);
+    }
+
     function openEdit(): void {
 
         if (!detail) return;
@@ -1062,7 +1238,21 @@
             nama: detail.kolam.nama,
             kecepatan_waktu: detail.kolam.kecepatan_waktu ?? 60,
             bobot_target_panen_g: detail.kolam.bobot_target_panen_g ?? 100,
+            siklus: cycles
+                .filter((cycle) => cycle.status !== 'selesai')
+                .map((cycle) => ({
+                    jumlah_tebar: cycle.jumlah_tebar,
+                    target_bobot_g: cycle.target_bobot_g,
+                })),
         };
+
+        if (editForm.siklus.length === 0) {
+            editForm.siklus = [{
+                jumlah_tebar: Math.max(1, Number(detail.kolam.jumlah_ikan_awal ?? 100)),
+                target_bobot_g: Math.max(0.1, Number(detail.kolam.bobot_target_panen_g ?? 100)),
+            }];
+        }
+
         editOpen = true;
     }
 
@@ -1073,7 +1263,12 @@
             const response = await fetch(`/api/kolam/${id}`, {
                 method: 'PUT',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-                body: JSON.stringify(editForm),
+                body: JSON.stringify({
+                    ...editForm,
+                    siklus: editForm.siklus.map((cycle, index) => index === 0
+                        ? { ...cycle, target_bobot_g: editForm.bobot_target_panen_g }
+                        : cycle),
+                }),
             });
 
             const payload = (await response.json().catch(() => null)) as
@@ -1445,13 +1640,15 @@
 
         void (async () => {
             try {
-                await loadDetail();
+                const openEditFromQuery = new URLSearchParams(window.location.search).has('edit');
 
-                if (new URLSearchParams(window.location.search).has('edit')) {
+                await loadDetail();
+                await Promise.all([loadReadings(), loadSimulation(), loadHistory(), loadRecommendation(), loadFish(), loadSampling(), loadCycles()]);
+
+                if (openEditFromQuery) {
                     openEdit();
                 }
 
-                await Promise.all([loadReadings(), loadSimulation(), loadHistory(), loadRecommendation(), loadFish(), loadSampling()]);
                 void recordSensorsLive();
 
                 if (simulation?.kolam.auto_pilot_aktif) {
@@ -2684,6 +2881,49 @@
         </div>
     </section>
 
+    <section class="pond-cycles-section">
+        <div class="section-title-row">
+            <div>
+                <h2>Riwayat siklus kolam</h2>
+                <p>Setiap panen menutup satu siklus. Auto pilot dapat melanjutkan ke siklus berikutnya dengan jumlah tebar dan target bobot baru.</p>
+            </div>
+            <div class="chart-section-meta">
+                <span>{cycles.length} siklus</span>
+                <span>{cycles.filter((cycle) => cycle.status === 'selesai').length} selesai</span>
+            </div>
+        </div>
+        {#if cycles.length === 0}
+            <div class="card cycle-empty">Belum ada siklus. Siklus pertama akan tercatat saat Auto pilot dijalankan.</div>
+        {:else}
+            <div class="cycle-list">
+                {#each cycles as cycle}
+                    <article class="card cycle-card" class:active={cycle.status === 'aktif'} class:done={cycle.status === 'selesai'}>
+                        <div class="cycle-card-head">
+                            <div>
+                                <span class="cycle-number">SIKLUS {cycle.urutan}</span>
+                                <h3>{cycle.status === 'aktif' ? 'Sedang berjalan' : cycle.status === 'selesai' ? 'Selesai' : 'Menunggu'}</h3>
+                            </div>
+                            <span class="cycle-status {cycle.status}">{cycle.status}</span>
+                        </div>
+                        <div class="cycle-facts">
+                            <span><small>Jumlah tebar</small><b>{cycle.jumlah_tebar.toLocaleString('id-ID')} ekor</b></span>
+                            <span><small>Target bobot</small><b>{cycle.target_bobot_g.toLocaleString('id-ID', { maximumFractionDigits: 2 })} g</b></span>
+                            <span><small>Mulai</small><b>{cycle.tanggal_mulai ? formatSamplingDate(cycle.tanggal_mulai) : '—'}</b></span>
+                            <span><small>Selesai</small><b>{cycle.tanggal_selesai ? formatSamplingDate(cycle.tanggal_selesai) : '—'}</b></span>
+                        </div>
+                        {#if cycle.status === 'selesai'}
+                            <div class="cycle-result">
+                                <span>Bobot akhir <b>{cycle.bobot_akhir_g?.toLocaleString('id-ID', { maximumFractionDigits: 2 }) ?? '—'} g</b></span>
+                                <span>Biomassa <b>{cycle.biomassa_akhir_g?.toLocaleString('id-ID', { maximumFractionDigits: 1 }) ?? '—'} g</b></span>
+                                <span>Mati <b>{cycle.jumlah_mati} ekor</b></span>
+                            </div>
+                        {/if}
+                    </article>
+                {/each}
+            </div>
+        {/if}
+    </section>
+
     <section class="sampling-chart-section">
         <div class="section-title-row">
             <div>
@@ -2939,7 +3179,7 @@
             <button class="pond-modal-close" aria-label="Tutup" onclick={() => { if (!autoPilotBusy) autoPilotOpen = false; }}>×</button>
             <span class="modal-kicker">AUTO PILOT</span>
             <h2>Jalankan auto pilot</h2>
-            <p class="modal-subtitle">Auto pilot menjalankan simulasi di latar belakang dan berhenti saat bobot rata-rata ikan mencapai target <b>{detail?.kolam.bobot_target_panen_g ?? 100} g/ekor</b>. Durasi di bawah hanya perkiraan awal.</p>
+            <p class="modal-subtitle">Auto pilot menjalankan simulasi di latar belakang dan berhenti saat bobot rata-rata ikan mencapai target siklus pertama. Setelah itu siklus berikutnya disiapkan otomatis.</p>
 
             <form class="pond-form" onsubmit={(event) => { event.preventDefault(); void runAutoPilot(); }}>
                 {#if autoPilotError}
@@ -2956,6 +3196,8 @@
                         <span>{autoPilotProgress}%</span>
                     </div>
                 {/if}
+
+                <p class="field-hint">Rencana siklus mengikuti pengaturan <b>Edit kolam</b>. Auto pilot akan melanjutkan siklus aktif dan siklus berikutnya secara otomatis.</p>
 
                 <fieldset class="pond-fieldset">
                     <legend>Perkiraan durasi</legend>
@@ -3032,6 +3274,23 @@
                     <span class="hint">Contoh: 60 berarti 60 menit virtual berjalan setiap 1 detik nyata.</span>
                 </label>
             </div>
+
+            <fieldset class="pond-fieldset edit-cycle-fieldset">
+                <legend>Siklus kolam</legend>
+                <p class="field-hint">Siklus aktif berjalan sampai targetnya. Siklus berikutnya disiapkan otomatis oleh Auto pilot.</p>
+                <div class="autopilot-cycle-list">
+                    {#each editForm.siklus as cycle, index}
+                        <div class="autopilot-cycle-row">
+                            <b>Siklus {index + 1}</b>
+                            <label>Jumlah tebar<input type="number" min="1" max="20000" step="1" inputmode="numeric" bind:value={cycle.jumlah_tebar} required /></label>
+                            <label>Target bobot (g/ekor)<input type="number" min="0.1" step="0.1" inputmode="decimal" bind:value={cycle.target_bobot_g} required /></label>
+                            <button type="button" class="autopilot-remove" aria-label="Hapus siklus" onclick={() => removeEditCycle(index)} disabled={editForm.siklus.length <= 1}>×</button>
+                        </div>
+                    {/each}
+                    <button type="button" class="btn sm" onclick={addEditCycle} disabled={editForm.siklus.length >= 20}>+ Tambah siklus</button>
+                </div>
+            </fieldset>
+
             <button class="btn pri block" disabled={editBusy} onclick={() => void saveEdit()}>{editBusy ? 'Menyimpan...' : 'Simpan perubahan'}</button>
         </dialog>
     </div>

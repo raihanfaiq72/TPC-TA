@@ -4497,6 +4497,146 @@ body {
 .aqua-app .sim-bottom-action.stop-auto .sim-action-icon {
     background: #b42318;
 }
+.aqua-app .autopilot-cycle-list {
+    display: grid;
+    gap: 8px;
+}
+.aqua-app .autopilot-cycle-row {
+    display: grid;
+    grid-template-columns: auto minmax(110px, 1fr) minmax(120px, 1fr) auto;
+    align-items: end;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid #e7edf7;
+    border-radius: 9px;
+    background: #f8fbff;
+}
+.aqua-app .autopilot-cycle-row > b {
+    align-self: center;
+    color: #263c92;
+    font-size: 10px;
+    white-space: nowrap;
+}
+.aqua-app .autopilot-cycle-row label {
+    color: #7b8aa6;
+    font-size: 9px;
+}
+.aqua-app .autopilot-cycle-row input {
+    margin-top: 3px;
+    padding: 7px 8px;
+    font-size: 11px;
+}
+.aqua-app .autopilot-cycle-row .autopilot-remove {
+    width: 30px;
+    height: 30px;
+}
+.aqua-app .pond-cycles-section {
+    margin-top: 24px;
+}
+.aqua-app .cycle-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+.aqua-app .cycle-card {
+    min-width: 0;
+    padding: 13px 14px;
+    border-color: #d7e2f2;
+    border-radius: 14px;
+}
+.aqua-app .cycle-card.active {
+    border-color: #b9d8f4;
+    background: #f5fbff;
+}
+.aqua-app .cycle-card.done {
+    background: #fbfdfb;
+}
+.aqua-app .cycle-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+.aqua-app .cycle-number {
+    color: #7b8aa6;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+}
+.aqua-app .cycle-card-head h3 {
+    margin-top: 3px;
+    color: #14235c;
+    font-size: 12px;
+    font-weight: 900;
+}
+.aqua-app .cycle-status {
+    padding: 3px 6px;
+    border-radius: 999px;
+    font-size: 8px;
+    font-weight: 900;
+    text-transform: capitalize;
+}
+.aqua-app .cycle-status.aktif { color: #1d5f91; background: #eef7ff; }
+.aqua-app .cycle-status.selesai { color: #11633a; background: #eaf8ef; }
+.aqua-app .cycle-status.pending { color: #64748b; background: #f1f5f9; }
+.aqua-app .cycle-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 11px;
+}
+.aqua-app .cycle-facts span { min-width: 0; }
+.aqua-app .cycle-facts small,
+.aqua-app .cycle-facts b { display: block; }
+.aqua-app .cycle-facts small {
+    color: #7b8aa6;
+    font-size: 8px;
+    font-weight: 700;
+}
+.aqua-app .cycle-facts b {
+    margin-top: 1px;
+    color: #263c92;
+    font-size: 10px;
+    font-weight: 900;
+}
+.aqua-app .cycle-result {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid #e7edf7;
+    color: #64748b;
+    font-size: 8px;
+}
+.aqua-app .cycle-result b {
+    color: #263c92;
+    font-size: 9px;
+}
+.aqua-app .cycle-empty {
+    margin-top: 10px;
+    padding: 16px;
+    color: #7b8aa6;
+    font-size: 10px;
+}
+@media (max-width: 900px) {
+    .aqua-app .cycle-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (max-width: 620px) {
+    .aqua-app .autopilot-cycle-row {
+        grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+    }
+    .aqua-app .autopilot-cycle-row .autopilot-remove {
+        grid-column: 1 / -1;
+        justify-self: end;
+    }
+    .aqua-app .cycle-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
 .aqua-app .autopilot-box {
     width: min(700px, 100%);
 }

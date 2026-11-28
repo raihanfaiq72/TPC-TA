@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\LingkunganController;
 use App\Http\Controllers\Api\PakanController;
 use App\Http\Controllers\Api\SamplingController;
 use App\Http\Controllers\Api\SensorController;
+use App\Http\Controllers\Api\SiklusController;
 use App\Http\Controllers\Api\SimulasiController;
 use Illuminate\Support\Facades\Route;
 
@@ -67,6 +68,14 @@ Route::middleware('throttle:600,1')->group(function () {
     Route::put('/kolam/{kolamId}/pakan/jadwal', [PakanController::class, 'aturJadwal'])
         ->whereNumber('kolamId')
         ->name('api.kolam.pakan.jadwal');
+
+    Route::prefix('kolam/{kolamId}/siklus')
+        ->name('api.kolam.siklus.')
+        ->controller(SiklusController::class)
+        ->group(function () {
+            Route::get('/', 'index')->whereNumber('kolamId')->name('index');
+            Route::post('/next', 'next')->whereNumber('kolamId')->name('next');
+        });
 
     Route::prefix('kolam/{kolamId}/sensor')
         ->name('api.kolam.sensor.')

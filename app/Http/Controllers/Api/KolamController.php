@@ -11,6 +11,7 @@ use App\Models\KeadaanZona;
 use App\Models\Kolam;
 use App\Models\PembacaanSensor;
 use App\Models\ProfilLingkungan;
+use App\Services\KolamCycleService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -57,6 +58,9 @@ class KolamController extends Controller
             'waktu_mulai' => 'nullable|date',
             'dosis_harian_persen' => 'nullable|numeric|gt:0',
             'bobot_target_panen_g' => 'nullable|numeric|gt:0',
+            'siklus' => 'nullable|array|min:1|max:20',
+            'siklus.*.jumlah_tebar' => 'required|integer|min:1|max:20000',
+            'siklus.*.target_bobot_g' => 'required|numeric|gt:0',
         ]);
 
         $mulai = isset($data['waktu_mulai']) ? Carbon::parse($data['waktu_mulai']) : Carbon::today()->setTime(6, 0);
@@ -236,6 +240,15 @@ class KolamController extends Controller
             return $kolam;
         });
 
+        $siklus = $data['siklus'] ?? [[
+            'jumlah_tebar' => (int) $data['jumlah_ikan_awal'],
+            'target_bobot_g' => (float) ($data['bobot_target_panen_g'] ?? 100),
+        ]];
+        // Siklus pertama selalu memakai populasi awal yang benar-benar ditebar.
+        $siklus[0]['jumlah_tebar'] = (int) $data['jumlah_ikan_awal'];
+        app(KolamCycleService::class)->createConfigured($kolam, $siklus);
+        $kolam->refresh();
+
         return response()->json($kolam->only([
             'id',
             'kode',
@@ -285,10 +298,21 @@ class KolamController extends Controller
             'tinggi_air_m' => ['sometimes', 'required', 'numeric', 'gt:0'],
             'kecepatan_waktu' => ['sometimes', 'required', 'numeric', 'gt:0'],
             'bobot_target_panen_g' => ['sometimes', 'required', 'numeric', 'gt:0'],
+            'siklus' => ['sometimes', 'array', 'min:1', 'max:20'],
+            'siklus.*.jumlah_tebar' => ['required', 'integer', 'min:1', 'max:20000'],
+            'siklus.*.target_bobot_g' => ['required', 'numeric', 'gt:0'],
         ]);
+
+        $siklus = $data['siklus'] ?? null;
+        unset($data['siklus']);
 
         $kolam->update($data);
         $kolam->refresh();
+
+        if (is_array($siklus)) {
+            app(KolamCycleService::class)->syncConfigured($kolam, $siklus);
+            $kolam->refresh();
+        }
 
         if ($kolam->volume_air_m3 > 0) {
             $kolam->update([

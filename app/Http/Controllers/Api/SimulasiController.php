@@ -8,6 +8,7 @@ use App\Models\KeadaanZona;
 use App\Models\Kolam;
 use App\Models\LogPakan;
 use App\Models\ZonaKolam;
+use App\Services\KolamCycleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -21,6 +22,7 @@ class SimulasiController extends Controller
         private IkanController $ikan,
         private SensorController $sensor,
         private AnalisisController $analisis,
+        private KolamCycleService $siklus,
     ) {}
 
     /**
@@ -226,8 +228,14 @@ class SimulasiController extends Controller
         });
     }
 
-    public function startAutoPilot(int $id): JsonResponse
+    public function startAutoPilot(Request $request, int $id): JsonResponse
     {
+        $data = $request->validate([
+            'siklus' => ['sometimes', 'array', 'min:1', 'max:20'],
+            'siklus.*.jumlah_tebar' => ['required', 'integer', 'min:1', 'max:20000'],
+            'siklus.*.target_bobot_g' => ['required', 'numeric', 'gt:0'],
+        ]);
+
         $kolam = Kolam::query()->find($id);
 
         if (! $kolam instanceof Kolam) {
@@ -240,10 +248,21 @@ class SimulasiController extends Controller
             ], 422);
         }
 
+        $siklus = null;
+
+        if (isset($data['siklus']) && is_array($data['siklus'])) {
+            $siklus = $this->siklus->startPlan($kolam, $data['siklus']);
+            $kolam->refresh();
+        } else {
+            $siklus = $this->siklus->ensureActive($kolam);
+        }
+
         $kolam->update(['auto_pilot_aktif' => true]);
 
         return response()->json([
             'auto_pilot_aktif' => true,
+            'siklus' => $siklus?->load('kolam'),
+            'bobot_target_panen_g' => (float) $kolam->bobot_target_panen_g,
             'message' => 'Auto pilot dimulai.',
         ]);
     }

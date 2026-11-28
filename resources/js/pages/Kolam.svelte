@@ -43,6 +43,7 @@
         panjang_awal_rata_cm: number;
         bobot_target_panen_g: number;
         kecepatan_waktu: number;
+        siklus: Array<{ jumlah_tebar: number; target_bobot_g: number }>;
     };
 
     let ponds = $state<Pond[]>([]);
@@ -84,6 +85,7 @@
         panjang_awal_rata_cm: 3.5,
         bobot_target_panen_g: 100,
         kecepatan_waktu: 60,
+        siklus: [],
     });
 
     let createForm = $state<PondForm>(emptyForm());
@@ -96,6 +98,22 @@
         createForm = emptyForm();
         createError = '';
         createOpen = true;
+    }
+
+    function addCreateCycle(): void {
+        if (createForm.siklus.length >= 19) return;
+
+        createForm.siklus = [
+            ...createForm.siklus,
+            {
+                jumlah_tebar: createForm.siklus.at(-1)?.jumlah_tebar ?? createForm.jumlah_ikan_awal,
+                target_bobot_g: createForm.siklus.at(-1)?.target_bobot_g ?? createForm.bobot_target_panen_g,
+            },
+        ];
+    }
+
+    function removeCreateCycle(index: number): void {
+        createForm.siklus = createForm.siklus.filter((_, itemIndex) => itemIndex !== index);
     }
 
     function generatedCode(): string {
@@ -333,6 +351,13 @@
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ...createForm,
+                    siklus: [
+                        {
+                            jumlah_tebar: createForm.jumlah_ikan_awal,
+                            target_bobot_g: createForm.bobot_target_panen_g,
+                        },
+                        ...createForm.siklus,
+                    ],
                     kode: createForm.kode.trim() || generatedCode(),
                     bobot_awal_sd_g: 0.15,
                     dosis_harian_persen: 5,
@@ -600,6 +625,22 @@
                         <label>Jumlah ikan<input type="number" min="1" max="20000" step="1" inputmode="numeric" bind:value={createForm.jumlah_ikan_awal} required /></label>
                         <label>Bobot rata-rata (g)<input type="number" min="0.1" step="0.1" inputmode="decimal" bind:value={createForm.bobot_awal_rata_g} required /></label>
                         <label>Panjang rata-rata (cm)<input type="number" min="0.1" step="0.1" inputmode="decimal" bind:value={createForm.panjang_awal_rata_cm} required /></label>
+                    </div>
+                </fieldset>
+
+                <fieldset class="pond-fieldset">
+                    <legend>Siklus berikutnya</legend>
+                    <p class="field-hint">Siklus 1 memakai jumlah ikan dan target panen di atas. Tambahkan siklus berikutnya jika ingin Auto pilot melanjutkan setelah panen.</p>
+                    <div class="autopilot-cycle-list">
+                        {#each createForm.siklus as cycle, index}
+                            <div class="autopilot-cycle-row">
+                                <b>Siklus {index + 2}</b>
+                                <label>Jumlah tebar<input type="number" min="1" max="20000" step="1" inputmode="numeric" bind:value={cycle.jumlah_tebar} required /></label>
+                                <label>Target bobot (g/ekor)<input type="number" min="0.1" step="0.1" inputmode="decimal" bind:value={cycle.target_bobot_g} required /></label>
+                                <button type="button" class="autopilot-remove" aria-label="Hapus siklus" onclick={() => removeCreateCycle(index)}>×</button>
+                            </div>
+                        {/each}
+                        <button type="button" class="btn sm" onclick={addCreateCycle} disabled={createForm.siklus.length >= 19}>+ Tambah siklus</button>
                     </div>
                 </fieldset>
 

@@ -134,6 +134,14 @@ class Kolam extends Model
     }
 
     /**
+     * @return HasMany<SiklusKolam, $this>
+     */
+    public function siklus(): HasMany
+    {
+        return $this->hasMany(SiklusKolam::class);
+    }
+
+    /**
      * @return HasMany<LogPakan, $this>
      */
     public function logPakans(): HasMany

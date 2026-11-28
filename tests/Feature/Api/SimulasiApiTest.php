@@ -2,6 +2,7 @@
 
 use App\Models\Ikan;
 use App\Models\Kolam;
+use App\Models\SiklusKolam;
 use Database\Seeders\SandboxSeeder;
 use Illuminate\Support\Facades\DB;
 
@@ -159,6 +160,42 @@ test('auto pilot state can be started and force stopped', function () {
         ->assertJsonPath('auto_pilot_aktif', false);
 
     expect($kolam->fresh()->auto_pilot_aktif)->toBeFalse();
+});
+
+test('auto pilot creates and advances pond cycles with different stock and target', function () {
+    $this->seed(SandboxSeeder::class);
+
+    $kolam = Kolam::query()->where('kode', 'C07')->firstOrFail();
+
+    $this->postJson("/api/kolam/{$kolam->id}/simulasi/auto-pilot/start", [
+        'siklus' => [
+            ['jumlah_tebar' => 120, 'target_bobot_g' => 10],
+            ['jumlah_tebar' => 80, 'target_bobot_g' => 25],
+        ],
+    ])
+        ->assertOk()
+        ->assertJsonPath('auto_pilot_aktif', true)
+        ->assertJsonPath('bobot_target_panen_g', 10);
+
+    $kolam->refresh();
+
+    expect($kolam->jumlah_ikan_awal)->toBe(120)
+        ->and($kolam->bobot_target_panen_g)->toBe(10.0)
+        ->and(SiklusKolam::query()->where('kolam_id', $kolam->id)->where('status', 'aktif')->value('urutan'))
+        ->toBe(1);
+
+    $this->postJson("/api/kolam/{$kolam->id}/siklus/next")
+        ->assertOk()
+        ->assertJsonPath('selesai', false)
+        ->assertJsonPath('jumlah_tebar', 80)
+        ->assertJsonPath('bobot_target_panen_g', 25);
+
+    $kolam->refresh();
+
+    expect($kolam->jumlah_ikan_awal)->toBe(80)
+        ->and($kolam->bobot_target_panen_g)->toBe(25.0)
+        ->and(SiklusKolam::query()->where('kolam_id', $kolam->id)->where('status', 'selesai')->count())->toBe(1)
+        ->and(SiklusKolam::query()->where('kolam_id', $kolam->id)->where('status', 'aktif')->value('urutan'))->toBe(2);
 });
 
 test('simulation returns partial progress when the per-request tick budget is reached', function () {
