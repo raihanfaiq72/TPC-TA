@@ -343,7 +343,7 @@ class SandboxTuiCommand extends Command
 
             $now = microtime(true);
 
-            if ($now - $lastRender >= 0.12 || ($payload['target_tercapai'] ?? false)) {
+            if ($now - $lastRender >= 0.5 || ($payload['target_tercapai'] ?? false)) {
                 $this->renderDashboard(
                     $kolam,
                     $current,
@@ -1109,8 +1109,6 @@ class SandboxTuiCommand extends Command
                 : null;
         }
 
-        $this->syncWorkerLogs($snapshots);
-
         $eta = $this->initialEta !== null
             ? max(0, $this->initialEta - ($elapsed - $this->initialEtaAt))
             : ($overall >= 0.5 ? $rawEta : null);
@@ -1130,6 +1128,7 @@ class SandboxTuiCommand extends Command
         $this->line('║           SMARTAQUA — SANDBOX AUTO PILOT TUI (WORKER)          ║');
         $this->line('╚══════════════════════════════════════════════════════════════╝');
         $this->line('<fg=cyan;options=bold>  Jam nyata    : '.$realNow->format('H:i:s').' WIB</>');
+        $this->line('  Status       : <fg=green;options=bold>'.(count(array_filter($snapshots, fn (array $snapshot): bool => ! $snapshot['done'] && $snapshot['error'] === null)) > 0 ? 'BERJALAN' : 'SELESAI').'</>');
         $this->line('  Mode         : '.count($workers).' worker paralel');
         $this->line('  Penjadwalan  : LPT berbobot + least laxity (deadline)');
         $this->line('  Siklus       : '.$completed.' / '.$totalCycles.' selesai');
@@ -1177,16 +1176,6 @@ class SandboxTuiCommand extends Command
 
         $this->line('───────────────────────────────────────────────────────────────');
         $this->line('  Setiap worker memakai kolam dan riwayat siklus sendiri.');
-        $this->line('  Log berjalan (otomatis, 8 event terakhir):');
-
-        if ($this->workerLogs === []) {
-            $this->line('  menunggu event...');
-        } else {
-            foreach ($this->workerLogs as $log) {
-                $this->line('  '.$log);
-            }
-        }
-
         $this->line('');
     }
 
@@ -1385,6 +1374,7 @@ class SandboxTuiCommand extends Command
         $this->line('║              SMARTAQUA — SANDBOX AUTO PILOT TUI               ║');
         $this->line('╚══════════════════════════════════════════════════════════════╝');
         $this->line('<fg=cyan;options=bold>  Jam nyata    : '.$realNow->format('H:i:s').' WIB</>');
+        $this->line('  Status       : <fg=green;options=bold>'.(($completed >= $totalCycles && ! $active) ? 'SELESAI' : 'BERJALAN').'</>');
         $this->line('  Kolam        : '.$kolam->nama.' ('.$kolam->kode.')');
         $this->line('  Siklus       : '.($completed + ($active ? 1 : 0)).' / '.$totalCycles.' · '.($active ? 'Siklus '.$active->urutan : 'menunggu'));
         $this->line('  Target       : '.number_format($target, 2).' g/ekor');
@@ -1402,17 +1392,6 @@ class SandboxTuiCommand extends Command
         $this->line('  Sample next  : '.($nextSample?->format('Y-m-d H:i') ?? '—'));
         $this->line('───────────────────────────────────────────────────────────────');
         $this->line('  Siklus        : '.$cycles->map(fn (SiklusKolam $cycle): string => '#'.$cycle->urutan.' '.$cycle->status.' ('.$cycle->jumlah_tebar.' ekor → '.number_format((float) $cycle->target_bobot_g, 1).' g)')->implode(' · '));
-        $this->line('');
-        $this->line('  Log berjalan (otomatis, 8 event terakhir):');
-
-        if ($this->workerLogs === []) {
-            $this->line('  menunggu event...');
-        } else {
-            foreach (array_slice($this->workerLogs, -8) as $log) {
-                $this->line('  '.$log);
-            }
-        }
-
         $this->line('');
     }
 
