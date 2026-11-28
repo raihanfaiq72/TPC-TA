@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\Storage;
  * @property Carbon|null $waktu_sandbox_sinkron
  * @property float $kecepatan_waktu
  * @property string $status
+ * @property bool $auto_pilot_aktif
  * @property Carbon|null $created_at
  */
 #[Fillable([
@@ -54,6 +55,8 @@ use Illuminate\Support\Facades\Storage;
     'waktu_sandbox_sekarang',
     'waktu_sandbox_sinkron',
     'kecepatan_waktu',
+    'auto_pilot_aktif',
+
     'status',
 ])]
 class Kolam extends Model
@@ -83,6 +86,8 @@ class Kolam extends Model
             'waktu_sandbox_sekarang' => 'datetime',
             'waktu_sandbox_sinkron' => 'datetime',
             'kecepatan_waktu' => 'float',
+            'status' => 'string',
+            'auto_pilot_aktif' => 'boolean',
             'created_at' => 'datetime',
         ];
     }

@@ -555,7 +555,7 @@
             <button class="pond-modal-close" aria-label="Tutup" onclick={() => (createOpen = false)}>×</button>
             <span class="modal-kicker">KOLAM BARU</span>
             <h2>Tambah kolam</h2>
-            <p class="modal-subtitle">Cukup isi ukuran kolam dan populasi awal. Pengaturan lain sudah memakai nilai yang aman.</p>
+            <p class="modal-subtitle">Isi profil kolam, target panen, dan tempo simulasi. Pengaturan lain memakai nilai aman secara otomatis.</p>
 
             <form class="pond-form" onsubmit={(event) => { event.preventDefault(); void createPond(); }}>
                 {#if createError}
@@ -566,6 +566,19 @@
                     Nama kolam
                     <input bind:value={createForm.nama} placeholder="Contoh: Kolam Lele A" required maxlength="100" />
                 </label>
+
+                <fieldset class="pond-fieldset">
+                    <legend>Target & tempo simulasi</legend>
+                    <p class="field-hint">Target panen menentukan kapan kolam selesai. Kecepatan waktu memakai satuan menit virtual per detik nyata.</p>
+                    <div class="pond-field-grid">
+                        <label>Target panen (g/ekor)<input type="number" min="1" step="1" inputmode="numeric" bind:value={createForm.bobot_target_panen_g} required /></label>
+                        <label>
+                            Kecepatan waktu (menit virtual/detik nyata)
+                            <input type="number" min="1" step="1" inputmode="numeric" bind:value={createForm.kecepatan_waktu} required />
+                            <span class="hint">Contoh: 60 berarti 60 menit virtual berjalan setiap 1 detik nyata.</span>
+                        </label>
+                    </div>
+                </fieldset>
 
                 <fieldset class="pond-fieldset">
                     <legend>Ukuran kolam</legend>
@@ -589,15 +602,6 @@
                         <label>Panjang rata-rata (cm)<input type="number" min="0.1" step="0.1" inputmode="decimal" bind:value={createForm.panjang_awal_rata_cm} required /></label>
                     </div>
                 </fieldset>
-
-                <details class="pond-advanced">
-                    <summary>Pengaturan lanjutan (opsional)</summary>
-                    <div class="pond-field-grid">
-                        <label>Kode kolam<input bind:value={createForm.kode} placeholder="Otomatis jika kosong" maxlength="20" /></label>
-                        <label>Target panen (g)<input type="number" min="1" step="1" inputmode="numeric" bind:value={createForm.bobot_target_panen_g} /></label>
-                        <label>Kecepatan waktu<input type="number" min="1" step="1" inputmode="numeric" bind:value={createForm.kecepatan_waktu} /></label>
-                    </div>
-                </details>
 
                 <div class="modal-actions">
                     <button type="button" class="btn" onclick={() => (createOpen = false)}>Batal</button>

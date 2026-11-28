@@ -108,13 +108,32 @@
         targetY: number | null;
     };
     type DeathCause = { penyebab: string; jumlah: number };
+    type CalendarDayStatus = 'before' | 'past' | 'today' | 'future';
+    type CalendarDay = { date: string; label: number; status: CalendarDayStatus; sampled: boolean };
+    type CalendarModel = {
+        monthLabel: string;
+        monthStart: string;
+        cells: Array<CalendarDay | null>;
+        samples: SamplingRow[];
+    };
     type SimulationStatus = {
         kolam: {
             waktu_sandbox_sekarang: string;
             waktu_sandbox_sinkron?: string;
             kecepatan_waktu: number;
+            bobot_target_panen_g?: number;
+            status?: string;
+            auto_pilot_aktif?: boolean;
         };
-        ikan: { jumlah_awal: number; jumlah_hidup: number; jumlah_mati: number; biomassa_hidup_g: number };
+        ikan: {
+            jumlah_awal: number;
+            jumlah_hidup: number;
+            jumlah_mati: number;
+            biomassa_hidup_g: number;
+            bobot_rata_hidup_g?: number | null;
+            target_bobot_g?: number;
+            target_tercapai?: boolean;
+        };
     };
     type Recommendation = {
         status: string;
@@ -129,12 +148,18 @@
         pakan_events?: FeedEvent[];
         alert_baru?: number;
         selesai?: boolean;
+        target_tercapai?: boolean;
+        status_kolam?: string;
+        bobot_rata_hidup_g?: number | null;
+        target_bobot_g?: number;
+        auto_pilot_aktif?: boolean;
         menit_dijalankan?: number;
         waktu_sekarang?: string;
         waktu_sinkron?: string;
     };
     type FeedEvent = { waktu: string; gram: number };
-    type DetailResponse = { kolam: Pond; zona: Zone[]; perangkat: Device[] };
+    type JadwalPakanRow = { id?: number; jam: string; porsi_dosis_persen?: number; nama_pakan?: string | null };
+    type DetailResponse = { kolam: Pond; zona: Zone[]; perangkat: Device[]; jadwal_pakan?: JadwalPakanRow[] };
     type FishRecord = {
         id: number;
         kode: string;
@@ -185,10 +210,20 @@
     let resetOpen = $state(false);
     let editBusy = $state(false);
     let editError = $state('');
-    let editForm = $state({ nama: '', panjang_m: 0, lebar_m: 0, tinggi_air_m: 0, kecepatan_waktu: 60, bobot_target_panen_g: 100 });
-    const editVolume = $derived(
-        Math.max(0, editForm.panjang_m * editForm.lebar_m * editForm.tinggi_air_m),
-    );
+    let autoPilotOpen = $state(false);
+    let autoPilotBusy = $state(false);
+    let autoPilotError = $state('');
+    let autoPilotMessage = $state('');
+    let autoPilotProgress = $state(0);
+    let autoPilotAverage = $state<number | null>(null);
+    let autoPilotTarget = $state(0);
+    let autoPilotStopRequested = false;
+    let autoPilotFeedTimes = $state<string[]>(['07:00', '12:00', '19:00']);
+    let autoPilotForm = $state({ durationValue: 1, durationUnit: 'days', sampleHour: '08:00', sampleCount: 25 });
+    let calendarMonth = $state('');
+    let calendarExplicit = $state(false);
+    let calendarDay = $state<CalendarDay | null>(null);
+    let editForm = $state({ nama: '', kecepatan_waktu: 60, bobot_target_panen_g: 100 });
     let playTimer: ReturnType<typeof setInterval> | undefined;
     let clockTimer: ReturnType<typeof setInterval> | undefined;
     let fishCanvas = $state<HTMLCanvasElement>();
@@ -459,7 +494,7 @@
     }
 
     async function recordSensorsLive(): Promise<void> {
-        if (sensorHeartbeatBusy || !virtualTimeValue) return;
+        if (sensorHeartbeatBusy || !virtualTimeValue || simulasiSelesai) return;
 
         sensorHeartbeatBusy = true;
 
@@ -481,11 +516,12 @@
     }
 
     async function advanceSimulation(minutes?: number): Promise<void> {
-        if (simBusy) return;
+        if (simBusy || simulasiSelesai) return;
         simBusy = true;
         error = '';
         const target = minutes ?? SIM_CHUNK_MENIT;
         let remaining = target;
+        let targetReached = false;
 
         try {
             let alertCount = 0;
@@ -505,6 +541,7 @@
 
                 const payload = (await response.json()) as TickResponse;
                 const advanced = Math.max(0, payload.menit_dijalankan ?? 0);
+                targetReached = targetReached || Boolean(payload.target_tercapai);
 
                 if (advanced <= 0) break;
 
@@ -540,11 +577,17 @@
                 // pembacaan dan animasi sensor tidak terlihat beku.
                 void loadReadings().catch(() => undefined);
 
+                if (targetReached) break;
+
                 if (payload.selesai !== false && remaining <= 0) break;
             }
 
             await Promise.all([loadSimulation(), loadReadings(), loadFish()]);
             await loadHistory();
+
+            if (simulasiSelesai && !targetReached) {
+                stopPlayback();
+            }
 
             if (dailyProcess) {
                 await loadRecommendation();
@@ -554,21 +597,41 @@
                 window.dispatchEvent(new Event('aqua:refresh-alerts'));
             }
 
-            if (remaining > 0) {
+            if (targetReached) {
+                stopPlayback();
+                say('Target panen tercapai. Kolam selesai dan siap panen.');
+            } else if (simulasiSelesai) {
+                say('Kolam sudah selesai dan siap panen.');
+            } else if (remaining > 0) {
                 say(`Simulasi berhenti pada batas langkah; sisa ${formatMinuteSpan(remaining)} virtual`);
             }
         } catch (reason) {
             error = reason instanceof Error ? reason.message : 'Simulasi tidak dapat dilanjutkan.';
-            playing = false;
+            stopPlayback();
         } finally {
             simBusy = false;
         }
     }
 
+    function stopPlayback(): void {
+        playing = false;
+
+        if (playTimer) {
+            clearInterval(playTimer);
+            playTimer = undefined;
+        }
+    }
+
     function startPlayback(): void {
+        if (simulasiSelesai) return;
         if (playTimer) clearInterval(playTimer);
 
         playTimer = setInterval(() => {
+            if (simulasiSelesai) {
+                stopPlayback();
+                return;
+            }
+
             if (!simBusy) {
                 void advanceSimulation(SIM_CHUNK_MENIT * simulationSpeed);
             }
@@ -576,7 +639,7 @@
     }
 
     function togglePlayback(): void {
-        if (simBusy) return;
+        if (simBusy || simulasiSelesai) return;
 
         playing = !playing;
 
@@ -590,19 +653,413 @@
     }
 
     function changeSpeed(speed: number): void {
-        if (simBusy) return;
+        if (simBusy || simulasiSelesai) return;
 
         simulationSpeed = speed;
     }
 
+    function autoPilotDurationMinutes(): number {
+        const value = Number(autoPilotForm.durationValue);
+        const factor: Record<string, number> = { hours: 60, days: 1440, months: 43200 };
+
+        if (!Number.isFinite(value) || value <= 0) return 0;
+
+        return Math.round(value * (factor[autoPilotForm.durationUnit] ?? 1440));
+    }
+
+    function addDateDays(date: string, days: number): string {
+        const [year, month, day] = date.slice(0, 10).split('-').map(Number);
+        const value = new Date(Date.UTC(year, month - 1, day));
+
+        value.setUTCDate(value.getUTCDate() + days);
+
+        return value.toISOString().slice(0, 10);
+    }
+
+    function virtualDateAtHour(date: string, hour: string): Date | null {
+        return parseVirtualDate(`${date.slice(0, 10)}T${hour || '08:00'}:00Z`);
+    }
+
+    function latestSamplingDate(): string | null {
+        const dates = samplingRows
+            .map((row) => row.tanggal.slice(0, 10))
+            .filter((date) => date !== '')
+            .sort();
+
+        return dates.at(-1) ?? null;
+    }
+
+    function nextSamplingAt(current: Date, lastDate: string | null): Date | null {
+        const baseDate = addDateDays(
+            lastDate ?? detail?.kolam.waktu_mulai_sandbox?.slice(0, 10) ?? current.toISOString().slice(0, 10),
+            7,
+        );
+        const due = virtualDateAtHour(baseDate, autoPilotForm.sampleHour);
+
+        if (due !== null && due.getTime() > current.getTime()) {
+            return due;
+        }
+
+        // Jika jadwal mingguan sudah terlewat, ambil sampel pada jam ukur
+        // berikutnya agar auto pilot tetap menjalankan timbang otomatis.
+        let date = current.toISOString().slice(0, 10);
+        let target = virtualDateAtHour(date, autoPilotForm.sampleHour);
+
+        if (target !== null && target.getTime() <= current.getTime()) {
+            date = addDateDays(date, 1);
+            target = virtualDateAtHour(date, autoPilotForm.sampleHour);
+        }
+
+        return target;
+    }
+
+    function autoPilotStorageKey(): string {
+        return `aqua-auto-pilot-${id}`;
+    }
+
+    function persistAutoPilotConfig(): void {
+        try {
+            window.localStorage.setItem(autoPilotStorageKey(), JSON.stringify({
+                feedTimes: autoPilotFeedTimes,
+                form: autoPilotForm,
+            }));
+        } catch {
+            // localStorage bisa diblokir; auto pilot tetap berjalan di tab ini.
+        }
+    }
+
+    function restoreAutoPilotConfig(): void {
+        try {
+            const raw = window.localStorage.getItem(autoPilotStorageKey());
+
+            if (!raw) return;
+
+            const saved = JSON.parse(raw) as {
+                feedTimes?: string[];
+                form?: typeof autoPilotForm;
+            };
+
+            if (Array.isArray(saved.feedTimes) && saved.feedTimes.length > 0) {
+                autoPilotFeedTimes = saved.feedTimes.slice(0, 6);
+            }
+
+            if (saved.form) {
+                autoPilotForm = { ...autoPilotForm, ...saved.form };
+            }
+        } catch {
+            // Gunakan pengaturan default jika data lokal tidak valid.
+        }
+    }
+
+    async function forceStopAutoPilot(): Promise<void> {
+        autoPilotStopRequested = true;
+        autoPilotMessage = 'Menghentikan paksa auto pilot...';
+
+        stopPlayback();
+
+        try {
+            await fetch(`/api/kolam/${id}/simulasi/auto-pilot/stop`, {
+                method: 'POST',
+                headers: { Accept: 'application/json' },
+            });
+        } catch {
+            // Tetap hentikan loop lokal.
+        }
+
+        try {
+            window.localStorage.removeItem(autoPilotStorageKey());
+        } catch {
+            // localStorage dapat diblokir.
+        }
+
+        autoPilotMessage = 'Auto pilot dihentikan paksa.';
+        await loadSimulation();
+    }
+
+    async function resumeAutoPilot(): Promise<void> {
+        if (autoPilotBusy || !simulation?.kolam.auto_pilot_aktif) return;
+
+        restoreAutoPilotConfig();
+        autoPilotOpen = false;
+        autoPilotMessage = 'Melanjutkan auto pilot...';
+        await runAutoPilot();
+    }
+
+    function openAutoPilot(): void {
+
+        if (autoPilotBusy) return;
+
+        const times = (detail?.jadwal_pakan ?? [])
+            .map((row) => row.jam.slice(0, 5))
+            .filter((jam) => jam !== '');
+
+        autoPilotFeedTimes = times.length > 0 ? times.slice(0, 6) : ['07:00', '12:00', '19:00'];
+        autoPilotForm = { durationValue: 1, durationUnit: 'days', sampleHour: '08:00', sampleCount: 25 };
+        autoPilotError = '';
+        autoPilotMessage = '';
+        autoPilotProgress = 0;
+        autoPilotOpen = true;
+    }
+
+    async function recordAutoSample(target: Date): Promise<void> {
+        const count = Math.max(1, Math.round(Number(autoPilotForm.sampleCount) || 1));
+        const sampleResponse = await fetch(`/api/kolam/${id}/sampel?n=${count}`, {
+            headers: { Accept: 'application/json' },
+        });
+
+        if (!sampleResponse.ok) throw new Error('Sampel otomatis tidak dapat diambil.');
+
+        const sample = (await sampleResponse.json()) as {
+            jumlah_sampel?: number;
+            bobot_total_sampel_g?: number;
+            panjang_rata_cm?: number;
+        };
+
+        if (!sample.jumlah_sampel || !sample.bobot_total_sampel_g) {
+            throw new Error('Tidak ada ikan hidup untuk sampel otomatis.');
+        }
+
+        const tanggal = toVirtualDateTimeString(target).slice(0, 10);
+        const response = await fetch(`/api/kolam/${id}/sampling`, {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tanggal,
+                jumlah_sampel: sample.jumlah_sampel,
+                jumlah_mati: 0,
+                bobot_total_sampel_g: sample.bobot_total_sampel_g,
+                panjang_rata_cm: sample.panjang_rata_cm ?? 0,
+            }),
+        });
+
+        if (!response.ok) {
+            const payload = (await response.json().catch(() => null)) as { message?: string; error?: string } | null;
+            throw new Error(payload?.message ?? payload?.error ?? 'Timbangan otomatis gagal disimpan.');
+        }
+
+        await loadSampling();
+        autoPilotMessage = `Timbang otomatis ${tanggal} selesai.`;
+    }
+
+    function addAutoPilotFeedTime(): void {
+        if (autoPilotFeedTimes.length >= 6) return;
+
+        autoPilotFeedTimes = [...autoPilotFeedTimes, '12:00'];
+    }
+
+    function removeAutoPilotFeedTime(index: number): void {
+        if (autoPilotFeedTimes.length <= 1) return;
+
+        autoPilotFeedTimes = autoPilotFeedTimes.filter((_, itemIndex) => itemIndex !== index);
+    }
+
+    async function runAutoPilot(): Promise<void> {
+        if (autoPilotBusy || simulasiSelesai) return;
+
+        const targetBobot = Number(detail?.kolam.bobot_target_panen_g ?? 0);
+        const feedTimes = autoPilotFeedTimes
+            .map((jam) => jam.trim())
+            .filter((jam) => jam !== '');
+
+        if (!Number.isFinite(targetBobot) || targetBobot <= 0) {
+            autoPilotError = 'Target panen harus lebih dari 0. Atur target melalui Edit kolam.';
+            return;
+        }
+
+        if (feedTimes.length === 0) {
+            autoPilotError = 'Isi minimal satu jam pakan.';
+            return;
+        }
+
+        autoPilotBusy = true;
+        simBusy = true;
+        autoPilotError = '';
+        autoPilotMessage = 'Menyiapkan auto pilot...';
+        autoPilotProgress = 0;
+        autoPilotAverage = null;
+        autoPilotTarget = targetBobot;
+        stopPlayback();
+
+        try {
+            const feedResponse = await fetch(`/api/kolam/${id}/pakan/jadwal`, {
+                method: 'PUT',
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jadwal: feedTimes }),
+            });
+
+            if (!feedResponse.ok) {
+                const payload = (await feedResponse.json().catch(() => null)) as { message?: string } | null;
+                throw new Error(payload?.message ?? 'Jadwal pakan tidak dapat disimpan.');
+            }
+
+            await Promise.all([loadSampling(), loadReadings()]);
+
+            const startResponse = await fetch(`/api/kolam/${id}/simulasi/auto-pilot/start`, {
+                method: 'POST',
+                headers: { Accept: 'application/json' },
+            });
+
+            if (!startResponse.ok) {
+                const payload = (await startResponse.json().catch(() => null)) as { message?: string } | null;
+                throw new Error(payload?.message ?? 'Auto pilot tidak dapat dimulai.');
+            }
+
+            autoPilotStopRequested = false;
+            persistAutoPilotConfig();
+
+            // Modal langsung ditutup; proses berjalan di latar UI.
+            autoPilotOpen = false;
+
+            const start = parseVirtualDate(virtualTimeValue) ?? new Date();
+            let current = start;
+            let lastSampleDate = latestSamplingDate();
+            let nextSample = nextSamplingAt(current, lastSampleDate);
+            let targetReached = false;
+            let sampleCount = 0;
+            let passes = 0;
+            let endedEarly = false;
+
+            while (!targetReached && !autoPilotStopRequested && passes < 100000) {
+                if (nextSample !== null && current.getTime() >= nextSample.getTime()) {
+                    await recordAutoSample(nextSample);
+                    sampleCount++;
+                    lastSampleDate = nextSample.toISOString().slice(0, 10);
+                    nextSample = nextSamplingAt(current, lastSampleDate);
+                    continue;
+                }
+
+                let chunk = 360;
+
+                if (nextSample !== null) {
+                    const minutesToSample = Math.ceil((nextSample.getTime() - current.getTime()) / 60000);
+
+                    if (minutesToSample > 0 && minutesToSample < chunk) {
+                        chunk = Math.max(1, minutesToSample);
+                    }
+                }
+
+                const response = await fetch(`/api/kolam/${id}/simulasi/tick`, {
+                    method: 'POST',
+                    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ menit: chunk }),
+                });
+
+                if (!response.ok) throw new Error('Auto pilot tidak dapat melanjutkan simulasi.');
+
+                const payload = (await response.json()) as TickResponse;
+                const advanced = Math.max(0, payload.menit_dijalankan ?? 0);
+
+                if (advanced <= 0) {
+                    endedEarly = true;
+                    break;
+                }
+
+                passes++;
+                const targetNow = Number(payload.target_bobot_g ?? targetBobot) || targetBobot;
+                const averageNow = payload.bobot_rata_hidup_g === null || payload.bobot_rata_hidup_g === undefined
+                    ? null
+                    : Number(payload.bobot_rata_hidup_g);
+
+                autoPilotTarget = targetNow;
+
+                if (averageNow !== null && Number.isFinite(averageNow)) {
+                    autoPilotAverage = averageNow;
+                    autoPilotProgress = Math.min(99, Math.max(0, Math.round((averageNow / targetNow) * 100)));
+                    autoPilotMessage = `Auto pilot ${autoPilotProgress}% · rata-rata ${averageNow.toFixed(1)} / ${targetNow.toFixed(0)} g`;
+                } else {
+                    autoPilotMessage = `Auto pilot berjalan · ${formatVirtualTime(payload.waktu_sekarang)}`;
+                }
+
+                if (payload.pakan_events?.length) {
+                    enqueueFeedEvents(payload.pakan_events);
+                } else if ((payload.pakan_kejadian ?? 0) > 0) {
+                    enqueueFeedEvents([{
+                        waktu: payload.waktu_sekarang ?? '',
+                        gram: payload.pakan_g ?? 0,
+                    }]);
+                }
+
+                if (payload.waktu_sekarang) {
+                    current = parseVirtualDate(payload.waktu_sekarang) ?? current;
+
+                    if (simulation) {
+                        simulation = {
+                            ...simulation,
+                            kolam: {
+                                ...simulation.kolam,
+                                waktu_sandbox_sekarang: payload.waktu_sekarang,
+                                waktu_sandbox_sinkron: payload.waktu_sinkron ?? toVirtualDateTimeString(new Date()),
+                            },
+                        };
+                    }
+                }
+
+                // Setiap langkah auto pilot, section topologi, chart, dan
+                // kalender ikut diperbarui agar UI terasa berjalan live.
+                await Promise.all([loadReadings(), loadHistory(), loadFish()]);
+                await loadSimulation();
+
+                if (payload.target_tercapai || simulasiSelesai) {
+                    targetReached = true;
+                    autoPilotProgress = 100;
+                    autoPilotMessage = 'Target panen tercapai. Kolam selesai dan siap panen.';
+                    break;
+                }
+
+                if (autoPilotStopRequested || payload.auto_pilot_aktif === false || simulation?.kolam.auto_pilot_aktif === false) {
+                    autoPilotStopRequested = true;
+                    autoPilotMessage = 'Auto pilot dihentikan paksa.';
+                    endedEarly = true;
+                    break;
+                }
+
+                if (nextSample !== null && current.getTime() >= nextSample.getTime()) {
+                    await recordAutoSample(nextSample);
+                    sampleCount++;
+                    lastSampleDate = nextSample.toISOString().slice(0, 10);
+                    nextSample = nextSamplingAt(current, lastSampleDate);
+                }
+            }
+
+            await Promise.all([loadSimulation(), loadReadings(), loadFish(), loadSampling()]);
+            await loadHistory();
+
+            if (targetReached || simulasiSelesai) {
+                autoPilotProgress = 100;
+                autoPilotMessage = 'Target panen tercapai. Kolam selesai dan siap panen.';
+                say(autoPilotMessage);
+
+                try {
+                    window.localStorage.removeItem(autoPilotStorageKey());
+                } catch {
+                    // localStorage dapat diblokir.
+                }
+            } else if (autoPilotStopRequested) {
+                autoPilotMessage = 'Auto pilot dihentikan paksa.';
+            } else if (endedEarly || passes >= 100000) {
+                autoPilotError = 'Auto pilot berhenti sebelum target panen. Periksa kondisi kolam atau target.';
+                error = autoPilotError;
+            } else {
+                autoPilotMessage = `Auto pilot berhenti · ${sampleCount} timbang otomatis dijalankan.`;
+            }
+        } catch (reason) {
+            autoPilotError = reason instanceof Error ? reason.message : 'Auto pilot tidak dapat dijalankan.';
+            error = autoPilotError;
+        } finally {
+            // Jangan memanggil endpoint stop di sini. Saat refresh, request
+            // lama bisa terputus dan justru menghapus flag auto pilot server.
+            // Flag hanya dihapus saat target tercapai atau Hentikan paksa.
+            autoPilotBusy = false;
+            simBusy = false;
+        }
+    }
+
     function openEdit(): void {
+
         if (!detail) return;
         editError = '';
         editForm = {
             nama: detail.kolam.nama,
-            panjang_m: detail.kolam.panjang_m,
-            lebar_m: detail.kolam.lebar_m,
-            tinggi_air_m: detail.kolam.tinggi_air_m,
             kecepatan_waktu: detail.kolam.kecepatan_waktu ?? 60,
             bobot_target_panen_g: detail.kolam.bobot_target_panen_g ?? 100,
         };
@@ -650,8 +1107,7 @@
             });
             if (!response.ok) throw new Error('Kolam tidak dapat direset.');
             resetOpen = false;
-            playing = false;
-            if (playTimer) clearInterval(playTimer);
+            stopPlayback();
             await Promise.all([loadDetail(), loadSimulation(), loadReadings(), loadHistory(), loadFish(), loadSampling()]);
             say('Kolam kembali ke kondisi awal');
         } catch (reason) {
@@ -864,7 +1320,7 @@
             for (let index = 0; index < fishRecords.length; index += 1) {
                 const fish = fishRecords[index];
                 const phase = random(fish.id, 1) * Math.PI * 2;
-                const swimSpeed = playing
+                const swimSpeed = playing || autoPilotAktif
                     ? 0.0011 + simulationSpeed * 0.00035
                     : 0.00035;
 
@@ -997,6 +1453,10 @@
 
                 await Promise.all([loadReadings(), loadSimulation(), loadHistory(), loadRecommendation(), loadFish(), loadSampling()]);
                 void recordSensorsLive();
+
+                if (simulation?.kolam.auto_pilot_aktif) {
+                    void resumeAutoPilot();
+                }
             } catch (reason) {
                 error = reason instanceof Error ? reason.message : 'Data realtime belum tersedia.';
             } finally {
@@ -1062,7 +1522,14 @@
     const suhuValue = $derived(readings.find((reading) => reading.parameter === 'suhu')?.nilai ?? null);
     const phValue = $derived(readings.find((reading) => reading.parameter === 'ph')?.nilai ?? null);
     const amoniaValue = $derived(readings.find((reading) => reading.parameter === 'amonia')?.nilai ?? null);
-    const harvestStatus = $derived(recommendation?.status ?? 'belum siap');
+    const simulasiSelesai = $derived(
+        simulation?.kolam.status === 'selesai'
+        || simulation?.ikan.target_tercapai === true,
+    );
+    const autoPilotAktif = $derived(autoPilotBusy || simulation?.kolam.auto_pilot_aktif === true);
+    const harvestStatus = $derived(
+        simulasiSelesai ? 'siap panen' : recommendation?.status ?? 'belum siap',
+    );
     const harvestTone = $derived(
         harvestStatus === 'siap panen' ? 'ready' : harvestStatus === 'hampir siap' ? 'near' : 'wait',
     );
@@ -1072,6 +1539,10 @@
         const base = parseVirtualDate(baseValue);
 
         if (!base) return baseValue;
+
+        if ((simulation?.kolam.status ?? detail?.kolam.status) === 'selesai') {
+            return baseValue;
+        }
 
         const sinkron = parseVirtualDate(simulation?.kolam.waktu_sandbox_sinkron);
 
@@ -1522,6 +1993,98 @@
         chartHoverSeriesKey = nearest.series.key;
         chartHoverPointDate = nearest.point.date;
     }
+    const CALENDAR_WEEKDAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+    const calendarMonthStart = $derived(
+        calendarMonth || (virtualDateValue ? `${virtualDateValue.slice(0, 7)}-01` : ''),
+    );
+
+    const calendarModel = $derived.by((): CalendarModel => {
+        const monthStart = calendarMonthStart;
+
+        if (monthStart === '') {
+            return { monthLabel: '—', monthStart: '', cells: [], samples: [] };
+        }
+
+        const [year, month] = monthStart.split('-').map(Number);
+        const today = virtualDateValue?.slice(0, 10) ?? '';
+        const tebar = detail?.kolam.waktu_mulai_sandbox?.slice(0, 10) ?? '';
+        const sampleDates = new Set(
+            samplingRows.map((row) => row.tanggal.slice(0, 10)),
+        );
+        const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+        const firstWeekday = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7;
+        const cells: Array<CalendarDay | null> = Array.from({ length: firstWeekday }, () => null);
+
+        for (let day = 1; day <= daysInMonth; day += 1) {
+            const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            let status: CalendarDayStatus = 'past';
+
+            if (tebar !== '' && date < tebar) {
+                status = 'before';
+            } else if (today !== '' && date === today) {
+                status = 'today';
+            } else if (today !== '' && date > today) {
+                status = 'future';
+            }
+
+            cells.push({
+                date,
+                label: day,
+                status,
+                sampled: sampleDates.has(date),
+            });
+        }
+
+        while (cells.length % 7 !== 0) {
+            cells.push(null);
+        }
+
+        return {
+            monthLabel: new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('id-ID', {
+                month: 'long',
+                year: 'numeric',
+                timeZone: 'UTC',
+            }),
+            monthStart,
+            cells,
+            samples: samplingRows
+                .filter((row) => row.tanggal.slice(0, 7) === monthStart.slice(0, 7))
+                .sort((left, right) => left.tanggal.localeCompare(right.tanggal)),
+        };
+    });
+
+    const calendarDaySamples = $derived(
+        calendarDay
+            ? samplingRows
+                .filter((row) => row.tanggal.slice(0, 10) === calendarDay?.date)
+                .sort((left, right) => left.tanggal.localeCompare(right.tanggal))
+            : [],
+    );
+    const calendarDayHistory = $derived(
+        calendarDay
+            ? history.find((row) => row.tanggal.slice(0, 10) === calendarDay?.date) ?? null
+            : null,
+    );
+
+    function calendarStatusLabel(status: CalendarDayStatus): string {
+        return {
+            before: 'Sebelum tebar',
+            past: 'Hari terlewat',
+            today: 'Hari ini',
+            future: 'Akan datang',
+        }[status];
+    }
+
+    function shiftCalendarMonth(offset: number): void {
+        if (calendarMonthStart === '') return;
+
+        const [year, month] = calendarMonthStart.split('-').map(Number);
+        const next = new Date(Date.UTC(year, month - 1 + offset, 1));
+
+        calendarMonth = next.toISOString().slice(0, 10);
+        calendarExplicit = true;
+    }
+
 </script>
 
 <AppHead title={detail ? `Pantauan ${detail.kolam.kode}` : 'Pantauan kolam'} />
@@ -1546,7 +2109,7 @@
             <div class="hero-topline">
                 <span class="eyebrow"><i class="status-pulse"></i> OPERASIONAL KOLAM</span>
                 <span class="hero-code">KODE {detail.kolam.kode}</span>
-                <span class="hero-status" class:offline={onlineCount === 0} class:warning={onlineCount > 0 && offlineCount > 0}><i></i> {onlineCount === 0 ? 'Perangkat offline' : offlineCount > 0 ? `${offlineCount} perangkat perlu perhatian` : 'Monitoring aktif'}</span>
+                <span class="hero-status" class:offline={onlineCount === 0} class:warning={onlineCount > 0 && offlineCount > 0 && !simulasiSelesai} class:ready={simulasiSelesai}><i></i> {simulasiSelesai ? 'Siap panen' : onlineCount === 0 ? 'Perangkat offline' : offlineCount > 0 ? `${offlineCount} perangkat perlu perhatian` : 'Monitoring aktif'}</span>
             </div>
 
             <div class="hero-title-block">
@@ -1607,12 +2170,12 @@
                 <span class="sim-label">KONTROL SIMULASI</span>
                 <div class="sim-deck-heading">
                     <h2>Sandbox operasional</h2>
-                    <span class="sim-run-status" class:active={playing} class:busy={simBusy}>
+                    <span class="sim-run-status" class:active={playing && !simulasiSelesai} class:busy={simBusy && !autoPilotAktif} class:finished={simulasiSelesai} class:autopilot={autoPilotAktif}>
                         <i></i>
-                        {simBusy ? 'Memproses' : playing ? 'Berjalan' : 'Dijeda'}
+                        {autoPilotAktif ? 'Auto pilot' : simulasiSelesai ? 'Selesai' : simBusy ? 'Memproses' : playing ? 'Berjalan' : 'Dijeda'}
                     </span>
                 </div>
-                <p>Percepatan waktu untuk menguji respons kualitas air, sensor, pakan, dan pertumbuhan ikan. Sensor tetap membaca otomatis sesuai interval, baik saat dipercepat maupun saat simulasi dijeda.</p>
+                <p>Percepatan waktu untuk menguji respons kualitas air, sensor, pakan, dan pertumbuhan ikan. Simulasi berhenti otomatis saat bobot rata-rata ikan hidup mencapai target panen; sensor tetap membaca otomatis sesuai interval.</p>
             </div>
             <span class="sim-harvest {harvestTone}">
                 <FishIcon size={14} />
@@ -1665,7 +2228,7 @@
                                 class="sim-preset-chip"
                                 class:selected={simulationSpeed === speed}
                                 aria-pressed={simulationSpeed === speed}
-                                disabled={simBusy}
+                                disabled={simBusy || simulasiSelesai || autoPilotAktif}
                                 onclick={() => changeSpeed(speed)}
                             >
                                 {speed}×
@@ -1679,14 +2242,14 @@
 
         <div class="sim-deck-footer">
             <div class="sim-deck-footer-actions">
-                <button class="sim-bottom-action run" class:playing onclick={togglePlayback} disabled={simBusy}>
-                    <span class="sim-action-icon">{playing ? 'Ⅱ' : '▶'}</span>
+                <button class="sim-bottom-action run" class:playing onclick={togglePlayback} disabled={simBusy || simulasiSelesai || autoPilotAktif}>
+                    <span class="sim-action-icon">{simulasiSelesai ? '✓' : playing ? 'Ⅱ' : '▶'}</span>
                     <span class="sim-action-copy">
-                        <b>{playing ? 'Jeda simulasi' : 'Jalankan simulasi'}</b>
-                        <small>{playing ? 'Hentikan sementara laju waktu' : `Mulai percepatan ${simulationSpeed}×`}</small>
+                        <b>{simulasiSelesai ? 'Siap panen' : playing ? 'Jeda simulasi' : 'Jalankan simulasi'}</b>
+                        <small>{simulasiSelesai ? 'Target tercapai — reset untuk siklus baru' : playing ? 'Hentikan sementara laju waktu' : `Mulai percepatan ${simulationSpeed}×`}</small>
                     </span>
                 </button>
-                <button class="sim-bottom-action reset" onclick={() => (resetOpen = true)} disabled={simBusy || playing}>
+                <button class="sim-bottom-action reset" onclick={() => (resetOpen = true)} disabled={simBusy || playing || autoPilotAktif}>
                     <span class="sim-action-icon">
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v6h-6" />
@@ -1697,12 +2260,26 @@
                         <small>{playing ? 'Jeda simulasi sebelum reset' : 'Kosongkan data, mulai siklus baru'}</small>
                     </span>
                 </button>
+                <button class="sim-bottom-action autopilot" onclick={openAutoPilot} disabled={simBusy || simulasiSelesai || playing || autoPilotAktif}>
+                    <span class="sim-action-icon">✦</span>
+                    <span class="sim-action-copy">
+                        <b>Auto pilot</b>
+                        <small>{simulasiSelesai ? 'Siklus selesai' : 'Percepat, pakan, dan timbang otomatis'}</small>
+                    </span>
+                </button>
+                <button class="sim-bottom-action stop-auto" onclick={() => void forceStopAutoPilot()} disabled={!autoPilotAktif}>
+                    <span class="sim-action-icon">■</span>
+                    <span class="sim-action-copy">
+                        <b>Hentikan paksa</b>
+                        <small>{autoPilotAktif ? 'Hentikan auto pilot sekarang' : 'Tidak ada Auto pilot aktif'}</small>
+                    </span>
+                </button>
             </div>
             <div class="sim-deck-footer-meta">
                 <span class="sim-deck-hint">
-                    {simBusy ? 'Simulasi sedang diproses. Sensor membaca setiap tick virtual.' : playing ? `Percepatan ${simulationSpeed}× aktif. Sensor tetap membaca sesuai interval.` : 'Sensor membaca otomatis setiap interval. Mulai simulasi hanya mempercepat waktu.'}
+                    {autoPilotAktif ? (autoPilotMessage || `Auto pilot berjalan · target ${autoPilotTarget} g`) : simulasiSelesai ? 'Target panen tercapai. Kolam selesai dan siap panen; reset untuk memulai siklus baru.' : simBusy ? 'Simulasi sedang diproses. Sensor membaca setiap tick virtual.' : playing ? `Percepatan ${simulationSpeed}× aktif. Sensor tetap membaca sesuai interval.` : 'Sensor membaca otomatis setiap interval. Mulai simulasi hanya mempercepat waktu.'}
                 </span>
-                <span class="sim-sensor-status"><i></i> Sensor merekam otomatis</span>
+                <span class="sim-sensor-status"><i></i> {autoPilotAktif ? 'Auto pilot berjalan' : simulasiSelesai ? 'Siklus selesai' : 'Sensor merekam otomatis'}</span>
                 <button class="sim-deck-edit" onclick={openEdit}>Edit kolam</button>
             </div>
         </div>
@@ -1715,12 +2292,12 @@
                     <h3>Topologi kolam & sensor</h3>
                     <p>Pemantauan kolam seperti topology map: status perangkat, zona air, dan populasi ikan dalam satu tampilan.</p>
                 </div>
-                <span class="badge ok"><span class="d"></span>Kolam aktif</span>
+                <span class="badge ok"><span class="d"></span>{simulasiSelesai ? 'Siap panen' : 'Kolam aktif'}</span>
             </div>
             <div
                 class="pond-stage"
                 class:playing
-                class:simulating={simBusy || playing}
+                class:simulating={simBusy || playing || autoPilotAktif}
                 class:oxygen-rich={doValue !== null && doValue > 6}
                 class:temperature-high={suhuValue !== null && suhuValue > 31}
                 class:ph-unstable={phValue !== null && (phValue < 6.5 || phValue > 8.5)}
@@ -2039,6 +2616,74 @@
         </div>
     </section>
 
+    <section class="pond-calendar-section">
+        <div class="section-title-row">
+            <div>
+                <h2>Kalender log harian kolam</h2>
+                <p>Log performa kolam per hari, termasuk riwayat timbang ikan.</p>
+            </div>
+            <div class="calendar-controls">
+                <button type="button" aria-label="Bulan sebelumnya" onclick={() => shiftCalendarMonth(-1)}>‹</button>
+                <b>{calendarModel.monthLabel}</b>
+                <button type="button" aria-label="Bulan berikutnya" onclick={() => shiftCalendarMonth(1)}>›</button>
+                {#if calendarExplicit}
+                    <button type="button" class="calendar-today" onclick={() => { calendarMonth = ''; calendarExplicit = false; }}>Bulan berjalan</button>
+                {/if}
+            </div>
+        </div>
+
+        <div class="card pond-calendar-card">
+            <div class="calendar-weekdays">
+                {#each CALENDAR_WEEKDAYS as label}
+                    <span>{label}</span>
+                {/each}
+            </div>
+            <div class="calendar-grid">
+                {#each calendarModel.cells as day}
+                    {#if day}
+                        <button
+                            type="button"
+                            class="calendar-day {day.status}"
+                            class:sampled={day.sampled}
+                            title={`${day.date}${day.sampled ? ' · ada timbangan' : ''}`}
+                            onclick={() => { calendarDay = day; }}
+                        >
+                            <b>{day.label}</b>
+                            {#if day.sampled}<i></i>{/if}
+                        </button>
+                    {:else}
+                        <span class="calendar-blank"></span>
+                    {/if}
+                {/each}
+            </div>
+            <div class="calendar-legend">
+                <span><i class="past"></i>Hari terlewat</span>
+                <span><i class="today"></i>Hari ini</span>
+                <span><i class="future"></i>Akan datang</span>
+                <span><i class="before"></i>Sebelum tebar</span>
+                <span><i class="sampled"></i>Ada timbangan</span>
+            </div>
+
+            <div class="calendar-sample-log">
+                <div class="calendar-sample-log-head">
+                    <h3>Riwayat timbang bulan ini</h3>
+                    <span>{calendarModel.samples.length} sesi</span>
+                </div>
+                {#if calendarModel.samples.length === 0}
+                    <p class="calendar-empty-note">Belum ada timbangan pada bulan ini.</p>
+                {:else}
+                    {#each calendarModel.samples as row}
+                        <div class="calendar-sample-row">
+                            <span>{formatSamplingDate(row.tanggal)}</span>
+                            <b>{row.bobot_rata_g.toLocaleString('id-ID', { maximumFractionDigits: 2 })} g</b>
+                            <small>{row.jumlah_sampel} ekor</small>
+                        </div>
+                    {/each}
+                {/if}
+            </div>
+        </div>
+    </section>
+
     <section class="sampling-chart-section">
         <div class="section-title-row">
             <div>
@@ -2233,6 +2878,140 @@
     </div>
 {/if}
 
+{#if calendarDay}
+    <div class="pond-modal" role="presentation">
+        <button class="pond-modal-backdrop" aria-label="Tutup detail harian" onclick={() => (calendarDay = null)}></button>
+        <dialog open class="pond-modal-box calendar-day-modal" aria-label={`Log harian ${calendarDay.date}`}>
+            <button class="pond-modal-close" aria-label="Tutup" onclick={() => (calendarDay = null)}>×</button>
+            <span class="modal-kicker">LOG HARIAN KOLAM</span>
+            <h2>{formatSamplingDate(calendarDay.date)}</h2>
+            <p class="modal-subtitle"><span class="calendar-status-pill {calendarDay.status}">{calendarStatusLabel(calendarDay.status)}</span> · {calendarDay.date}</p>
+
+            <div class="calendar-detail-summary">
+                <span><small>Status hari</small><b>{calendarStatusLabel(calendarDay.status)}</b></span>
+                <span><small>Timbangan</small><b>{calendarDaySamples.length} sesi</b></span>
+                {#if calendarDayHistory}
+                    <span><small>Bobot harian</small><b>{calendarDayHistory.bobot_rata_g.toLocaleString('id-ID', { maximumFractionDigits: 2 })} g</b></span>
+                    <span><small>Ikan mati</small><b>{calendarDayHistory.jumlah_mati} ekor</b></span>
+                {:else}
+                    <span><small>Bobot harian</small><b>—</b></span>
+                    <span><small>Ikan mati</small><b>—</b></span>
+                {/if}
+            </div>
+
+            <div class="calendar-detail-block">
+                <div class="calendar-detail-head">
+                    <b>Riwayat timbang</b>
+                    <span>{calendarDaySamples.length} sesi</span>
+                </div>
+                {#if calendarDaySamples.length === 0}
+                    <p class="calendar-empty-note">Tidak ada penimbangan pada hari ini.</p>
+                {:else}
+                    {#each calendarDaySamples as row}
+                        <div class="calendar-sample-row">
+                            <span>{formatSamplingDate(row.tanggal)}</span>
+                            <b>{row.bobot_rata_g.toLocaleString('id-ID', { maximumFractionDigits: 2 })} g</b>
+                            <small>{row.jumlah_sampel} ekor</small>
+                        </div>
+                    {/each}
+                {/if}
+            </div>
+
+            {#if calendarDayHistory}
+                <div class="calendar-detail-block">
+                    <div class="calendar-detail-head"><b>Kondisi harian</b></div>
+                    <div class="calendar-detail-grid">
+                        <span><small>Biomassa</small><b>{calendarDayHistory.biomassa_g.toLocaleString('id-ID', { maximumFractionDigits: 2 })} g</b></span>
+                        <span><small>Stres rata-rata</small><b>{calendarDayHistory.stres_rata.toLocaleString('id-ID', { maximumFractionDigits: 1 })}%</b></span>
+                    </div>
+                </div>
+            {/if}
+
+            <button class="btn block" onclick={() => (calendarDay = null)}>Tutup detail harian</button>
+        </dialog>
+    </div>
+{/if}
+
+{#if autoPilotOpen}
+    <div class="pond-modal" role="presentation">
+        <button class="pond-modal-backdrop" aria-label="Tutup auto pilot" onclick={() => { if (!autoPilotBusy) autoPilotOpen = false; }}></button>
+        <dialog open class="pond-modal-box pond-form-box autopilot-box" aria-label="Auto pilot">
+            <button class="pond-modal-close" aria-label="Tutup" onclick={() => { if (!autoPilotBusy) autoPilotOpen = false; }}>×</button>
+            <span class="modal-kicker">AUTO PILOT</span>
+            <h2>Jalankan auto pilot</h2>
+            <p class="modal-subtitle">Auto pilot menjalankan simulasi di latar belakang dan berhenti saat bobot rata-rata ikan mencapai target <b>{detail?.kolam.bobot_target_panen_g ?? 100} g/ekor</b>. Durasi di bawah hanya perkiraan awal.</p>
+
+            <form class="pond-form" onsubmit={(event) => { event.preventDefault(); void runAutoPilot(); }}>
+                {#if autoPilotError}
+                    <div class="note bad">{autoPilotError}</div>
+                {/if}
+
+                {#if autoPilotMessage}
+                    <div class="autopilot-message">{autoPilotMessage}</div>
+                {/if}
+
+                {#if autoPilotBusy}
+                    <div class="autopilot-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={autoPilotProgress}>
+                        <i style={`width:${autoPilotProgress}%`}></i>
+                        <span>{autoPilotProgress}%</span>
+                    </div>
+                {/if}
+
+                <fieldset class="pond-fieldset">
+                    <legend>Perkiraan durasi</legend>
+                    <p class="field-hint">Durasi ini hanya perkiraan awal. Auto pilot tetap berjalan sampai target panen tercapai.</p>
+                    <div class="pond-field-grid autopilot-duration-grid">
+                        <label>Durasi<input type="number" min="1" step="1" inputmode="numeric" bind:value={autoPilotForm.durationValue} disabled={autoPilotBusy} required /></label>
+                        <label>
+                            Satuan
+                            <select bind:value={autoPilotForm.durationUnit} disabled={autoPilotBusy}>
+                                <option value="hours">Jam</option>
+                                <option value="days">Hari</option>
+                                <option value="months">Bulan (30 hari)</option>
+                            </select>
+                        </label>
+                    </div>
+                </fieldset>
+
+                <fieldset class="pond-fieldset">
+                    <legend>Jadwal pakan otomatis</legend>
+                    <p class="field-hint">Pakan diberikan oleh simulasi pada jam berikut setiap hari. Porsi dibagi otomatis dari dosis harian.</p>
+                    <div class="autopilot-feed-list">
+                        {#each autoPilotFeedTimes as jam, index}
+                            <div class="autopilot-feed-row">
+                                <input
+                                    type="time"
+                                    value={jam}
+                                    disabled={autoPilotBusy}
+                                    oninput={(event) => { autoPilotFeedTimes[index] = event.currentTarget.value; }}
+                                />
+                                <button type="button" class="autopilot-remove" onclick={() => removeAutoPilotFeedTime(index)} disabled={autoPilotBusy || autoPilotFeedTimes.length <= 1}>×</button>
+                            </div>
+                        {/each}
+                        <button type="button" class="btn sm" onclick={addAutoPilotFeedTime} disabled={autoPilotBusy || autoPilotFeedTimes.length >= 6}>+ Tambah jam pakan</button>
+                    </div>
+                </fieldset>
+
+                <fieldset class="pond-fieldset">
+                    <legend>Timbang otomatis mingguan</legend>
+                    <p class="field-hint">Sampel diambil setiap 7 hari pada jam yang dipilih, lalu disimpan sebagai riwayat timbang.</p>
+                    <div class="pond-field-grid">
+                        <label>Jam ukur<input type="time" bind:value={autoPilotForm.sampleHour} disabled={autoPilotBusy} required /></label>
+                        <label>Jumlah sampel (ekor)<input type="number" min="1" max="200" step="1" inputmode="numeric" bind:value={autoPilotForm.sampleCount} disabled={autoPilotBusy} required /></label>
+                    </div>
+                </fieldset>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn" onclick={() => (autoPilotOpen = false)} disabled={autoPilotBusy}>Batal</button>
+                    <button type="submit" class="btn pri" disabled={autoPilotBusy || simulasiSelesai || autoPilotDurationMinutes() <= 0}>
+                        {autoPilotBusy ? 'Auto pilot berjalan...' : 'Mulai auto pilot'}
+                    </button>
+                </div>
+            </form>
+        </dialog>
+    </div>
+{/if}
+
 {#if editOpen}
     <div class="pond-modal" role="presentation">
         <button class="pond-modal-backdrop" aria-label="Tutup edit kolam" onclick={() => (editOpen = false)}></button>
@@ -2240,21 +3019,18 @@
             <button class="pond-modal-close" aria-label="Tutup" onclick={() => (editOpen = false)}>×</button>
             <span class="modal-kicker">PENGATURAN KOLAM</span>
             <h2>Edit kolam</h2>
-            <p class="modal-subtitle">Ubah ukuran sesuai kolam sebenarnya. Volume air dan kepadatan tebar dihitung ulang otomatis.</p>
+            <p class="modal-subtitle">Ubah nama, target panen, dan tempo simulasi. Ukuran kolam dan populasi awal tidak diubah dari form ini.</p>
             {#if editError}
                 <div class="note bad">{editError}</div>
             {/if}
             <div class="edit-form">
                 <label class="edit-field-wide">Nama kolam<input bind:value={editForm.nama} required maxlength="100" /></label>
-                <label>Panjang (m)<input type="number" step="0.1" min="0.1" inputmode="decimal" bind:value={editForm.panjang_m} required /></label>
-                <label>Lebar (m)<input type="number" step="0.1" min="0.1" inputmode="decimal" bind:value={editForm.lebar_m} required /></label>
-                <label>Tinggi air (m)<input type="number" step="0.1" min="0.1" inputmode="decimal" bind:value={editForm.tinggi_air_m} required /></label>
-                <label>Target panen (g)<input type="number" min="1" step="1" inputmode="numeric" bind:value={editForm.bobot_target_panen_g} /></label>
-                <label>Kecepatan waktu<input type="number" min="1" step="1" inputmode="numeric" bind:value={editForm.kecepatan_waktu} /></label>
-            </div>
-            <div class="pond-volume-preview">
-                <span>Volume air setelah disimpan</span>
-                <b>{editVolume.toFixed(2)} m³ <small>({Math.round(editVolume * 1000).toLocaleString('id-ID')} liter)</small></b>
+                <label>Target panen (g/ekor)<input type="number" min="1" step="1" inputmode="numeric" bind:value={editForm.bobot_target_panen_g} required /></label>
+                <label>
+                    Kecepatan waktu (menit virtual/detik nyata)
+                    <input type="number" min="1" step="1" inputmode="numeric" bind:value={editForm.kecepatan_waktu} required />
+                    <span class="hint">Contoh: 60 berarti 60 menit virtual berjalan setiap 1 detik nyata.</span>
+                </label>
             </div>
             <button class="btn pri block" disabled={editBusy} onclick={() => void saveEdit()}>{editBusy ? 'Menyimpan...' : 'Simpan perubahan'}</button>
         </dialog>

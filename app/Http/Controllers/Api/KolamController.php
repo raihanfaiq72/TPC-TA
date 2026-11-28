@@ -371,6 +371,7 @@ class KolamController extends Controller
                 'waktu_sandbox_sekarang' => $kolam->waktu_mulai_sandbox,
                 'waktu_sandbox_sinkron' => Carbon::now(),
                 'status' => 'aktif',
+                'auto_pilot_aktif' => false,
             ]);
             $kolam->perangkats()->update([
                 'terakhir_baca' => null,

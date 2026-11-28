@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\DatasetController;
 use App\Http\Controllers\Api\IkanController;
 use App\Http\Controllers\Api\KolamController;
 use App\Http\Controllers\Api\LingkunganController;
+use App\Http\Controllers\Api\PakanController;
 use App\Http\Controllers\Api\SamplingController;
 use App\Http\Controllers\Api\SensorController;
 use App\Http\Controllers\Api\SimulasiController;
@@ -63,6 +64,10 @@ Route::middleware('throttle:600,1')->group(function () {
             Route::delete('/sampling/{samplingId}', 'destroy')->whereNumber(['kolamId', 'samplingId'])->name('sampling.destroy');
         });
 
+    Route::put('/kolam/{kolamId}/pakan/jadwal', [PakanController::class, 'aturJadwal'])
+        ->whereNumber('kolamId')
+        ->name('api.kolam.pakan.jadwal');
+
     Route::prefix('kolam/{kolamId}/sensor')
         ->name('api.kolam.sensor.')
         ->controller(SensorController::class)
@@ -82,6 +87,8 @@ Route::middleware('throttle:600,1')->group(function () {
         ->group(function () {
             Route::get('/', 'status')->whereNumber('id')->name('status');
             Route::post('/tick', 'tick')->whereNumber('id')->name('tick');
+            Route::post('/auto-pilot/start', 'startAutoPilot')->whereNumber('id')->name('auto-pilot.start');
+            Route::post('/auto-pilot/stop', 'stopAutoPilot')->whereNumber('id')->name('auto-pilot.stop');
         });
 
     Route::prefix('kolam/{kolamId}')

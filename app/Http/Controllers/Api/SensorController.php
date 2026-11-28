@@ -284,6 +284,10 @@ class SensorController extends Controller
     {
         $virtual = Carbon::parse($kolam->waktu_sandbox_sekarang);
 
+        if ($kolam->status === 'selesai') {
+            return $virtual;
+        }
+
         if ($kolam->waktu_sandbox_sinkron === null) {
             return $virtual;
         }

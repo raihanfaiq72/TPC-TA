@@ -5,14 +5,108 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Ikan;
 use App\Models\JadwalPakan;
+use App\Models\JenisPakan;
 use App\Models\KeadaanZona;
 use App\Models\Kolam;
 use App\Models\LogPakan;
 use App\Models\ZonaKolam;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 class PakanController extends Controller
 {
+    /**
+     * Mengatur jam pakan yang dipakai Auto pilot dan simulasi tick.
+     */
+    public function aturJadwal(Request $request, int $kolamId): JsonResponse
+    {
+        $data = $request->validate([
+            'jadwal' => ['required', 'array', 'min:1', 'max:6'],
+            'jadwal.*' => ['required', 'date_format:H:i'],
+        ]);
+
+        $kolam = Kolam::query()->find($kolamId);
+
+        if (! $kolam instanceof Kolam) {
+            return response()->json([
+                'message' => 'Kolam tidak ditemukan.',
+            ], 404);
+        }
+
+        $jam = array_values(array_unique(array_map(
+            fn (string $value): string => Carbon::parse($value)->format('H:i'),
+            $data['jadwal'],
+        )));
+        sort($jam);
+
+        if ($jam === []) {
+            return response()->json([
+                'message' => 'Minimal satu jam pakan harus diisi.',
+            ], 422);
+        }
+
+        $pakan = JenisPakan::query()->orderBy('id')->first();
+
+        if (! $pakan instanceof JenisPakan) {
+            return response()->json([
+                'message' => 'Jenis pakan belum tersedia.',
+            ], 422);
+        }
+
+        $jadwal = JadwalPakan::query()
+            ->where('kolam_id', $kolamId)
+            ->orderBy('id')
+            ->get();
+        $total = count($jam);
+        $porsiTersisa = 100.0;
+        $porsi = [];
+
+        foreach ($jam as $index => $value) {
+            $bagian = $index === $total - 1
+                ? round($porsiTersisa, 2)
+                : round(100 / $total, 2);
+
+            $porsi[] = $bagian;
+            $porsiTersisa -= $bagian;
+        }
+
+        foreach ($jam as $index => $value) {
+            $item = $jadwal->get($index);
+
+            if ($item instanceof JadwalPakan) {
+                $item->update([
+                    'jam' => $value.':00',
+                    'porsi_dosis_persen' => $porsi[$index],
+                    'aktif' => true,
+                ]);
+
+                continue;
+            }
+
+            JadwalPakan::query()->create([
+                'kolam_id' => $kolamId,
+                'jenis_pakan_id' => $pakan->id,
+                'jam' => $value.':00',
+                'porsi_dosis_persen' => $porsi[$index],
+                'aktif' => true,
+            ]);
+        }
+
+        $jadwal->slice($total)->each(
+            fn (JadwalPakan $item) => $item->update(['aktif' => false]),
+        );
+
+        return response()->json([
+            'message' => 'Jadwal pakan berhasil diperbarui.',
+            'jadwal_pakan' => JadwalPakan::query()
+                ->where('kolam_id', $kolamId)
+                ->where('aktif', true)
+                ->orderBy('jam')
+                ->get(['id', 'jam', 'porsi_dosis_persen']),
+        ]);
+    }
+
     /**
      * Jalankan jadwal pakan yang jatuh pada waktu tick.
      */

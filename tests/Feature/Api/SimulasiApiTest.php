@@ -87,6 +87,80 @@ test('feeding log is inserted when a schedule falls inside the tick interval', f
         ->toBeGreaterThan($pakanSebelum);
 });
 
+test('simulation stops and finishes the pond when live fish reach the harvest target', function () {
+    $this->seed(SandboxSeeder::class);
+
+    $kolam = Kolam::query()->where('kode', 'C07')->firstOrFail();
+    $bobotRata = (float) Ikan::query()
+        ->where('kolam_id', $kolam->id)
+        ->where('status', 'hidup')
+        ->avg('bobot_g');
+
+    $kolam->update([
+        'bobot_target_panen_g' => max(1.0, round($bobotRata - 0.1, 2)),
+    ]);
+
+    $this->postJson("/api/kolam/{$kolam->id}/simulasi/tick", [
+        'menit' => 1440,
+    ])
+        ->assertOk()
+        ->assertJsonPath('target_tercapai', true)
+        ->assertJsonPath('status_kolam', 'selesai')
+        ->assertJsonPath('tick_dijalankan', 0)
+        ->assertJsonPath('menit_dijalankan', 0)
+        ->assertJsonPath('selesai', true);
+
+    expect($kolam->fresh()->status)->toBe('selesai');
+
+    $this->getJson("/api/kolam/{$kolam->id}/simulasi")
+        ->assertOk()
+        ->assertJsonPath('kolam.status', 'selesai')
+        ->assertJsonPath('ikan.target_tercapai', true)
+        ->assertJsonStructure([
+            'ikan' => ['bobot_rata_hidup_g', 'target_bobot_g', 'target_tercapai'],
+        ]);
+});
+
+test('api can update the feeding schedule used by auto pilot', function () {
+    $this->seed(SandboxSeeder::class);
+
+    $kolam = Kolam::query()->where('kode', 'C07')->firstOrFail();
+
+    $this->putJson("/api/kolam/{$kolam->id}/pakan/jadwal", [
+        'jadwal' => ['06:30', '12:30', '18:30'],
+    ])
+        ->assertOk()
+        ->assertJsonPath('jadwal_pakan.0.jam', '06:30:00')
+        ->assertJsonPath('jadwal_pakan.1.jam', '12:30:00')
+        ->assertJsonPath('jadwal_pakan.2.jam', '18:30:00');
+
+    expect(DB::table('jadwal_pakans')
+        ->where('kolam_id', $kolam->id)
+        ->where('aktif', true)
+        ->orderBy('jam')
+        ->pluck('jam')
+        ->all())
+        ->toBe(['06:30:00', '12:30:00', '18:30:00']);
+});
+
+test('auto pilot state can be started and force stopped', function () {
+    $this->seed(SandboxSeeder::class);
+
+    $kolam = Kolam::query()->where('kode', 'C07')->firstOrFail();
+
+    $this->postJson("/api/kolam/{$kolam->id}/simulasi/auto-pilot/start")
+        ->assertOk()
+        ->assertJsonPath('auto_pilot_aktif', true);
+
+    expect($kolam->fresh()->auto_pilot_aktif)->toBeTrue();
+
+    $this->postJson("/api/kolam/{$kolam->id}/simulasi/auto-pilot/stop")
+        ->assertOk()
+        ->assertJsonPath('auto_pilot_aktif', false);
+
+    expect($kolam->fresh()->auto_pilot_aktif)->toBeFalse();
+});
+
 test('simulation returns partial progress when the per-request tick budget is reached', function () {
     config(['sandbox.maks_tick_per_eksekusi' => 1]);
 

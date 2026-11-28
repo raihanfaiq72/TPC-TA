@@ -41,6 +41,10 @@ class SimulasiController extends Controller
     {
         $virtual = Carbon::parse($kolam->waktu_sandbox_sekarang);
 
+        if ($kolam->status === 'selesai') {
+            return $virtual;
+        }
+
         if ($kolam->waktu_sandbox_sinkron === null) {
             return $virtual;
         }
@@ -52,6 +56,25 @@ class SimulasiController extends Controller
         );
 
         return $virtual->copy()->addSeconds($selisihDetik);
+    }
+
+    /**
+     * Target panen dihitung dari bobot rata-rata ikan hidup, sesuai target
+     * per ekor pada kolam. Satu kolam bisa berhenti lebih awal jika rata-rata
+     * populasi sudah mencapai target.
+     */
+    private function targetPanenTercapai(int $kolamId, float $target): bool
+    {
+        if ($target <= 0) {
+            return false;
+        }
+
+        $bobotRata = Ikan::query()
+            ->where('kolam_id', $kolamId)
+            ->where('status', 'hidup')
+            ->avg('bobot_g');
+
+        return $bobotRata !== null && (float) $bobotRata >= $target;
     }
 
     public function tick(Request $request, int $id): JsonResponse
@@ -72,6 +95,9 @@ class SimulasiController extends Controller
             }
 
             $waktuAwal = $this->waktuLive($kolam);
+            $targetBobot = (float) $kolam->bobot_target_panen_g;
+            $targetTercapai = $kolam->status === 'selesai'
+                || $this->targetPanenTercapai($id, $targetBobot);
             $tickMenit = (int) config('sandbox.tick_menit');
 
             if ($tickMenit <= 0) {
@@ -93,6 +119,10 @@ class SimulasiController extends Controller
             $batasWaktu = microtime(true) + $batasDetik;
 
             for ($i = 0; $i < $jumlahTick; $i++) {
+                if ($targetTercapai) {
+                    break;
+                }
+
                 if ($tickDijalankan > 0 && microtime(true) >= $batasWaktu) {
                     break;
                 }
@@ -129,20 +159,38 @@ class SimulasiController extends Controller
                         $waktuBerikutnya->format('Y-m-d H:i:s'),
                     );
 
+                    $targetTercapai = $targetTercapai
+                        || $this->targetPanenTercapai($id, $targetBobot);
+
                     $prosesHarian = true;
                 }
 
                 $waktuSekarang = $waktuBerikutnya;
                 $tickDijalankan++;
+
+                if ($targetTercapai) {
+                    break;
+                }
             }
 
             // 6. Simpan waktu virtual paling akhir sekali saja.
             $waktuSinkron = Carbon::now();
-
-            $kolam->update([
+            $atributKolam = [
                 'waktu_sandbox_sekarang' => $waktuSekarang,
                 'waktu_sandbox_sinkron' => $waktuSinkron,
-            ]);
+            ];
+
+            if ($targetTercapai) {
+                $atributKolam['status'] = 'selesai';
+                $atributKolam['auto_pilot_aktif'] = false;
+            }
+
+            $kolam->update($atributKolam);
+
+            $bobotRataHidup = Ikan::query()
+                ->where('kolam_id', $id)
+                ->where('status', 'hidup')
+                ->avg('bobot_g');
 
             $pakan = LogPakan::query()
                 ->where('kolam_id', $id)
@@ -151,14 +199,21 @@ class SimulasiController extends Controller
                 ->get(['waktu', 'jumlah_g']);
 
             return response()->json([
-                'message' => 'Tick simulasi berhasil dijalankan',
+                'message' => $targetTercapai
+                    ? 'Target panen tercapai. Simulasi selesai dan kolam siap panen.'
+                    : 'Tick simulasi berhasil dijalankan',
                 'waktu_sebelum' => $waktuAwal->format('Y-m-d H:i:s'),
                 'waktu_sekarang' => $waktuSekarang->format('Y-m-d H:i:s'),
                 'waktu_sinkron' => $waktuSinkron->format('Y-m-d H:i:s'),
                 'menit_dijalankan' => $tickDijalankan * $tickMenit,
                 'tick_dijalankan' => $tickDijalankan,
                 'tick_menit' => $tickMenit,
-                'selesai' => $tickDijalankan >= $tickDiminta,
+                'selesai' => $targetTercapai || $tickDijalankan >= $tickDiminta,
+                'target_tercapai' => $targetTercapai,
+                'status_kolam' => $targetTercapai ? 'selesai' : 'aktif',
+                'bobot_rata_hidup_g' => $bobotRataHidup === null ? null : round((float) $bobotRataHidup, 2),
+                'target_bobot_g' => $targetBobot,
+                'auto_pilot_aktif' => (bool) $kolam->auto_pilot_aktif,
                 'proses_harian' => $prosesHarian,
                 'pakan_kejadian' => $pakan->count(),
                 'pakan_g' => round((float) $pakan->sum('jumlah_g'), 2),
@@ -169,6 +224,44 @@ class SimulasiController extends Controller
                 'alert_baru' => $jumlahAlert,
             ]);
         });
+    }
+
+    public function startAutoPilot(int $id): JsonResponse
+    {
+        $kolam = Kolam::query()->find($id);
+
+        if (! $kolam instanceof Kolam) {
+            return response()->json(['message' => 'Kolam tidak ditemukan.'], 404);
+        }
+
+        if ($kolam->status === 'selesai') {
+            return response()->json([
+                'message' => 'Kolam sudah selesai dan siap panen.',
+            ], 422);
+        }
+
+        $kolam->update(['auto_pilot_aktif' => true]);
+
+        return response()->json([
+            'auto_pilot_aktif' => true,
+            'message' => 'Auto pilot dimulai.',
+        ]);
+    }
+
+    public function stopAutoPilot(int $id): JsonResponse
+    {
+        $kolam = Kolam::query()->find($id);
+
+        if (! $kolam instanceof Kolam) {
+            return response()->json(['message' => 'Kolam tidak ditemukan.'], 404);
+        }
+
+        $kolam->update(['auto_pilot_aktif' => false]);
+
+        return response()->json([
+            'auto_pilot_aktif' => false,
+            'message' => 'Auto pilot dihentikan paksa.',
+        ]);
     }
 
     /**
@@ -185,6 +278,9 @@ class SimulasiController extends Controller
                 'waktu_sandbox_sekarang',
                 'waktu_sandbox_sinkron',
                 'kecepatan_waktu',
+                'bobot_target_panen_g',
+                'status',
+                'auto_pilot_aktif',
             ])
             ->find($id);
 
@@ -194,25 +290,40 @@ class SimulasiController extends Controller
             ], 404);
         }
 
-        $waktuSinkron = Carbon::now();
-
-        $kolam->update([
-            'waktu_sandbox_sekarang' => $this->waktuLive($kolam),
-            'waktu_sandbox_sinkron' => $waktuSinkron,
-        ]);
-
         $ikan = Ikan::query()
             ->where('kolam_id', $id)
             ->get(['status', 'bobot_g']);
 
         $hidup = $ikan->where('status', 'hidup');
         $mati = $ikan->where('status', 'mati');
+        $targetBobot = (float) $kolam->bobot_target_panen_g;
+        $bobotRataHidup = $hidup->isEmpty()
+            ? null
+            : (float) $hidup->avg('bobot_g');
+        $targetTercapai = $kolam->status === 'selesai'
+            || ($targetBobot > 0 && $bobotRataHidup !== null && $bobotRataHidup >= $targetBobot);
+
+        if ($targetTercapai) {
+            $kolam->status = 'selesai';
+        }
+
+        $waktuSinkron = Carbon::now();
+
+        $kolam->update([
+            'waktu_sandbox_sekarang' => $this->waktuLive($kolam),
+            'waktu_sandbox_sinkron' => $waktuSinkron,
+            'status' => $kolam->status,
+            'auto_pilot_aktif' => $targetTercapai ? false : (bool) $kolam->auto_pilot_aktif,
+        ]);
 
         $ringkasanIkan = [
             'jumlah_awal' => $ikan->count(),
             'jumlah_hidup' => $hidup->count(),
             'jumlah_mati' => $mati->count(),
             'biomassa_hidup_g' => round((float) $hidup->sum('bobot_g'), 2),
+            'bobot_rata_hidup_g' => $bobotRataHidup === null ? null : round($bobotRataHidup, 2),
+            'target_bobot_g' => $targetBobot,
+            'target_tercapai' => $targetTercapai,
         ];
 
         $lingkungan = ZonaKolam::query()
