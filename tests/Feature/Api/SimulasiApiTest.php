@@ -198,6 +198,43 @@ test('auto pilot creates and advances pond cycles with different stock and targe
         ->and(SiklusKolam::query()->where('kolam_id', $kolam->id)->where('status', 'aktif')->value('urutan'))->toBe(2);
 });
 
+test('pond create and edit forms persist multiple cycle plans', function () {
+    $this->seed(SandboxSeeder::class);
+
+    $this->postJson('/api/kolam', [
+        'kode' => 'TUI-CYCLE',
+        'nama' => 'Kolam Siklus',
+        'panjang_m' => 3,
+        'lebar_m' => 2,
+        'tinggi_air_m' => 1.2,
+        'jumlah_ikan_awal' => 50,
+        'bobot_awal_rata_g' => 1.2,
+        'bobot_awal_sd_g' => 0.15,
+        'panjang_awal_rata_cm' => 3.5,
+        'bobot_target_panen_g' => 10,
+        'kecepatan_waktu' => 60,
+        'siklus' => [
+            ['jumlah_tebar' => 50, 'target_bobot_g' => 10],
+            ['jumlah_tebar' => 40, 'target_bobot_g' => 15],
+        ],
+    ])->assertCreated();
+
+    $kolam = Kolam::query()->where('kode', 'TUI-CYCLE')->firstOrFail();
+
+    expect(SiklusKolam::query()->where('kolam_id', $kolam->id)->count())->toBe(2)
+        ->and(SiklusKolam::query()->where('kolam_id', $kolam->id)->where('status', 'aktif')->value('jumlah_tebar'))->toBe(50);
+
+    $this->putJson("/api/kolam/{$kolam->id}", [
+        'siklus' => [
+            ['jumlah_tebar' => 50, 'target_bobot_g' => 12],
+            ['jumlah_tebar' => 35, 'target_bobot_g' => 18],
+        ],
+    ])->assertOk();
+
+    expect(SiklusKolam::query()->where('kolam_id', $kolam->id)->where('status', 'aktif')->value('target_bobot_g'))->toEqual(12)
+        ->and(SiklusKolam::query()->where('kolam_id', $kolam->id)->where('status', 'pending')->value('jumlah_tebar'))->toBe(35);
+});
+
 test('simulation returns partial progress when the per-request tick budget is reached', function () {
     config(['sandbox.maks_tick_per_eksekusi' => 1]);
 

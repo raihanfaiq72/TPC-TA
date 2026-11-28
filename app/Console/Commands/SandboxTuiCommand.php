@@ -318,7 +318,7 @@ class SandboxTuiCommand extends Command
         info('SmartAqua Sandbox TUI');
         $this->line('  Buat kolam → siklus → pakan → timbang → percepatan → panen');
         $this->line('  Semua proses berjalan langsung di database, tanpa browser.');
-        $this->line();
+        $this->line('');
     }
 
     private function positiveNumber(string $value): ?string
@@ -436,7 +436,7 @@ class SandboxTuiCommand extends Command
         $this->line('  Sample next : '.($nextSample?->format('Y-m-d H:i') ?? '—'));
         $this->line('───────────────────────────────────────────────────────────────');
         $this->line('  Siklus: '.$cycles->map(fn (SiklusKolam $cycle): string => '#'.$cycle->urutan.' '.$cycle->status.' ('.$cycle->jumlah_tebar.' ekor → '.number_format((float) $cycle->target_bobot_g, 1).' g)')->implode(' · '));
-        $this->line();
+        $this->line('');
     }
 
     /**
@@ -532,12 +532,12 @@ class SandboxTuiCommand extends Command
         info('SmartAqua TUI — ringkasan siklus');
         $this->line('  Kolam: '.$kolam->nama.' ('.$kolam->kode.')');
         $this->line('  Total waktu nyata proses: '.$this->formatReal(microtime(true) - $this->startedAt));
-        $this->line();
+        $this->line('');
         table(
             ['Siklus', 'Tebar', 'Target g', 'Status', 'Mulai', 'Selesai', 'Bobot akhir', 'Biomassa', 'Mati'],
             $rows,
         );
-        $this->line();
+        $this->line('');
         info('Selesai. Semua siklus tercatat di riwayat siklus kolam.');
     }
 }
