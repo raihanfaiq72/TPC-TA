@@ -426,7 +426,7 @@ class SandboxTuiCommand extends Command
             ];
         }
 
-        /** @var array<int, array{process: Process, command: array<int, string>, pond: Kolam, group: array<int, array{jumlah_tebar: int, target_bobot_g: float}>, label: string, status_path: string, total: int, done: bool, attempts: int, max_attempts: int, exit_code: int|null, error: string|null, last_error: string|null, retrying: bool}> $workers */
+        /** @var array<int, array{process: Process, command: array<int, string>, pond: Kolam, group: array<int, array{jumlah_tebar: int, target_bobot_g: float}>, label: string, status_path: string, total: int, done: bool, attempts: int, exit_code: int|null, error: string|null, last_error: string|null, retrying: bool}> $workers */
         $workers = [];
 
         try {
@@ -450,9 +450,7 @@ class SandboxTuiCommand extends Command
                     'total' => count($item['group']),
                     'done' => false,
                     'attempts' => 0,
-                    'max_attempts' => 0,
                     'failures' => 0,
-                    'max_failures' => 0,
                     'last_heartbeat_at' => microtime(true),
                     'last_status_mtime' => 0,
                     'last_progress_key' => '',
@@ -526,7 +524,7 @@ class SandboxTuiCommand extends Command
     private function monitorWorkers(array $workers): void
     {
         $lastRender = 0.0;
-        $stallSeconds = 90;
+        $stallSeconds = 45;
 
         while (true) {
             $anyRunning = false;
@@ -651,33 +649,21 @@ class SandboxTuiCommand extends Command
     private function restartWorker(array &$workers, int $index, int $exitCode): void
     {
         $worker = $workers[$index];
-        $exhausted = ($worker['max_failures'] > 0 && $worker['failures'] >= $worker['max_failures'])
-            || ($worker['max_attempts'] > 0 && $worker['attempts'] >= $worker['max_attempts']);
 
-        if ($exhausted) {
-            $workers[$index]['done'] = true;
-            $workers[$index]['exit_code'] = $exitCode;
-            $workers[$index]['error'] = $worker['last_error'] ?? 'Worker gagal setelah beberapa percobaan.';
-            $workers[$index]['retrying'] = false;
+        $workers[$index]['attempts']++;
+        $workers[$index]['failures']++;
+        $workers[$index]['retrying'] = true;
+        $workers[$index]['retry_at'] = microtime(true) + (
+            $workers[$index]['failures'] <= 1
+                ? 0.0
+                : min(0.5 * ($workers[$index]['failures'] - 1), 5.0)
+        );
+        $workers[$index]['last_status_mtime'] = 0;
+        $workers[$index]['last_progress_key'] = '0|';
+        $workers[$index]['last_heartbeat_at'] = microtime(true);
 
-            return;
-        }
-
-        try {
-            $workers[$index]['attempts']++;
-            $workers[$index]['failures']++;
-            $workers[$index]['retrying'] = true;
-            $workers[$index]['retry_at'] = microtime(true) + min(0.3 * max(1, $workers[$index]['failures']), 30.0);
-            $workers[$index]['last_status_mtime'] = 0;
-            $workers[$index]['last_progress_key'] = '0|';
-            $workers[$index]['last_heartbeat_at'] = microtime(true);
-
-            if (is_file($worker['status_path'])) {
-                @unlink($worker['status_path']);
-            }
-        } catch (Throwable $exception) {
-            $workers[$index]['done'] = true;
-            $workers[$index]['error'] = 'Gagal restart worker: '.$exception->getMessage();
+        if (is_file($worker['status_path'])) {
+            @unlink($worker['status_path']);
         }
     }
 
@@ -729,7 +715,6 @@ class SandboxTuiCommand extends Command
                 'last_completed' => null,
                 'done' => true,
                 'attempts' => $worker['attempts'],
-                'max_attempts' => $worker['max_attempts'],
                 'retrying' => false,
                 'error' => 'Kolam worker tidak ditemukan.',
                 'last_error' => $worker['last_error'],
@@ -770,7 +755,6 @@ class SandboxTuiCommand extends Command
             'last_completed' => $cycles->where('status', 'selesai')->sortByDesc('urutan')->first(),
             'done' => $worker['done'],
             'attempts' => $worker['attempts'],
-            'max_attempts' => $worker['max_attempts'],
             'retrying' => $worker['retrying'],
             'error' => $worker['error'],
             'last_error' => $worker['last_error'],
@@ -819,7 +803,7 @@ class SandboxTuiCommand extends Command
                         : ' · '.mb_substr((string) $snapshot['last_error'], 0, 100);
 
                     $this->pushWorkerLog(
-                        $snapshot['label'].' restart #'.$snapshot['attempts'].$reason,
+                        $snapshot['label'].' restart otomatis'.$reason,
                     );
                     $loggedEvent = true;
                 }
@@ -968,9 +952,7 @@ class SandboxTuiCommand extends Command
                     ? 'selesai'
                     : ($snapshot['retrying']
                         ? '<fg=yellow;options=bold>memulihkan...</>'
-                        : ($snapshot['attempts'] > 0
-                            ? '<fg=cyan>jalan · pulih '.$snapshot['attempts'].'x</>'
-                            : 'jalan')));
+                        : 'jalan'));
             $active = $snapshot['active'] instanceof SiklusKolam
                 ? '#'.$snapshot['active']->urutan
                 : '—';
