@@ -39,6 +39,10 @@ class SandboxTuiCommand extends Command
 
     private ?float $remainingEstimate = null;
 
+    private ?float $initialEta = null;
+
+    private float $initialEtaAt = 0.0;
+
     public function handle(): int
     {
         set_time_limit(0);
@@ -416,35 +420,43 @@ class SandboxTuiCommand extends Command
             ];
         }
 
-        /** @var array<int, array{process: Process, pond: Kolam, group: array<int, array{jumlah_tebar: int, target_bobot_g: float}>, label: string, status_path: string, total: int, done: bool, exit_code: int|null, error: string|null}> $workers */
+        /** @var array<int, array{process: Process, command: array<int, string>, pond: Kolam, group: array<int, array{jumlah_tebar: int, target_bobot_g: float}>, label: string, status_path: string, total: int, done: bool, attempts: int, max_attempts: int, exit_code: int|null, error: string|null, last_error: string|null, retrying: bool}> $workers */
         $workers = [];
 
         try {
             foreach ($prepared as $item) {
-                $process = new Process([
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'aqua:simulate:worker',
-                    '--pond='.$item['pond']->id,
-                    '--sample-hour='.$config['sample_hour'],
-                    '--sample-count='.$config['sample_count'],
-                    '--speed='.$config['speed'],
-                    '--status='.$item['status_path'],
-                ], base_path());
-                $process->setTimeout(null);
-                $process->start();
-
-                $workers[] = [
-                    'process' => $process,
+                $worker = [
+                    'process' => null,
+                    'command' => [
+                        PHP_BINARY,
+                        base_path('artisan'),
+                        'aqua:simulate:worker',
+                        '--pond='.$item['pond']->id,
+                        '--sample-hour='.$config['sample_hour'],
+                        '--sample-count='.$config['sample_count'],
+                        '--speed='.$config['speed'],
+                        '--status='.$item['status_path'],
+                    ],
                     'pond' => $item['pond'],
                     'group' => $item['group'],
                     'label' => $item['label'],
                     'status_path' => $item['status_path'],
                     'total' => count($item['group']),
                     'done' => false,
+                    'attempts' => 0,
+                    'max_attempts' => 20,
+                    'failures' => 0,
+                    'max_failures' => 5,
+                    'last_heartbeat_at' => microtime(true),
+                    'last_status_mtime' => 0,
                     'exit_code' => null,
                     'error' => null,
+                    'last_error' => null,
+                    'retrying' => false,
                 ];
+
+                $worker['process'] = $this->startWorkerProcess($worker);
+                $workers[] = $worker;
             }
 
             $this->monitorWorkers($workers);
@@ -459,6 +471,18 @@ class SandboxTuiCommand extends Command
                 }
             }
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $worker
+     */
+    private function startWorkerProcess(array $worker): Process
+    {
+        $process = new Process($worker['command'], base_path());
+        $process->setTimeout(null);
+        $process->start();
+
+        return $process;
     }
 
     /**
@@ -494,6 +518,7 @@ class SandboxTuiCommand extends Command
     private function monitorWorkers(array $workers): void
     {
         $lastRender = 0.0;
+        $stallSeconds = 180;
 
         while (true) {
             $anyRunning = false;
@@ -503,18 +528,50 @@ class SandboxTuiCommand extends Command
                     continue;
                 }
 
+                $statusMtime = is_file($worker['status_path']) ? (int) filemtime($worker['status_path']) : 0;
+
+                if ($statusMtime > $worker['last_status_mtime']) {
+                    $workers[$index]['last_status_mtime'] = $statusMtime;
+                    $workers[$index]['last_heartbeat_at'] = microtime(true);
+
+                    if ($worker['process']->isRunning()) {
+                        $workers[$index]['failures'] = 0;
+                    }
+                }
+
                 if ($worker['process']->isRunning()) {
-                    $anyRunning = true;
+                    $workers[$index]['retrying'] = false;
+
+                    if (microtime(true) - $worker['last_heartbeat_at'] > $stallSeconds) {
+                        $workers[$index]['process']->stop(2);
+                        $workers[$index]['last_error'] = 'Worker tidak merespons selama '.$stallSeconds.' detik.';
+                        $this->restartWorker($workers, $index, $stallSeconds);
+                    } else {
+                        $anyRunning = true;
+                    }
 
                     continue;
                 }
 
-                $workers[$index]['done'] = true;
-                $workers[$index]['exit_code'] = $worker['process']->getExitCode();
+                $exitCode = $worker['process']->getExitCode();
+                $status = $this->readWorkerStatus($worker['status_path']);
 
-                if ($workers[$index]['exit_code'] !== 0) {
-                    $status = $this->readWorkerStatus($worker['status_path']);
-                    $workers[$index]['error'] = (string) ($status['error'] ?? 'Worker berhenti dengan kode '.$workers[$index]['exit_code'].'.');
+                if ($exitCode === 0 || ($status['state'] ?? null) === 'finished') {
+                    $workers[$index]['done'] = true;
+                    $workers[$index]['exit_code'] = $exitCode;
+                    $workers[$index]['retrying'] = false;
+
+                    continue;
+                }
+
+                $workers[$index]['last_error'] = $this->workerFailureMessage($worker, $exitCode);
+                $this->restartWorker($workers, $index, $exitCode);
+            }
+
+            foreach ($workers as $worker) {
+                if (! $worker['done'] && $worker['process']->isRunning()) {
+                    $anyRunning = true;
+                    break;
                 }
             }
 
@@ -526,13 +583,84 @@ class SandboxTuiCommand extends Command
             }
 
             if (! $anyRunning) {
-                break;
+                $pending = false;
+
+                foreach ($workers as $worker) {
+                    if (! $worker['done']) {
+                        $pending = true;
+                        break;
+                    }
+                }
+
+                if (! $pending) {
+                    break;
+                }
             }
 
             usleep(200000);
         }
 
         $this->renderWorkerSummary($workers);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $workers
+     */
+    private function restartWorker(array &$workers, int $index, int $exitCode): void
+    {
+        $worker = $workers[$index];
+
+        if ($worker['failures'] >= $worker['max_failures'] || $worker['attempts'] >= $worker['max_attempts']) {
+            $workers[$index]['done'] = true;
+            $workers[$index]['exit_code'] = $exitCode;
+            $workers[$index]['error'] = $worker['last_error'] ?? 'Worker gagal setelah beberapa percobaan.';
+            $workers[$index]['retrying'] = false;
+
+            return;
+        }
+
+        try {
+            $workers[$index]['attempts']++;
+            $workers[$index]['failures']++;
+            $workers[$index]['retrying'] = true;
+            $workers[$index]['last_status_mtime'] = 0;
+            $workers[$index]['last_heartbeat_at'] = microtime(true);
+
+            if (is_file($worker['status_path'])) {
+                @unlink($worker['status_path']);
+            }
+
+            // Beri jeda bertahap agar koneksi database / resource sempat pulih.
+            usleep(300000 * $workers[$index]['failures']);
+            $workers[$index]['process'] = $this->startWorkerProcess($worker);
+        } catch (Throwable $exception) {
+            $workers[$index]['done'] = true;
+            $workers[$index]['error'] = 'Gagal restart worker: '.$exception->getMessage();
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $worker
+     */
+    private function workerFailureMessage(array $worker, ?int $exitCode): string
+    {
+        $status = $this->readWorkerStatus($worker['status_path']);
+
+        if (is_string($status['error'] ?? null) && $status['error'] !== '') {
+            return $status['error'];
+        }
+
+        $error = trim($worker['process']->getErrorOutput());
+
+        if ($error !== '') {
+            return $error;
+        }
+
+        $output = trim($worker['process']->getOutput());
+
+        return $output !== ''
+            ? $output
+            : 'Worker berhenti dengan kode '.($exitCode ?? '?').'.';
     }
 
     /**
@@ -544,7 +672,25 @@ class SandboxTuiCommand extends Command
         $pond = Kolam::query()->find($worker['pond']->id);
 
         if (! $pond instanceof Kolam) {
-            throw new \RuntimeException('Kolam worker tidak ditemukan.');
+            return [
+                'label' => $worker['label'],
+                'pond' => $worker['pond'],
+                'total' => max(1, (int) $worker['total']),
+                'completed' => 0,
+                'active' => null,
+                'average' => null,
+                'target' => 0.0,
+                'ratio' => 0.0,
+                'progress' => 0.0,
+                'virtual' => null,
+                'fish' => 0,
+                'done' => true,
+                'attempts' => $worker['attempts'],
+                'max_attempts' => $worker['max_attempts'],
+                'retrying' => false,
+                'error' => 'Kolam worker tidak ditemukan.',
+                'last_error' => $worker['last_error'],
+            ];
         }
 
         $cycles = SiklusKolam::query()
@@ -579,7 +725,11 @@ class SandboxTuiCommand extends Command
             'virtual' => Carbon::parse($pond->waktu_sandbox_sekarang),
             'fish' => Ikan::query()->where('kolam_id', $pond->id)->where('status', 'hidup')->count(),
             'done' => $worker['done'],
+            'attempts' => $worker['attempts'],
+            'max_attempts' => $worker['max_attempts'],
+            'retrying' => $worker['retrying'],
             'error' => $worker['error'],
+            'last_error' => $worker['last_error'],
         ];
     }
 
@@ -600,11 +750,26 @@ class SandboxTuiCommand extends Command
         $bar = str_repeat('█', $filled).str_repeat('░', $barWidth - $filled);
         $realNow = Carbon::now('Asia/Jakarta');
         $elapsed = max(0.1, microtime(true) - $this->startedAt);
-        $eta = $overall > 0 ? $elapsed * (100 - $overall) / $overall : null;
+        $rawEta = $overall > 0 ? $elapsed * (100 - $overall) / $overall : null;
+
+        if ($this->initialEta === null && $rawEta !== null && $overall >= 0.5) {
+            $this->initialEta = $rawEta;
+            $this->initialEtaAt = $elapsed;
+        }
+
+        $eta = $this->initialEta !== null
+            ? max(0, $this->initialEta - ($elapsed - $this->initialEtaAt))
+            : ($overall >= 0.5 ? $rawEta : null);
+
+        if ($overall >= 100) {
+            $eta = 0.0;
+        }
+
         $etaText = $eta === null
             ? '—'
             : $realNow->copy()->addSeconds((int) round($eta))->format('H:i:s').' WIB';
         $countdown = $eta === null ? '—' : $this->formatCountdown($eta);
+        $initialEtaText = $this->initialEta === null ? null : $this->formatReal($this->initialEta);
 
         $this->clearScreen();
         $this->line('╔══════════════════════════════════════════════════════════════╗');
@@ -616,6 +781,9 @@ class SandboxTuiCommand extends Command
         $this->line('  Progress     : ['.$bar.'] '.round($overall).'% total');
         $this->line('<fg=yellow;options=bold>  Dunia nyata  : selesai di jam '.$etaText.'</>');
         $this->line('<fg=yellow;options=bold>  Hitung mundur: '.$countdown.' lagi (estimasi)</>');
+        if ($initialEtaText !== null) {
+            $this->line('  Estimasi awal: '.$initialEtaText.' (dikunci, tidak naik)');
+        }
         $this->line('  Durasi nyata : '.$this->formatReal($elapsed));
         $this->line('───────────────────────────────────────────────────────────────');
 
@@ -625,7 +793,11 @@ class SandboxTuiCommand extends Command
             $workerBar = str_repeat('█', $fill).str_repeat('░', $width - $fill);
             $status = $snapshot['error'] !== null
                 ? '<fg=red;options=bold>ERROR</>'
-                : ($snapshot['done'] ? 'selesai' : 'jalan');
+                : ($snapshot['done']
+                    ? 'selesai'
+                    : ($snapshot['retrying'] || $snapshot['attempts'] > 0
+                        ? '<fg=yellow;options=bold>retry '.$snapshot['attempts'].'/'.$snapshot['max_attempts'].'</>'
+                        : 'jalan'));
             $active = $snapshot['active'] instanceof SiklusKolam
                 ? '#'.$snapshot['active']->urutan
                 : '—';
@@ -640,6 +812,10 @@ class SandboxTuiCommand extends Command
                 .' · '.$snapshot['fish'].' ikan · '.($snapshot['virtual']?->format('Y-m-d H:i') ?? '—')
                 .' · '.$status
             );
+
+            if ($snapshot['last_error'] !== null && $snapshot['retrying']) {
+                $this->line('      <fg=yellow>↳ '.$snapshot['last_error'].'</>');
+            }
         }
 
         $this->line('───────────────────────────────────────────────────────────────');
