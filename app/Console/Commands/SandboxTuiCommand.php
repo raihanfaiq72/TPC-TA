@@ -48,15 +48,7 @@ class SandboxTuiCommand extends Command
 
     private float $singleEtaAt = 0.0;
 
-    private float $singleLogAt = 0.0;
-
     private ?float $deadlineAt = null;
-
-    /** @var array<int, string> */
-    private array $workerLogs = [];
-
-    /** @var array<string, array<string, mixed>> */
-    private array $workerLogState = [];
 
     public function handle(): int
     {
@@ -278,9 +270,6 @@ class SandboxTuiCommand extends Command
         $lastRender = 0.0;
         $iteration = 0;
 
-        $this->pushWorkerLog('Simulasi dimulai · '.$kolam->kode.' · '.count($config['cycles']).' siklus');
-        $this->singleLogAt = microtime(true);
-
         while (true) {
             if (++$iteration > 1000000) {
                 throw new \RuntimeException('Batas iterasi TUI tercapai.');
@@ -358,19 +347,6 @@ class SandboxTuiCommand extends Command
             }
 
             if ($payload['target_tercapai'] ?? false) {
-                $finishedCycle = SiklusKolam::query()
-                    ->where('kolam_id', $kolam->id)
-                    ->where('status', 'aktif')
-                    ->orderByDesc('urutan')
-                    ->first();
-
-                if ($finishedCycle instanceof SiklusKolam) {
-                    $this->pushWorkerLog(
-                        'Siklus #'.$finishedCycle->urutan.' selesai · '
-                        .($average === null ? '—' : number_format($average, 2).' g'),
-                    );
-                }
-
                 $cycleResponse = app(SiklusController::class)->next($kolam->id);
                 $cyclePayload = json_decode((string) $cycleResponse->getContent(), true);
 
@@ -379,8 +355,6 @@ class SandboxTuiCommand extends Command
                 }
 
                 if ($cyclePayload['selesai'] ?? false) {
-                    $this->pushWorkerLog('Semua siklus selesai');
-
                     $this->renderDashboard(
                         $kolam,
                         $current,
@@ -391,7 +365,6 @@ class SandboxTuiCommand extends Command
                         $nextSample,
                         $config,
                     );
-                    info('Semua siklus selesai.');
                     break;
                 }
 
@@ -400,19 +373,6 @@ class SandboxTuiCommand extends Command
                 $cycleStartAverage = null;
                 $cycleStartedAt = microtime(true);
                 $nextSample = $this->nextSampleTime($current, $sampleHour);
-                $nextCycle = SiklusKolam::query()
-                    ->where('kolam_id', $kolam->id)
-                    ->where('status', 'aktif')
-                    ->orderByDesc('urutan')
-                    ->first();
-
-                if ($nextCycle instanceof SiklusKolam) {
-                    $this->pushWorkerLog(
-                        'Mulai siklus #'.$nextCycle->urutan.' · target '.number_format((float) $nextCycle->target_bobot_g, 2).' g',
-                    );
-                }
-
-                info('Siklus berikutnya dimulai: '.$kolam->jumlah_ikan_awal.' ekor · target '.$kolam->bobot_target_panen_g.' g');
 
                 continue;
             }
@@ -741,8 +701,6 @@ class SandboxTuiCommand extends Command
                 try {
                     $this->renderWorkersDashboard($workers);
                 } catch (Throwable $exception) {
-                    $this->pushWorkerLog('DB parent · '.mb_substr($exception->getMessage(), 0, 120));
-
                     try {
                         DB::disconnect();
                         DB::reconnect();
@@ -931,145 +889,6 @@ class SandboxTuiCommand extends Command
     /**
      * @param  array<int, array<string, mixed>>  $workers
      */
-    /**
-     * @param  array<int, array<string, mixed>>  $snapshots
-     */
-    private function syncWorkerLogs(array $snapshots): void
-    {
-        foreach ($snapshots as $snapshot) {
-            $key = (string) $snapshot['label'];
-            $previous = $this->workerLogState[$key] ?? null;
-            $activeUrutan = $snapshot['active'] instanceof SiklusKolam
-                ? $snapshot['active']->urutan
-                : null;
-            $now = microtime(true);
-            $lastPeriodic = (float) ($previous['last_periodic'] ?? 0);
-            $loggedEvent = false;
-
-            if ($previous === null) {
-                $this->pushWorkerLog(
-                    $snapshot['label'].' mulai · '.$snapshot['pond']->kode.' · '.$snapshot['total'].' siklus',
-                );
-
-                if ($snapshot['error'] !== null) {
-                    $this->pushWorkerLog(
-                        $snapshot['label'].' ERROR · '.mb_substr((string) $snapshot['error'], 0, 120),
-                    );
-                } elseif ($snapshot['done']) {
-                    $this->pushWorkerLog(
-                        $snapshot['label'].' selesai semua siklus ('.$snapshot['completed'].'/'.$snapshot['total'].')',
-                    );
-                }
-
-                $lastPeriodic = $now;
-                $loggedEvent = true;
-            } else {
-                if ($snapshot['attempts'] > (int) ($previous['attempts'] ?? 0)) {
-                    $reason = $snapshot['last_error'] === null
-                        ? ''
-                        : ' · '.mb_substr((string) $snapshot['last_error'], 0, 100);
-
-                    $this->pushWorkerLog(
-                        $snapshot['label'].' restart otomatis'.$reason,
-                    );
-                    $loggedEvent = true;
-                }
-
-                if ($snapshot['error'] !== null && ($previous['error'] ?? null) === null) {
-                    $this->pushWorkerLog(
-                        $snapshot['label'].' ERROR · '.mb_substr((string) $snapshot['error'], 0, 120),
-                    );
-                    $loggedEvent = true;
-                }
-
-                if ($snapshot['completed'] > (int) ($previous['completed'] ?? 0)) {
-                    $delta = $snapshot['completed'] - (int) ($previous['completed'] ?? 0);
-                    $lastCompleted = $snapshot['last_completed'];
-                    $detail = $lastCompleted instanceof SiklusKolam
-                        ? 'siklus #'.$lastCompleted->urutan.' · '.($lastCompleted->bobot_akhir_g === null
-                            ? '—'
-                            : number_format((float) $lastCompleted->bobot_akhir_g, 2).' g')
-                        : $delta.' siklus';
-
-                    $this->pushWorkerLog(
-                        $snapshot['label'].' selesai '.$detail
-                        .($delta > 1 ? ' (+'.$delta.' siklus)' : ''),
-                    );
-                    $loggedEvent = true;
-                }
-
-                if ($activeUrutan !== null && $activeUrutan !== ($previous['active'] ?? null)) {
-                    $this->pushWorkerLog(
-                        $snapshot['label'].' mulai siklus #'.$activeUrutan
-                        .' · target '.number_format((float) $snapshot['target'], 2).' g',
-                    );
-                    $loggedEvent = true;
-                }
-
-                if ($snapshot['done'] && ! ($previous['done'] ?? false) && $snapshot['error'] === null) {
-                    $this->pushWorkerLog(
-                        $snapshot['label'].' selesai semua siklus ('.$snapshot['completed'].'/'.$snapshot['total'].')',
-                    );
-                    $loggedEvent = true;
-                }
-
-                $deadlineRisk = ($snapshot['deadline_slack'] ?? null) !== null
-                    && (float) $snapshot['deadline_slack'] < 0;
-
-                if ($deadlineRisk && ! ($previous['deadline_risk'] ?? false)) {
-                    $this->pushWorkerLog(
-                        $snapshot['label'].' risiko deadline · slack -'
-                        .$this->formatCountdown(abs((float) $snapshot['deadline_slack'])),
-                    );
-                    $loggedEvent = true;
-                } elseif (! $deadlineRisk && ($previous['deadline_risk'] ?? false)) {
-                    $this->pushWorkerLog($snapshot['label'].' kembali aman terhadap deadline');
-                    $loggedEvent = true;
-                }
-
-                if (! $snapshot['done'] && $snapshot['error'] === null && $now - $lastPeriodic >= 20) {
-                    $average = $snapshot['average'] === null
-                        ? '—'
-                        : number_format((float) $snapshot['average'], 2);
-                    $active = $activeUrutan === null ? '—' : '#'.$activeUrutan;
-
-                    $this->pushWorkerLog(
-                        $snapshot['label'].' '.$snapshot['completed'].'/'.$snapshot['total']
-                        .' · aktif '.$active.' · '.$average.'/'.number_format((float) $snapshot['target'], 2).' g'
-                        .' · '.($snapshot['virtual']?->format('Y-m-d H:i') ?? '—'),
-                    );
-                    $lastPeriodic = $now;
-                    $loggedEvent = true;
-                }
-            }
-
-            if ($loggedEvent && $previous !== null) {
-                // Event lain sudah cukup; jangan langsung menambah progress periodik.
-                $lastPeriodic = $now;
-            }
-
-            $this->workerLogState[$key] = [
-                'completed' => $snapshot['completed'],
-                'active' => $activeUrutan,
-                'done' => $snapshot['done'],
-                'error' => $snapshot['error'],
-                'attempts' => $snapshot['attempts'],
-                'deadline_risk' => ($snapshot['deadline_slack'] ?? null) !== null
-                    && (float) $snapshot['deadline_slack'] < 0,
-                'last_periodic' => $lastPeriodic,
-            ];
-        }
-    }
-
-    private function pushWorkerLog(string $message): void
-    {
-        $this->workerLogs[] = '['.Carbon::now('Asia/Jakarta')->format('H:i:s').'] '.$message;
-
-        if (count($this->workerLogs) > 8) {
-            array_shift($this->workerLogs);
-        }
-    }
-
     /**
      * @param  array<int, array<string, mixed>>  $workers
      */
@@ -1288,7 +1107,6 @@ class SandboxTuiCommand extends Command
             throw new \RuntimeException($this->responseError($stored, 'Timbangan otomatis gagal disimpan.'));
         }
 
-        $this->pushWorkerLog('Timbang otomatis '.$waktu->toDateString().' · '.($sample['jumlah_sampel'] ?? $count).' ekor');
     }
 
     /**
@@ -1359,15 +1177,6 @@ class SandboxTuiCommand extends Command
         $singleInitialEtaText = $this->singleEta === null ? null : $this->formatReal($this->singleEta);
         $this->remainingEstimate = $totalEstimate;
         $this->etaText = $etaTotal;
-
-        if (microtime(true) - $this->singleLogAt >= 20) {
-            $this->pushWorkerLog(
-                ($active ? 'Siklus #'.$active->urutan : 'Siklus selesai')
-                .' · '.($average === null ? '—' : number_format($average, 2))
-                .'/'.number_format($target, 2).' g · '.$current->format('Y-m-d H:i'),
-            );
-            $this->singleLogAt = microtime(true);
-        }
 
         $this->clearScreen();
         $this->line('╔══════════════════════════════════════════════════════════════╗');
