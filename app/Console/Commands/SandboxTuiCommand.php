@@ -27,11 +27,13 @@ use function Laravel\Prompts\text;
 
 class SandboxTuiCommand extends Command
 {
-    protected $signature = 'aqua:tui';
+    protected $signature = 'aqua:simulate';
 
-    protected $description = 'TUI SmartAqua: buat kolam, siklus, pakan, sampling, percepatan, dan estimasi selesai';
+    protected $description = 'TUI simulasi lengkap SmartAqua: siklus, pakan, sampling, percepatan, dan estimasi selesai';
 
     private float $startedAt = 0.0;
+
+    private string $etaText = '—';
 
     public function handle(): int
     {
@@ -264,7 +266,7 @@ class SandboxTuiCommand extends Command
                     Request::create('/api/kolam/'.$kolam->id.'/simulasi/tick', 'POST', ['menit' => $minutes]),
                     $kolam->id,
                 ),
-                'Menjalankan simulasi · '.$current->format('Y-m-d H:i').' · '.$minutes.' menit virtual',
+                'Menjalankan simulasi · '.$current->format('Y-m-d H:i').' · '.$minutes.' menit virtual · ETA '.$this->etaText,
             );
             $payload = json_decode((string) $response->getContent(), true);
 
@@ -458,11 +460,20 @@ class SandboxTuiCommand extends Command
         $barWidth = 28;
         $filled = (int) round($overall / 100 * $barWidth);
         $bar = str_repeat('█', $filled).str_repeat('░', $barWidth - $filled);
+        $realNow = Carbon::now('Asia/Jakarta');
+        $etaCycle = $cycleEstimate === null
+            ? '—'
+            : $realNow->copy()->addSeconds((int) round($cycleEstimate))->format('H:i:s').' WIB';
+        $etaTotal = $totalEstimate === null
+            ? '—'
+            : $realNow->copy()->addSeconds((int) round($totalEstimate))->format('H:i:s').' WIB';
+        $this->etaText = $etaTotal;
 
         $this->clearScreen();
         $this->line('╔══════════════════════════════════════════════════════════════╗');
         $this->line('║              SMARTAQUA — SANDBOX AUTO PILOT TUI               ║');
         $this->line('╚══════════════════════════════════════════════════════════════╝');
+        $this->line('<fg=cyan;options=bold>  Jam nyata   : '.$realNow->format('H:i:s').' WIB</>');
         $this->line('  Kolam       : '.$kolam->nama.' ('.$kolam->kode.')');
         $this->line('  Siklus      : '.($completed + ($active ? 1 : 0)).' / '.$totalCycles.' · '.($active ? 'Siklus '.$active->urutan : 'menunggu'));
         $this->line('  Target      : '.number_format($target, 2).' g/ekor');
@@ -470,6 +481,8 @@ class SandboxTuiCommand extends Command
         $this->line('  Virtual     : '.$current->format('Y-m-d H:i').' · '.Ikan::query()->where('kolam_id', $kolam->id)->where('status', 'hidup')->count().' ikan hidup');
         $this->line('  Progress    : ['.$bar.'] '.round($overall).'% total');
         $this->line('  Estimasi    : siklus ini '.($cycleEstimate === null ? '—' : $this->formatReal($cycleEstimate)).' · total '.($totalEstimate === null ? '—' : $this->formatReal($totalEstimate)));
+        $this->line('<fg=yellow;options=bold>  ETA siklus  : '.$etaCycle.'</>');
+        $this->line('<fg=yellow;options=bold>  ETA total   : '.$etaTotal.'</>');
         $this->line('  Pakan       : '.implode(', ', $config['feed_times']));
         $this->line('  Timbang     : setiap 7 hari pukul '.$config['sample_hour'].' · '.$config['sample_count'].' ekor');
         $this->line('  Sample next : '.($nextSample?->format('Y-m-d H:i') ?? '—'));
